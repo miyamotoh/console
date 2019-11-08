@@ -48,11 +48,13 @@ export BRIDGE_BASE_PATH
 export FORCE_CHROME_BRANCH_BASE="665006"
 export FORCE_CHROME_BRANCH_SHA256SUM="a1ae2e0950828f991119825f62c24464ab3765aa219d150a94fb782a4c66a744"
 
-out=/out
+out=./out
 set +e
 mkdir -p $out
+kind=$RUN_SUITE
+[ -z "$kind" ] && kind=all
 failed=1
-if TAP_LOG="$out/tap.log" yarn run test-gui --output $out; then
+if TAP_LOG="$out/tap.log" yarn run test-suite --output $out -- --suite $kind; then
   failed=0
 fi
 cp -a ./gui_test_screenshots $out/

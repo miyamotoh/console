@@ -10,7 +10,7 @@ import { format } from 'util';
 
 const tap = !!process.env.TAP;
 
-export const BROWSER_TIMEOUT = 15000;
+export const BROWSER_TIMEOUT = 30000;
 export const appHost = `${process.env.BRIDGE_BASE_ADDRESS || 'http://localhost:9000'}${(
   process.env.BRIDGE_BASE_PATH || '/'
 ).replace(/\/$/, '')}`;
@@ -46,6 +46,8 @@ export const config: Config = {
     print: () => null,
     defaultTimeoutInterval: 40000,
   },
+  allScriptsTimeout: 50000,
+  getPageTimeout: 50000,
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
@@ -75,11 +77,25 @@ export const config: Config = {
         password_manager_enabled: false,
       },
     },
+    'moz:firefoxOptions': {
+      binary: '/usr/bin/firefox',
+      args: ['--headless',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--window-size=1920,1200',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-raf-throttling',
+      ],
+      log: {level: 'trace'},
+    },
   },
   beforeLaunch: () => new Promise((resolve) => htmlReporter.beforeLaunch(resolve)),
   onPrepare: () => {
     const addReporter = (jasmine as any).getEnv().addReporter;
     browser.waitForAngularEnabled(false);
+    browser.manage().timeouts().setScriptTimeout(60000);
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 100000;
     addReporter(htmlReporter);
     addReporter(junitReporter);
     if (tap) {

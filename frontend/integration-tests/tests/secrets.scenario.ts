@@ -118,10 +118,7 @@ describe('Interacting with the create secret forms', () => {
         sshSourceSecretName,
         async () => {
           await secretsView.authTypeDropdown.click().then(() =>
-            browser
-              .actions()
-              .sendKeys(Key.ARROW_UP, Key.ENTER)
-              .perform(),
+            secretsView.authSshOption.click(),
           );
           await browser.wait(until.presenceOf(secretsView.uploadFileTextArea));
           await secretsView.uploadFileTextArea.sendKeys(sshSourceSecretSSHKey);
@@ -280,10 +277,7 @@ describe('Interacting with the create secret forms', () => {
         uploadConfigFileImageSecretName,
         async () => {
           await secretsView.authTypeDropdown.click().then(() =>
-            browser
-              .actions()
-              .sendKeys(Key.ARROW_UP, Key.ENTER)
-              .perform(),
+            secretsView.authConfigFileOption.click(),
           );
           await browser.wait(until.presenceOf(secretsView.uploadFileTextArea));
           await secretsView.uploadFileTextArea.sendKeys(JSON.stringify(configFile));
