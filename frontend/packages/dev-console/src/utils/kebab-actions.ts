@@ -1,9 +1,22 @@
 import * as _ from 'lodash';
-import { K8sKind } from '@console/internal/module/k8s';
+import { K8sKind, referenceFor } from '@console/internal/module/k8s';
 import { KebabAction } from '@console/internal/components/utils';
+import {
+  DaemonSetModel,
+  DeploymentConfigModel,
+  DeploymentModel,
+  ServiceModel,
+  StatefulSetModel,
+} from '@console/internal/models';
 import { ModifyApplication } from '../actions/modify-application';
 
-const modifyApplicationKinds = ['Deployment', 'DeploymentConfig', 'DaemonSet', 'StatefulSet'];
+const modifyApplicationRefs = [
+  referenceFor(DeploymentConfigModel),
+  referenceFor(DeploymentModel),
+  referenceFor(DaemonSetModel),
+  referenceFor(StatefulSetModel),
+  referenceFor(ServiceModel),
+];
 
 export const getKebabActionsForKind = (resourceKind: K8sKind): KebabAction[] => {
   if (!resourceKind) {
@@ -11,5 +24,5 @@ export const getKebabActionsForKind = (resourceKind: K8sKind): KebabAction[] => 
     return [];
   }
 
-  return _.includes(modifyApplicationKinds, resourceKind.kind) ? [ModifyApplication] : [];
+  return _.includes(modifyApplicationRefs, referenceFor(resourceKind)) ? [ModifyApplication] : [];
 };

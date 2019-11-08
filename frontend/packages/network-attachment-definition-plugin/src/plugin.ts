@@ -2,6 +2,7 @@ import * as _ from 'lodash';
 import {
   Plugin,
   ResourceNSNavItem,
+  ResourceDetailsPage,
   ResourceListPage,
   ModelFeatureFlag,
   YAMLTemplate,
@@ -13,6 +14,7 @@ import { NetworkAttachmentDefinitionsYAMLTemplates } from './models/templates';
 
 type ConsumedExtensions =
   | ResourceNSNavItem
+  | ResourceDetailsPage
   | ResourceListPage
   | ModelFeatureFlag
   | YAMLTemplate
@@ -53,8 +55,18 @@ const plugin: Plugin<ConsumedExtensions> = [
       model: models.NetworkAttachmentDefinitionModel,
       loader: () =>
         import(
-          './components/network-attachment-definitions/network-attachment-definition' /* webpackChunkName: "network-attachment-definitions" */
+          './components/network-attachment-definitions/NetworkAttachmentDefinition' /* webpackChunkName: "network-attachment-definitions" */
         ).then((m) => m.NetworkAttachmentDefinitionsPage),
+    },
+  },
+  {
+    type: 'Page/Resource/Details',
+    properties: {
+      model: models.NetworkAttachmentDefinitionModel,
+      loader: () =>
+        import(
+          './components/network-attachment-definitions/NetworkAttachmentDefinitionDetailsPage' /* webpackChunkName: "kubevirt" */
+        ).then((m) => m.NetworkAttachmentDefinitionsDetailsPage),
     },
   },
   {
@@ -64,8 +76,9 @@ const plugin: Plugin<ConsumedExtensions> = [
       path: ['/k8s/ns/:ns/networkattachmentdefinitions/~new'],
       loader: () =>
         import(
-          './components/network-attachment-definitions' /* webpackChunkName: "network-attachment-definitions" */
-        ).then((m) => m.CreateNetAttachDefYAML),
+          './components/network-attachment-definitions/NetworkAttachmentDefinitionCreateYaml' /* webpackChunkName: "network-attachment-definitions" */
+        ).then((m) => m.default),
+      required: FLAG_NET_ATTACH_DEF,
     },
   },
   {
@@ -73,6 +86,33 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: models.NetworkAttachmentDefinitionModel,
       template: NetworkAttachmentDefinitionsYAMLTemplates.getIn(['default']),
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: ['/k8s/ns/:ns/networkattachmentdefinitions/~new/form'],
+      loader: () =>
+        import(
+          './components/network-attachment-definitions/NetworkAttachmentDefinitionsForm' /* webpackChunkName: "network-attachment-definitions" */
+        ).then((m) => m.default),
+      required: FLAG_NET_ATTACH_DEF,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: [
+        '/k8s/ns/:ns/networkattachmentdefinitions',
+        '/k8s/all-namespaces/networkattachmentdefinitions',
+      ],
+      loader: () =>
+        import(
+          './components/network-attachment-definitions' /* webpackChunkName: "network-attachment-definitions" */
+        ).then((m) => m.NetworkAttachmentDefinitionsPage),
+      required: FLAG_NET_ATTACH_DEF,
     },
   },
 ];

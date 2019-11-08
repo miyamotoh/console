@@ -1,2 +1,3 @@
-export * from './network-attachment-definition';
-export * from './network-attachment-definition-create-yaml';
+export * from './NetworkAttachmentDefinition';
+export * from './NetworkAttachmentDefinitionDetails';
+export * from './NetworkAttachmentDefinitionDetailsPage';

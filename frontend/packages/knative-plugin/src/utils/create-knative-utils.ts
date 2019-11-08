@@ -5,6 +5,11 @@ import {
   RevisionModel,
   ConfigurationModel,
   RouteModel,
+  EventSourceCronJobModel,
+  EventSourceContainerModel,
+  EventSourceApiServerModel,
+  EventSourceCamelModel,
+  EventSourceKafkaModel,
 } from '@console/knative-plugin';
 import { getAppLabels } from '@console/dev-console/src/utils/resource-label-utils';
 import {
@@ -24,7 +29,7 @@ export const getKnativeServiceDepResource = (
     project: { name: namespace },
     serverless: { scaling },
     limits,
-    route: { unknownTargetPort },
+    route: { unknownTargetPort, create },
     labels,
     image: { tag: imageTag },
   } = formData;
@@ -52,6 +57,11 @@ export const getKnativeServiceDepResource = (
     metadata: {
       name,
       namespace,
+      labels: {
+        ...defaultLabel,
+        ...labels,
+        ...(!create && { 'serving.knative.dev/visibility': `cluster-local` }),
+      },
     },
     spec: {
       template: {
@@ -150,6 +160,71 @@ export const knativeServingResourcesServices = (namespace: string): FirehoseReso
       kind: referenceForModel(ServiceModel),
       namespace,
       prop: 'ksservices',
+      optional: true,
+    },
+  ];
+  return knativeResource;
+};
+
+export const eventSourceResourcesCronJob = (namespace: string): FirehoseResource[] => {
+  const knativeResource = [
+    {
+      isList: true,
+      kind: referenceForModel(EventSourceCronJobModel),
+      namespace,
+      prop: 'eventSourceCronjob',
+      optional: true,
+    },
+  ];
+  return knativeResource;
+};
+
+export const eventSourceResourcesContainer = (namespace: string): FirehoseResource[] => {
+  const knativeResource = [
+    {
+      isList: true,
+      kind: referenceForModel(EventSourceContainerModel),
+      namespace,
+      prop: 'eventSourceContainers',
+      optional: true,
+    },
+  ];
+  return knativeResource;
+};
+
+export const eventSourceResourcesApiServer = (namespace: string): FirehoseResource[] => {
+  const knativeResource = [
+    {
+      isList: true,
+      kind: referenceForModel(EventSourceApiServerModel),
+      namespace,
+      prop: 'eventSourceApiserver',
+      optional: true,
+    },
+  ];
+  return knativeResource;
+};
+
+export const eventSourceResourcesCamel = (namespace: string): FirehoseResource[] => {
+  const knativeResource = [
+    {
+      isList: true,
+      kind: referenceForModel(EventSourceCamelModel),
+      namespace,
+      prop: 'eventSourceCamel',
+      optional: true,
+    },
+  ];
+  return knativeResource;
+};
+
+export const eventSourceResourcesKafka = (namespace: string): FirehoseResource[] => {
+  const knativeResource = [
+    {
+      isList: true,
+      kind: referenceForModel(EventSourceKafkaModel),
+      namespace,
+      prop: 'eventSourceKafka',
       optional: true,
     },
   ];

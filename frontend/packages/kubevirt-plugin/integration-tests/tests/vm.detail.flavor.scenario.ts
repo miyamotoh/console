@@ -1,10 +1,10 @@
 import { browser, ExpectedConditions as until } from 'protractor';
-import { testName } from '../../../../integration-tests/protractor.conf';
+import { testName } from '@console/internal-integration-tests/protractor.conf';
 import {
   withResource,
   selectDropdownOptionById,
   click,
-} from '../../../console-shared/src/test-utils/utils';
+} from '@console/shared/src/test-utils/utils';
 import * as virtualMachineView from '../views/virtualMachine.view';
 import { VM_CREATE_AND_EDIT_TIMEOUT_SECS } from './utils/consts';
 import { VirtualMachine } from './models/virtualMachine';

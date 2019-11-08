@@ -83,7 +83,7 @@ describe('Create knative Utils', () => {
       ).toBe('5');
       expect(knDeploymentResource.spec.template.spec.containerConcurrency).toBe(1);
     });
-    it('expect not to have minSccale defined', () => {
+    it('expect not to have minScale defined', () => {
       defaultData.serverless.scaling.minpods = 0;
       defaultData.route.unknownTargetPort = '8080';
       const knDeploymentResource: K8sResourceKind = getKnativeServiceDepResource(
@@ -93,6 +93,48 @@ describe('Create knative Utils', () => {
       expect(
         knDeploymentResource.spec.template.metadata.annotations['autoscaling.knative.dev/minScale'],
       ).toBeUndefined();
+    });
+
+    it('expect not to have cluster-local labels added if route is checked', () => {
+      defaultData.route.create = true;
+      const knDeploymentResource: K8sResourceKind = getKnativeServiceDepResource(
+        defaultData,
+        'imgStream',
+      );
+      expect(
+        knDeploymentResource.metadata.labels['serving.knative.dev/visibility'],
+      ).toBeUndefined();
+    });
+
+    it('expect to have cluster-local added if route is not checked', () => {
+      defaultData.route.create = false;
+      const knDeploymentResource: K8sResourceKind = getKnativeServiceDepResource(
+        defaultData,
+        'imgStream',
+      );
+      expect(knDeploymentResource.metadata.labels['serving.knative.dev/visibility']).toBeDefined();
+      expect(knDeploymentResource.metadata.labels['serving.knative.dev/visibility']).toEqual(
+        'cluster-local',
+      );
+    });
+
+    it('expect to have part-of labels added if application name is present', () => {
+      defaultData.application.name = 'my-app';
+      const knDeploymentResource: K8sResourceKind = getKnativeServiceDepResource(
+        defaultData,
+        'imgStream',
+      );
+      expect(knDeploymentResource.metadata.labels['app.kubernetes.io/part-of']).toBeDefined();
+      expect(knDeploymentResource.metadata.labels['app.kubernetes.io/part-of']).toEqual('my-app');
+    });
+
+    it('expect not to have part-of labels added if application name is not present', () => {
+      defaultData.application.name = '';
+      const knDeploymentResource: K8sResourceKind = getKnativeServiceDepResource(
+        defaultData,
+        'imgStream',
+      );
+      expect(knDeploymentResource.metadata.labels['app.kubernetes.io/part-of']).toBeUndefined();
     });
   });
 });

@@ -1,18 +1,21 @@
-import { Resource } from '@console/shared';
+import { FirehoseResult } from '@console/internal/components/utils';
+import { DeploymentKind, PodKind } from '@console/internal/module/k8s';
 import { TopologyDataModel, TopologyDataResources } from '../topology-types';
 
 export const resources: TopologyDataResources = {
-  replicationControllers: { data: [] },
-  pods: { data: [] },
-  deploymentConfigs: { data: [] },
-  services: { data: [] },
-  routes: { data: [] },
-  deployments: { data: [] },
-  replicaSets: { data: [] },
-  buildConfigs: { data: [] },
-  builds: { data: [] },
-  daemonSets: { data: [] },
-  statefulSets: { data: [] },
+  replicationControllers: { loaded: true, loadError: '', data: [] },
+  pods: { loaded: true, loadError: '', data: [] },
+  deploymentConfigs: { loaded: true, loadError: '', data: [] },
+  services: { loaded: true, loadError: '', data: [] },
+  routes: { loaded: true, loadError: '', data: [] },
+  deployments: { loaded: true, loadError: '', data: [] },
+  replicaSets: { loaded: true, loadError: '', data: [] },
+  buildConfigs: { loaded: true, loadError: '', data: [] },
+  builds: { loaded: true, loadError: '', data: [] },
+  daemonSets: { loaded: true, loadError: '', data: [] },
+  statefulSets: { loaded: true, loadError: '', data: [] },
+  pipelineRuns: { loaded: true, loadError: '', data: [] },
+  pipelines: { loaded: true, loadError: '', data: [] },
 };
 
 export const topologyData: TopologyDataModel = {
@@ -20,7 +23,9 @@ export const topologyData: TopologyDataModel = {
   topology: {},
 };
 
-export const sampleDeploymentConfigs: Resource = {
+export const sampleDeploymentConfigs: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'DeploymentConfig',
@@ -35,6 +40,7 @@ export const sampleDeploymentConfigs: Resource = {
         creationTimestamp: '2019-04-22T11:58:33Z',
         labels: {
           app: 'nodejs',
+          'app.kubernetes.io/instance': 'nodejs',
         },
         annotations: {
           'app.openshift.io/vcs-uri': 'https://github.com/redhat-developer/topology-example',
@@ -67,11 +73,12 @@ export const sampleDeploymentConfigs: Resource = {
     },
   ],
 };
-export const sampleDeployments = {
+export const sampleDeployments: FirehoseResult<DeploymentKind[]> = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'Deployment',
-      name: 'analytics-deployment',
       apiVersion: 'apps/v1',
       metadata: {
         annotations: {
@@ -114,7 +121,9 @@ export const sampleDeployments = {
               'app.kubernetes.io/version': '1.0',
             },
           },
-          spec: {},
+          spec: {
+            containers: [],
+          },
         },
         strategy: {
           type: 'RollingUpdate',
@@ -129,8 +138,8 @@ export const sampleDeployments = {
       status: {},
     },
     {
+      apiVersion: 'apps/v1',
       kind: 'Deployment',
-      name: 'wit-deployment',
       metadata: {
         annotations: {
           'deployment.kubernetes.io/revision': '1',
@@ -172,7 +181,9 @@ export const sampleDeployments = {
               'app.kubernetes.io/version': '1.0',
             },
           },
-          spec: {},
+          spec: {
+            containers: [],
+          },
         },
         strategy: {
           type: 'RollingUpdate',
@@ -189,9 +200,12 @@ export const sampleDeployments = {
   ],
 };
 
-export const samplePods: Resource = {
+export const samplePods: FirehoseResult<PodKind[]> = {
+  loaded: true,
+  loadError: '',
   data: [
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'analytics-deployment-59dd7c47d4-',
@@ -231,6 +245,7 @@ export const samplePods: Resource = {
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'analytics-deployment-59dd7c47d4-',
@@ -263,7 +278,7 @@ export const samplePods: Resource = {
         },
       },
       spec: {
-        constainers: [],
+        containers: [],
       },
 
       status: {
@@ -271,6 +286,7 @@ export const samplePods: Resource = {
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'analytics-deployment-59dd7c47d4-',
@@ -303,7 +319,7 @@ export const samplePods: Resource = {
         },
       },
       spec: {
-        constainers: [],
+        containers: [],
       },
 
       status: {
@@ -311,6 +327,7 @@ export const samplePods: Resource = {
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'nodejs-1-',
@@ -351,6 +368,7 @@ export const samplePods: Resource = {
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         annotations: {
@@ -376,13 +394,16 @@ export const samplePods: Resource = {
           'openshift.io/build.name': 'nodejs-1',
         },
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
 
       status: {
         phase: 'Succeeded',
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'wit-deployment-656cc8b469-',
@@ -414,13 +435,16 @@ export const samplePods: Resource = {
           'pod-template-hash': '2127746025',
         },
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
 
       status: {
         phase: 'Running',
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'wit-deployment-656cc8b469-',
@@ -452,12 +476,15 @@ export const samplePods: Resource = {
           'pod-template-hash': '2127746025',
         },
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
       status: {
         phase: 'Running',
       },
     },
     {
+      apiVersion: 'v1',
       kind: 'Pod',
       metadata: {
         generateName: 'wit-deployment-656cc8b469-',
@@ -489,7 +516,9 @@ export const samplePods: Resource = {
           'pod-template-hash': '2127746025',
         },
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
       status: {
         phase: 'Running',
       },
@@ -526,7 +555,9 @@ export const samplePods: Resource = {
           'pod-template-generation': '1',
         },
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
       status: {
         phase: 'Pending',
         startTime: '2019-07-15T09:50:59Z',
@@ -563,7 +594,9 @@ export const samplePods: Resource = {
           },
         ],
       },
-      spec: {},
+      spec: {
+        containers: [],
+      },
       status: {
         phase: 'Running',
         startTime: '2019-07-24T10:14:56Z',
@@ -572,9 +605,12 @@ export const samplePods: Resource = {
   ],
 };
 
-export const sampleReplicationControllers: Resource = {
+export const sampleReplicationControllers: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
+      apiVersion: 'v1',
       kind: 'ReplicationController',
       metadata: {
         annotations: {
@@ -616,7 +652,9 @@ export const sampleReplicationControllers: Resource = {
   ],
 };
 
-export const sampleReplicaSets: Resource = {
+export const sampleReplicaSets: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'ReplicaSet',
@@ -707,7 +745,9 @@ export const sampleReplicaSets: Resource = {
   ],
 };
 
-export const sampleServices: Resource = {
+export const sampleServices: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'Service',
@@ -802,7 +842,9 @@ export const sampleServices: Resource = {
     },
   ],
 };
-export const sampleRoutes: Resource = {
+export const sampleRoutes: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'Route',
@@ -895,7 +937,9 @@ export const sampleRoutes: Resource = {
   ],
 };
 
-export const sampleBuildConfigs: Resource = {
+export const sampleBuildConfigs: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'BuildConfig',
@@ -975,7 +1019,9 @@ export const sampleBuildConfigs: Resource = {
   ],
 };
 
-export const sampleBuilds: Resource = {
+export const sampleBuilds: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       kind: 'Builds',
@@ -1071,7 +1117,9 @@ export const sampleBuilds: Resource = {
   ],
 };
 
-export const sampleDaemonSets = {
+export const sampleDaemonSets: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       metadata: {
@@ -1141,12 +1189,14 @@ export const sampleDaemonSets = {
         numberUnavailable: 1,
       },
       kind: 'DaemonSet',
-      name: 'daemonset-testing',
+      apiVersion: 'apps/v1',
     },
   ],
 };
 
-export const sampleStatefulSets: Resource = {
+export const sampleStatefulSets: FirehoseResult = {
+  loaded: true,
+  loadError: '',
   data: [
     {
       metadata: {
@@ -1287,6 +1337,118 @@ export const sampleStatefulSets: Resource = {
     },
   ],
 };
+
+export const samplePipeline: FirehoseResult = {
+  loaded: true,
+  loadError: '',
+  data: [
+    {
+      apiVersion: 'tekton.dev/v1alpha1',
+      kind: 'Pipeline',
+      metadata: {
+        creationTimestamp: '2019-10-18T10:06:37Z',
+        generation: 1,
+        name: 'hello-world-pipeline',
+        namespace: 't-s',
+        resourceVersion: '371236',
+        selfLink: '/apis/tekton.dev/v1alpha1/namespaces/t-s/pipelines/hello-world-pipeline',
+        uid: '73d7842d-975f-44ab-99e4-727b7cf097b6',
+        labels: {
+          'app.kubernetes.io/instance': 'nodejs',
+        },
+      },
+      spec: {
+        tasks: [
+          {
+            name: 'hello-world',
+            taskRef: {
+              name: 'hello-world',
+            },
+          },
+        ],
+      },
+    },
+  ],
+};
+
+export const samplePipelineRun: FirehoseResult = {
+  loaded: true,
+  loadError: '',
+  data: [
+    {
+      apiVersion: 'tekton.dev/v1alpha1',
+      kind: 'PipelineRun',
+      metadata: {
+        creationTimestamp: '2019-10-18T10:07:28Z',
+        generation: 1,
+        labels: {
+          'tekton.dev/pipeline': 'hello-world-pipeline',
+        },
+        name: 'hello-world-pipeline',
+        namespace: 't-s',
+        resourceVersion: '371822',
+        selfLink: '/apis/tekton.dev/v1alpha1/namespaces/t-s/pipelineruns/hello-world-pipeline',
+        uid: 'a049c81e-ba40-4248-ac54-a2728893afcb',
+      },
+      spec: {
+        pipelineRef: {
+          name: 'hello-world-pipeline',
+        },
+        podTemplate: {},
+        timeout: '1h0m0s',
+      },
+      status: {
+        completionTime: '2019-10-18T10:08:00Z',
+        conditions: [
+          {
+            lastTransitionTime: '2019-10-18T10:08:00Z',
+            message: 'All Tasks have completed executing',
+            reason: 'Succeeded',
+            status: 'True',
+            type: 'Succeeded',
+          },
+        ],
+        startTime: '2019-10-18T10:07:28Z',
+        taskRuns: {
+          'hello-world-pipeline-hello-world-6mbs6': {
+            pipelineTaskName: 'hello-world',
+            status: {
+              completionTime: '2019-10-18T10:08:00Z',
+              conditions: [
+                {
+                  lastTransitionTime: '2019-10-18T10:08:00Z',
+                  message: 'All Steps have completed executing',
+                  reason: 'Succeeded',
+                  status: 'True',
+                  type: 'Succeeded',
+                },
+              ],
+              podName: 'hello-world-pipeline-hello-world-6mbs6-pod-ab38ef',
+              startTime: '2019-10-18T10:07:28Z',
+              steps: [
+                {
+                  container: 'step-echo',
+                  imageID:
+                    'docker.io/library/ubuntu@sha256:1bbdea4846231d91cce6c7ff3907d26fca444fd6b7e3c282b90c7fe4251f9f86',
+                  name: 'echo',
+                  terminated: {
+                    containerID:
+                      'cri-o://14b1d028e46e921b5fa3445def9fbeb35403ae3332da347d62c01807717eba49',
+                    exitCode: 0,
+                    finishedAt: '2019-10-18T10:07:59Z',
+                    reason: 'Completed',
+                    startedAt: '2019-10-18T10:07:57Z',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ],
+};
+
 export const MockResources: TopologyDataResources = {
   deployments: sampleDeployments,
   deploymentConfigs: sampleDeploymentConfigs,
@@ -1299,4 +1461,6 @@ export const MockResources: TopologyDataResources = {
   builds: sampleBuilds,
   daemonSets: sampleDaemonSets,
   statefulSets: sampleStatefulSets,
+  pipelines: samplePipeline,
+  pipelineRuns: samplePipelineRun,
 };

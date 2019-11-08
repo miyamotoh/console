@@ -10,7 +10,7 @@ import { coFetchJSON } from '../../co-fetch';
 import { PROMETHEUS_TENANCY_BASE_PATH } from '../graphs';
 import { TextFilter } from '../factory';
 import * as UIActions from '../../actions/ui';
-import { K8sResourceKind, PodKind, RouteKind } from '../../module/k8s';
+import { DeploymentKind, K8sResourceKind, PodKind, RouteKind } from '../../module/k8s';
 import { CloseButton, Dropdown, Firehose, StatusBox, FirehoseResult, MsgBox } from '../utils';
 
 import { ProjectOverview } from './project-overview';
@@ -254,7 +254,7 @@ class OverviewMainContent_ extends React.Component<
       )}`;
       return coFetchJSON(url).then(({ data: { result } }) => {
         const byPod: MetricValuesByPod = result.reduce((acc, { metric, value }) => {
-          acc[metric.pod || metric.pod_name] = Number(value[1]);
+          acc[metric.pod] = Number(value[1]);
           return acc;
         }, {});
         return { [name]: byPod };
@@ -465,7 +465,7 @@ const Overview_: React.SFC<OverviewProps> = ({
     <div className={className}>
       <div className="overview__main-column" ref={ref} style={{ height }}>
         <div className="overview__main-column-section">
-          <Firehose resources={mock ? [] : resources} forceUpdate>
+          <Firehose resources={mock ? [] : resources}>
             <OverviewMainContent
               mock={mock}
               namespace={namespace}
@@ -555,7 +555,7 @@ type OverviewMainContentOwnProps = {
   buildConfigs?: FirehoseResult;
   daemonSets?: FirehoseResult;
   deploymentConfigs?: FirehoseResult;
-  deployments?: FirehoseResult;
+  deployments?: FirehoseResult<DeploymentKind[]>;
   mock: boolean;
   loaded?: boolean;
   loadError?: any;

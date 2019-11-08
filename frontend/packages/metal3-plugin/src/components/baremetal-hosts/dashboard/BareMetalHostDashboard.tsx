@@ -1,9 +1,12 @@
 import * as React from 'react';
 import Dashboard from '@console/shared/src/components/dashboard/Dashboard';
 import DashboardGrid from '@console/shared/src/components/dashboard/DashboardGrid';
+import { getMachineNode } from '@console/shared/src/selectors/machine';
 import { MachineKind, NodeKind } from '@console/internal/module/k8s';
 import { BareMetalHostKind } from '../../../types';
-import HealthCard from './HealthCard';
+import { getHostMachine } from '../../../selectors';
+import { BareMetalHostDashboardContext } from './BareMetalHostDashboardContext';
+import StatusCard from './StatusCard';
 import UtilizationCard from './UtilizationCard';
 import EventsCard from './EventsCard';
 import InventoryCard from './InventoryCard';
@@ -14,22 +17,24 @@ const BareMetalHostDashboard: React.FC<BareMetalHostDashboardProps> = ({
   machines,
   nodes,
 }) => {
-  const mainCards = [
-    { Card: () => <HealthCard obj={obj} /> },
-    { Card: () => <UtilizationCard obj={obj} /> },
-  ];
-  const leftCards = [
-    {
-      Card: () => <DetailsCard obj={obj} machines={machines} nodes={nodes} />,
-    },
-    { Card: () => <InventoryCard obj={obj} /> },
-  ];
-  const rightCards = [{ Card: () => <EventsCard obj={obj} /> }];
+  const machine = getHostMachine(obj, machines);
+  const node = getMachineNode(machine, nodes);
+  const context = {
+    obj,
+    machine,
+    node,
+  };
+
+  const mainCards = [{ Card: StatusCard }, { Card: UtilizationCard }];
+  const leftCards = [{ Card: DetailsCard }, { Card: InventoryCard }];
+  const rightCards = [{ Card: EventsCard }];
 
   return (
-    <Dashboard>
-      <DashboardGrid mainCards={mainCards} leftCards={leftCards} rightCards={rightCards} />
-    </Dashboard>
+    <BareMetalHostDashboardContext.Provider value={context}>
+      <Dashboard>
+        <DashboardGrid mainCards={mainCards} leftCards={leftCards} rightCards={rightCards} />
+      </Dashboard>
+    </BareMetalHostDashboardContext.Provider>
   );
 };
 

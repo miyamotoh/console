@@ -55,20 +55,20 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'Page/Resource/List',
     properties: {
       model: BareMetalHostModel,
-      loader: async () =>
-        (await import(
+      loader: () =>
+        import(
           './components/baremetal-hosts/BareMetalHostsPage' /* webpackChunkName: "metal3-baremetalhosts" */
-        )).default,
+        ).then((m) => m.default),
     },
   },
   {
     type: 'Page/Resource/Details',
     properties: {
       model: BareMetalHostModel,
-      loader: async () =>
-        (await import(
+      loader: () =>
+        import(
           './components/baremetal-hosts/BareMetalHostDetailsPage' /* webpackChunkName: "metal3-baremetalhost" */
-        )).default,
+        ).then((m) => m.default),
     },
   },
   {
@@ -76,10 +76,11 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       exact: true,
       path: `/k8s/ns/:ns/${referenceForModel(BareMetalHostModel)}/~new/form`,
-      loader: async () =>
-        (await import(
-          './components/baremetal-hosts/AddHost' /* webpackChunkName: "metal3-baremetalhost" */
-        )).default,
+      loader: () =>
+        import(
+          './components/baremetal-hosts/add-baremetal-host/AddBareMetalHostPage' /* webpackChunkName: "metal3-baremetalhost" */
+        ).then((m) => m.default),
+      required: [FLAGS.BAREMETAL, METAL3_FLAG],
     },
   },
   {
@@ -105,10 +106,35 @@ const plugin: Plugin<ConsumedExtensions> = [
           isList: true,
           kind: referenceForModel(NodeMaintenanceModel),
           prop: 'maintenaces',
+          optional: true,
         },
       ],
       model: BareMetalHostModel,
       mapper: getBMHStatusGroups,
+      required: [FLAGS.BAREMETAL, METAL3_FLAG],
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: ['/k8s/cluster/nodes/'],
+      loader: () =>
+        import(
+          './components/baremetal-nodes/BareMetalNodesPage' /* webpackChunkName: "node" */
+        ).then((m) => m.default),
+      required: [FLAGS.BAREMETAL, METAL3_FLAG],
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: ['/k8s/cluster/nodes/:name'],
+      loader: () =>
+        import(
+          './components/baremetal-nodes/BareMetalNodeDetailsPage' /* webpackChunkName: "node" */
+        ).then((m) => m.default),
       required: [FLAGS.BAREMETAL, METAL3_FLAG],
     },
   },

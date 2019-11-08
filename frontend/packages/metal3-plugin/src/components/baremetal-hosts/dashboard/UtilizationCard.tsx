@@ -4,6 +4,7 @@ import {
   DashboardItemProps,
   withDashboardResources,
 } from '@console/internal/components/dashboard/with-dashboard-resources';
+import { Dropdown } from '@console/internal/components/utils/dropdown';
 import DashboardCard from '@console/shared/src/components/dashboard/dashboard-card/DashboardCard';
 import DashboardCardHeader from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardHeader';
 import DashboardCardTitle from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardTitle';
@@ -14,64 +15,59 @@ import {
   getInstantVectorStats,
 } from '@console/internal/components/graphs/utils';
 import {
-  FirehoseResource,
+  ONE_HR,
+  SIX_HR,
+  TWENTY_FOUR_HR,
+  UTILIZATION_QUERY_HOUR_MAP,
+} from '@console/shared/src/components/dashboard/utilization-card/dropdown-value';
+import { PodModel, ProjectModel } from '@console/internal/models';
+import ConsumerPopover from '@console/shared/src/components/dashboard/utilization-card/TopConsumerPopover';
+import {
   humanizeBinaryBytesWithoutB,
+  humanizeBinaryBytes,
   humanizeCpuCores,
+  humanizeSeconds,
+  secondsToNanoSeconds,
+  Humanize,
 } from '@console/internal/components/utils';
-import { referenceForModel } from '@console/internal/module/k8s';
-import { MachineModel } from '@console/internal/models';
+import { MachineKind } from '@console/internal/module/k8s';
 import { PrometheusResponse } from '@console/internal/components/graphs';
-import { getNamespace, getMachineNodeName, getMachineInternalIP } from '@console/shared';
+import { getMachineNodeName, getMachineInternalIP } from '@console/shared';
 import { ByteDataTypes } from '@console/shared/src/graph-helper/data-utils';
-import { getHostMachineName } from '../../../selectors';
 import { BareMetalHostKind } from '../../../types';
-import { getUtilizationQueries, HostQuery } from './queries';
+import { BareMetalHostDashboardContext } from './BareMetalHostDashboardContext';
+import { getUtilizationQueries, HostQuery, getTopConsumerQueries } from './queries';
 
-const getMachineResource = (namespace: string, name: string): FirehoseResource => ({
-  isList: false,
-  namespace,
-  name,
-  kind: referenceForModel(MachineModel),
-  prop: 'machine',
-});
+const metricDurations = [ONE_HR, SIX_HR, TWENTY_FOUR_HR];
+const metricDurationsOptions = _.zipObject(metricDurations, metricDurations);
+const humanizeFromSeconds: Humanize = (value) => humanizeSeconds(secondsToNanoSeconds(value));
 
 const UtilizationCard: React.FC<UtilizationCardProps> = ({
-  obj,
   watchPrometheus,
   stopWatchPrometheusQuery,
   prometheusResults,
-  watchK8sResource,
-  stopWatchK8sResource,
-  resources,
 }) => {
-  const namespace = getNamespace(obj);
-  const machineName = getHostMachineName(obj);
+  const [duration, setDuration] = React.useState(metricDurations[0]);
 
-  React.useEffect(() => {
-    const machineResource = getMachineResource(namespace, machineName);
-    watchK8sResource(machineResource);
-    return () => stopWatchK8sResource(machineResource);
-  }, [watchK8sResource, stopWatchK8sResource, namespace, machineName]);
-
-  const machineLoaded = _.get(resources.machine, 'loaded');
-  const machineLoadError = _.get(resources.machine, 'loadError');
-  const machine = _.get(resources.machine, 'data', null);
-
+  const { machine } = React.useContext(BareMetalHostDashboardContext);
   const hostName = getMachineNodeName(machine);
   const hostIP = getMachineInternalIP(machine);
 
+  const queries = React.useMemo(
+    () => getUtilizationQueries(hostName, hostIP, UTILIZATION_QUERY_HOUR_MAP[duration]),
+    [hostName, hostIP, duration],
+  );
+
   React.useEffect(() => {
-    if (machineName) {
-      const queries = getUtilizationQueries(hostName, hostIP);
+    if (machine) {
       Object.keys(queries).forEach((key) => watchPrometheus(queries[key]));
       return () => {
         Object.keys(queries).forEach((key) => stopWatchPrometheusQuery(queries[key]));
       };
     }
     return undefined;
-  }, [watchPrometheus, stopWatchPrometheusQuery, machineName, hostName, hostIP]);
+  }, [watchPrometheus, stopWatchPrometheusQuery, queries, machine]);
 
-  const queries = getUtilizationQueries(hostName, hostIP);
   const cpuUtilization = prometheusResults.getIn([
     queries[HostQuery.CPU_UTILIZATION],
     'data',
@@ -138,38 +134,121 @@ const UtilizationCard: React.FC<UtilizationCardProps> = ({
   const memoryTotalValue = memoryTotalStats.length ? memoryTotalStats[0].y : null;
   const storageTotalValue = storageTotalStats.length ? storageTotalStats[0].y : null;
 
-  const itemIsLoading = (prometheusResult) =>
-    !machineLoadError && (machineLoaded ? (machine ? !prometheusResult : false) : true);
+  const cpuPopover = React.useCallback(
+    ({ current }) => {
+      const topConsumerQueries = getTopConsumerQueries(hostName, hostIP);
+      return (
+        <ConsumerPopover
+          title="CPU"
+          current={current}
+          humanize={humanizeFromSeconds}
+          consumers={[
+            {
+              query: topConsumerQueries[HostQuery.PODS_BY_CPU],
+              model: PodModel,
+              metric: 'pod',
+            },
+            {
+              query: topConsumerQueries[HostQuery.PROJECTS_BY_CPU],
+              model: ProjectModel,
+              metric: 'namespace',
+            },
+          ]}
+        />
+      );
+    },
+    [hostIP, hostName],
+  );
+
+  const memPopover = React.useCallback(
+    ({ current }) => {
+      const topConsumerQueries = getTopConsumerQueries(hostName, hostIP);
+      return (
+        <ConsumerPopover
+          title="Memory"
+          current={current}
+          humanize={humanizeBinaryBytes}
+          consumers={[
+            {
+              query: topConsumerQueries[HostQuery.PODS_BY_MEMORY],
+              model: PodModel,
+              metric: 'pod',
+            },
+            {
+              query: topConsumerQueries[HostQuery.PROJECTS_BY_MEMORY],
+              model: ProjectModel,
+              metric: 'namespace',
+            },
+          ]}
+        />
+      );
+    },
+    [hostIP, hostName],
+  );
+
+  const storagePopover = React.useCallback(
+    ({ current }) => {
+      const topConsumerQueries = getTopConsumerQueries(hostName, hostIP);
+      return (
+        <ConsumerPopover
+          title="Disk Usage"
+          current={current}
+          humanize={humanizeBinaryBytes}
+          consumers={[
+            {
+              query: topConsumerQueries[HostQuery.PODS_BY_STORAGE],
+              model: PodModel,
+              metric: 'pod',
+            },
+            {
+              query: topConsumerQueries[HostQuery.PROJECTS_BY_STORAGE],
+              model: ProjectModel,
+              metric: 'namespace',
+            },
+          ]}
+        />
+      );
+    },
+    [hostIP, hostName],
+  );
 
   return (
     <DashboardCard>
       <DashboardCardHeader>
         <DashboardCardTitle>Utilization</DashboardCardTitle>
+        <Dropdown
+          items={metricDurationsOptions}
+          onChange={setDuration}
+          selectedKey={duration}
+          title={duration}
+        />
       </DashboardCardHeader>
       <UtilizationBody timestamps={cpuStats.map((stat) => stat.x as Date)}>
         <UtilizationItem
           title="CPU usage"
           data={cpuStats}
           error={cpuUtilizationError}
-          isLoading={itemIsLoading(cpuUtilization)}
+          isLoading={!cpuUtilization}
           humanizeValue={humanizeCpuCores}
           query={queries[HostQuery.CPU_UTILIZATION]}
+          TopConsumerPopover={cpuPopover}
         />
         <UtilizationItem
           title="Memory usage"
           data={memoryStats}
           error={memoryUtilizationError}
-          isLoading={itemIsLoading(memoryUtilization)}
+          isLoading={!memoryUtilization}
           humanizeValue={humanizeBinaryBytesWithoutB}
           query={queries[HostQuery.MEMORY_UTILIZATION]}
           max={memoryTotalValue}
           byteDataType={ByteDataTypes.BinaryBytesWithoutB}
+          TopConsumerPopover={memPopover}
         />
         <UtilizationItem
           title="Number of pods"
           data={numberOfPodsStats}
           error={numberOfPodsError}
-          isLoading={itemIsLoading(numberOfPods)}
+          isLoading={!numberOfPods}
           humanizeValue={(v) => ({ string: `${v}`, value: v as number, unit: '' })}
           query={queries[HostQuery.NUMBER_OF_PODS]}
         />
@@ -177,7 +256,7 @@ const UtilizationCard: React.FC<UtilizationCardProps> = ({
           title="Network In"
           data={networkInStats}
           error={networkInUtilizationError}
-          isLoading={itemIsLoading(networkInUtilization)}
+          isLoading={!networkInUtilization}
           humanizeValue={humanizeBinaryBytesWithoutB}
           query={queries[HostQuery.NETWORK_IN_UTILIZATION]}
           byteDataType={ByteDataTypes.BinaryBytesWithoutB}
@@ -186,7 +265,7 @@ const UtilizationCard: React.FC<UtilizationCardProps> = ({
           title="Network Out"
           data={networkOutStats}
           error={networkOutUtilizationError}
-          isLoading={itemIsLoading(networkOutUtilization)}
+          isLoading={!networkOutUtilization}
           humanizeValue={humanizeBinaryBytesWithoutB}
           query={queries[HostQuery.NETWORK_OUT_UTILIZATION]}
           byteDataType={ByteDataTypes.BinaryBytesWithoutB}
@@ -195,11 +274,12 @@ const UtilizationCard: React.FC<UtilizationCardProps> = ({
           title="Filesystem"
           data={storageStats}
           error={storageUtilizationError}
-          isLoading={itemIsLoading(storageUtilization)}
-          humanizeValue={humanizeBinaryBytesWithoutB}
+          isLoading={!storageUtilization}
+          humanizeValue={humanizeBinaryBytes}
           query={queries[HostQuery.STORAGE_UTILIZATION]}
           max={storageTotalValue}
           byteDataType={ByteDataTypes.BinaryBytesWithoutB}
+          TopConsumerPopover={storagePopover}
         />
       </UtilizationBody>
     </DashboardCard>
@@ -210,4 +290,5 @@ export default withDashboardResources(UtilizationCard);
 
 type UtilizationCardProps = DashboardItemProps & {
   obj: BareMetalHostKind;
+  machine: MachineKind;
 };

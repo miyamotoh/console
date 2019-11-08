@@ -71,7 +71,7 @@ const ODCEmptyState: React.FC<Props> = ({
   const allCatalogImageResourceAccess = allImportResourceAccess && imageStreamImportAccess;
 
   return (
-    <React.Fragment>
+    <>
       <div className="odc-empty-state__title">
         <PageHeading title={title} />
         {hintBlock && (
@@ -97,7 +97,7 @@ const ODCEmptyState: React.FC<Props> = ({
             href={`/deploy-image?preselected-ns=${activeNamespace}`}
             title="Container Image"
             iconClass="pficon-image"
-            description="Deploy an existing image from an image registry"
+            description="Deploy an existing image from an image registry or image stream tag"
           />
         )}
         <CatalogTile
@@ -133,7 +133,7 @@ const ODCEmptyState: React.FC<Props> = ({
           description="Browse the catalog to discover database services to add to your application"
         />
       </div>
-    </React.Fragment>
+    </>
   );
 };
 

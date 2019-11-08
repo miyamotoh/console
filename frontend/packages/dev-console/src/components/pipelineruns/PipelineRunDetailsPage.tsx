@@ -1,16 +1,19 @@
 import * as React from 'react';
 import { DetailsPage, DetailsPageProps } from '@console/internal/components/factory';
-import { navFactory } from '@console/internal/components/utils';
-import { viewYamlComponent } from '@console/internal/components//utils/horizontal-nav';
+import { Kebab, navFactory } from '@console/internal/components/utils';
+import { pipelineRunStatus } from '../../utils/pipeline-filter-reducer';
+import { rerunPipelineAndRedirect, stopPipelineRun } from '../../utils/pipeline-actions';
 import { PipelineRunDetails } from './PipelineRunDetails';
 import { PipelineRunLogsWithActiveTask } from './PipelineRunLogs';
 
 const PipelineRunDetailsPage: React.FC<DetailsPageProps> = (props) => (
   <DetailsPage
     {...props}
+    menuActions={[rerunPipelineAndRedirect, stopPipelineRun, Kebab.factory.Delete]}
+    getResourceStatus={pipelineRunStatus}
     pages={[
       navFactory.details(PipelineRunDetails),
-      navFactory.editYaml(viewYamlComponent),
+      navFactory.editYaml(),
       {
         href: 'logs',
         path: 'logs/:name?',
@@ -20,5 +23,4 @@ const PipelineRunDetailsPage: React.FC<DetailsPageProps> = (props) => (
     ]}
   />
 );
-
 export default PipelineRunDetailsPage;

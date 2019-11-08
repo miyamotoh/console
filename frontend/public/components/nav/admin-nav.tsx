@@ -16,6 +16,7 @@ import {
   MachineAutoscalerModel,
   MachineConfigModel,
   MachineConfigPoolModel,
+  MachineHealthCheckModel,
   MachineModel,
   MachineSetModel,
   UserModel,
@@ -43,9 +44,14 @@ const monitoringAlertsStartsWith = [
   'monitoring/alerts',
   'monitoring/alertrules',
   'monitoring/silences',
+];
+const clusterSettingsStartsWith = [
+  'settings/cluster',
+  'settings/idp',
+  'config.openshift.io',
+  'monitoring/alertmanagerconfig',
   'monitoring/alertmanageryaml',
 ];
-const clusterSettingsStartsWith = ['settings/cluster', 'settings/idp', 'config.openshift.io'];
 const meteringStartsWith = ['metering.openshift.io'];
 const apiExplorerStartsWith = ['api-explorer', 'api-resource'];
 
@@ -77,13 +83,13 @@ const MonitoringNavSection_ = ({ grafanaURL, canAccess, kibanaURL }) => {
 const MonitoringNavSection = connect(monitoringNavSectionStateToProps)(MonitoringNavSection_);
 
 const AdminNav = () => (
-  <React.Fragment>
+  <>
     <NavSection title="Home">
       <HrefLink
         href="/dashboards"
         activePath="/dashboards/"
         name="Dashboards"
-        required={FLAGS.CAN_LIST_NS}
+        required={[FLAGS.CAN_LIST_NS, FLAGS.OPENSHIFT]}
       />
       <ResourceClusterLink resource="projects" name="Projects" required={FLAGS.OPENSHIFT} />
       <HrefLink href="/search" name="Search" startsWith={searchStartsWith} />
@@ -114,7 +120,7 @@ const AdminNav = () => (
     </NavSection>
 
     {/* Temporary addition of Knative Serverless section until extensibility allows for section ordering
-         and admin-nav gets contributed through extensions. */}
+        and admin-nav gets contributed through extensions. */}
     <NavSection title="Serverless" />
 
     <NavSection title="Networking">
@@ -143,6 +149,10 @@ const AdminNav = () => (
         startsWith={imagestreamsStartsWith}
       />
     </NavSection>
+
+    {/* Temporary addition of Tekton Pipelines section until extensibility allows for section ordering
+        and admin-nav gets contributed through extensions. */}
+    <NavSection title="Pipelines" />
 
     <NavSection title="Service Catalog" required={FLAGS.SERVICE_CATALOG}>
       <HrefLink
@@ -186,6 +196,14 @@ const AdminNav = () => (
         )}
         name="Machine Autoscalers"
         required={FLAGS.MACHINE_AUTOSCALER}
+      />
+      <HrefLink
+        href={formatNamespacedRouteForResource(
+          referenceForModel(MachineHealthCheckModel),
+          'openshift-machine-api',
+        )}
+        name="Machine Health Checks"
+        required={FLAGS.MACHINE_HEALTH_CHECK}
       />
       <Separator required={FLAGS.MACHINE_CONFIG} />
       <ResourceClusterLink
@@ -250,7 +268,7 @@ const AdminNav = () => (
         required={FLAGS.CAN_LIST_CRD}
       />
     </NavSection>
-  </React.Fragment>
+  </>
 );
 
 export default AdminNav;

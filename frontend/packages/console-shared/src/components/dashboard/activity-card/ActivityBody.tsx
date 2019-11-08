@@ -1,8 +1,7 @@
 import * as React from 'react';
 import * as _ from 'lodash';
 import classNames from 'classnames';
-import { K8sActivityProps, PrometheusActivityProps } from '@console/plugin-sdk';
-import { LazyLoader } from '@console/plugin-sdk/src/typings/types';
+import { K8sActivityProps, PrometheusActivityProps, LazyLoader } from '@console/plugin-sdk';
 import { Accordion } from '@patternfly/react-core';
 import { Timestamp } from '@console/internal/components/utils/timestamp';
 import { AsyncComponent } from '@console/internal/components/utils/async';
@@ -14,7 +13,7 @@ import { PrometheusResponse } from '@console/internal/components/graphs';
 import EventItem from './EventItem';
 import './activity-card.scss';
 
-const Activity: React.FC<ActivityProps> = ({ timestamp, children }) => (
+export const Activity: React.FC<ActivityProps> = ({ timestamp, children }) => (
   <div className="co-activity-item__ongoing">
     {timestamp && (
       <span className="text-secondary">
@@ -80,7 +79,7 @@ export const RecentEventsBodyContent: React.FC<RecentEventsBodyProps> = ({ event
 
 export const RecentEventsBody: React.FC<RecentEventsBodyProps> = (props) => (
   <>
-    <div className="co-activity-card__recent-title">Recent events</div>
+    <div className="co-activity-card__recent-title">Recent Events</div>
     <RecentEventsBodyContent {...props} />
   </>
 );

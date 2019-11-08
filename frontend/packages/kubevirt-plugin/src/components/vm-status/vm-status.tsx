@@ -14,7 +14,6 @@ import {
 import { Progress, ProgressVariant, ProgressSize } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
 import { resourcePath } from '@console/internal/components/utils';
-import { POD_DETAIL_OVERVIEW_HREF } from '@console/internal/components/utils/href';
 import { PodModel } from '@console/internal/models';
 import { VirtualMachineModel } from '../../models';
 import { VM_DETAIL_EVENTS_HREF, CDI_KUBEVIRT_IO, STORAGE_IMPORT_PVC_NAME } from '../../constants';
@@ -31,10 +30,11 @@ import {
   VM_STATUS_STARTING,
   VM_STATUS_MIGRATING,
   VM_STATUS_RUNNING,
+  VM_STATUS_STOPPING,
   VM_STATUS_OFF,
   VM_STATUS_ERROR,
 } from '../../statuses/vm/constants';
-import { VMKind } from '../../types';
+import { VMKind, VMIKind } from '../../types';
 
 import './vm-status.scss';
 
@@ -81,8 +81,14 @@ const VMStatusPopoverContent: React.FC<VMStatusPopoverContentProps> = ({
   </>
 );
 
-export const VMStatus: React.FC<VMStatusProps> = ({ vm, pods, migrations, verbose = false }) => {
-  const statusDetail = getVMStatus(vm, pods, migrations);
+export const VMStatus: React.FC<VMStatusProps> = ({
+  vm,
+  vmi,
+  pods,
+  migrations,
+  verbose = false,
+}) => {
+  const statusDetail = getVMStatus({ vm, vmi, pods, migrations });
   const linkToVMEvents = `${resourcePath(
     VirtualMachineModel.kind,
     getName(vm),
@@ -92,7 +98,7 @@ export const VMStatus: React.FC<VMStatusProps> = ({ vm, pods, migrations, verbos
     PodModel.kind,
     getName(statusDetail.launcherPod),
     getNamespace(statusDetail.launcherPod),
-  )}/${POD_DETAIL_OVERVIEW_HREF}`;
+  )}`; // to default tab
   const additionalText = verbose ? getAdditionalImportText(statusDetail.pod) : null;
 
   switch (statusDetail.status) {
@@ -218,6 +224,17 @@ export const VMStatus: React.FC<VMStatusProps> = ({ vm, pods, migrations, verbos
           />
         </ProgressStatus>
       );
+    case VM_STATUS_STOPPING:
+      return (
+        <ProgressStatus title="Stopping">
+          <VMStatusPopoverContent
+            message={statusDetail.message}
+            linkMessage={VIEW_VM_EVENTS}
+            linkTo={linkToVMEvents}
+            progress={statusDetail.progress}
+          />
+        </ProgressStatus>
+      );
     case VM_STATUS_RUNNING:
       return <SuccessStatus title="Running" />;
     case VM_STATUS_OFF:
@@ -241,6 +258,7 @@ type VMStatusPopoverContentProps = {
 
 type VMStatusProps = {
   vm: VMKind;
+  vmi?: VMIKind;
   pods?: PodKind[];
   migrations?: K8sResourceKind[];
   verbose?: boolean;

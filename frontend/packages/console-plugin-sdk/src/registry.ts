@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import { FlagsObject } from '@console/internal/reducers/features';
 import {
   Extension,
   ExtensionTypeGuard,
@@ -16,17 +17,17 @@ import {
   isDashboardsTab,
   isDashboardsOverviewInventoryItem,
   isDashboardsInventoryItemGroup,
-  isDashboardsOverviewQuery,
   isDashboardsOverviewUtilizationItem,
-  isDashboardsOverviewTopConsumerItem,
   isOverviewResourceTab,
   isOverviewCRD,
+  isOverviewTabSection,
   isGlobalConfig,
   isClusterServiceVersionAction,
   isKebabActions,
   isDevCatalogModel,
   isDashboardsOverviewResourceActivity,
   isDashboardsOverviewPrometheusActivity,
+  isReduxReducer,
 } from './typings';
 
 /**
@@ -41,6 +42,20 @@ export class ExtensionRegistry {
 
   public get<E extends Extension>(typeGuard: ExtensionTypeGuard<E>): E[] {
     return this.extensions.filter(typeGuard);
+  }
+
+  public getRequiredFlags(typeGuards: ExtensionTypeGuard<ExtensionWithFlags>[]) {
+    return _.flatMap(typeGuards.map((tg) => this.extensions.filter(tg)))
+      .filter((e) => e.properties.required)
+      .reduce(
+        (requiredFlags, e) => _.uniq([...requiredFlags, ..._.castArray(e.properties.required)]),
+        [] as string[],
+      );
+  }
+
+  public isExtensionInUse(e: ExtensionWithFlags, flags: FlagsObject) {
+    const requiredFlags = e.properties.required ? _.castArray(e.properties.required) : [];
+    return _.every(requiredFlags, (f) => flags[f]);
   }
 
   public getModelDefinitions() {
@@ -87,10 +102,6 @@ export class ExtensionRegistry {
     return this.extensions.filter(isDashboardsCard);
   }
 
-  public getDashboardsOverviewQueries() {
-    return this.extensions.filter(isDashboardsOverviewQuery);
-  }
-
   public getDashboardsOverviewUtilizationItems() {
     return this.extensions.filter(isDashboardsOverviewUtilizationItem);
   }
@@ -103,12 +114,12 @@ export class ExtensionRegistry {
     return this.extensions.filter(isDashboardsInventoryItemGroup);
   }
 
-  public getDashboardsOverviewTopConsumerItems() {
-    return this.extensions.filter(isDashboardsOverviewTopConsumerItem);
-  }
-
   public getOverviewResourceTabs() {
     return this.extensions.filter(isOverviewResourceTab);
+  }
+
+  public getOverviewTabSections() {
+    return this.extensions.filter(isOverviewTabSection);
   }
 
   public getOverviewCRDs() {
@@ -138,4 +149,10 @@ export class ExtensionRegistry {
   public getDashboardsOverviewPrometheusActivities() {
     return this.extensions.filter(isDashboardsOverviewPrometheusActivity);
   }
+
+  public getReduxReducers() {
+    return this.extensions.filter(isReduxReducer);
+  }
 }
+
+type ExtensionWithFlags = Extension<{ required?: string | string[] }>;
