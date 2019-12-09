@@ -854,10 +854,12 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
           {(!_.isEmpty(error) || !_.isEmpty(_.compact(_.values(formErrors)))) && (
             <Alert
               isInline
-              className="co-alert co-break-word"
+              className="co-alert co-break-word co-alert--scrollable"
               variant="danger"
-              title={error || 'Fix above errors'}
-            />
+              title="Error"
+            >
+              {error || 'Fix above errors'}
+            </Alert>
           )}
           <div style={{ paddingBottom: '30px' }}>
             <ActionGroup className="pf-c-form">
@@ -941,7 +943,7 @@ export const CreateOperand: React.FC<CreateOperandProps> = (props) => {
     ]) as SwaggerDefinition) || definitionFor(props.operandModel);
 
   return (
-    <React.Fragment>
+    <>
       {props.loaded && (
         <div className="co-create-operand__header">
           <div className="co-create-operand__header-buttons">
@@ -949,7 +951,11 @@ export const CreateOperand: React.FC<CreateOperandProps> = (props) => {
               breadcrumbs={[
                 {
                   name: props.clusterServiceVersion.data.spec.displayName,
-                  path: window.location.pathname.replace('/~new', ''),
+                  path: resourcePathFromModel(
+                    ClusterServiceVersionModel,
+                    props.clusterServiceVersion.data.metadata.name,
+                    props.clusterServiceVersion.data.metadata.namespace,
+                  ),
                 },
                 { name: `Create ${props.operandModel.label}`, path: window.location.pathname },
               ]}
@@ -1001,7 +1007,7 @@ export const CreateOperand: React.FC<CreateOperandProps> = (props) => {
             />
           ))}
       </StatusBox>
-    </React.Fragment>
+    </>
   );
 };
 
@@ -1010,7 +1016,7 @@ const stateToProps = ({ k8s }: RootState, props: Omit<CreateOperandPageProps, 'o
 });
 
 export const CreateOperandPage = connect(stateToProps)((props: CreateOperandPageProps) => (
-  <React.Fragment>
+  <>
     <Helmet>
       <title>{`Create ${kindForReference(props.match.params.plural)}`}</title>
     </Helmet>
@@ -1037,7 +1043,7 @@ export const CreateOperandPage = connect(stateToProps)((props: CreateOperandPage
         <CreateOperand {...props as any} operandModel={props.operandModel} match={props.match} />
       </Firehose>
     )}
-  </React.Fragment>
+  </>
 ));
 
 export type CreateOperandProps = {

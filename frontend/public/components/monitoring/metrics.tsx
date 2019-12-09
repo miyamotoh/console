@@ -2,6 +2,8 @@ import * as classNames from 'classnames';
 import * as _ from 'lodash-es';
 import {
   ActionGroup,
+  Alert,
+  AlertActionCloseButton,
   Button,
   EmptyState,
   EmptyStateBody,
@@ -127,7 +129,7 @@ let focusedQuery;
 
 const queryDispatchToProps = (dispatch, { index }) => ({
   deleteQuery: () => dispatch(UIActions.queryBrowserDeleteQuery(index)),
-  patchQuery: (v) => dispatch(UIActions.queryBrowserPatchQuery(index, v)),
+  patchQuery: (v: QueryObj) => dispatch(UIActions.queryBrowserPatchQuery(index, v)),
   toggleIsEnabled: () => dispatch(UIActions.queryBrowserToggleIsEnabled(index)),
 });
 
@@ -274,7 +276,7 @@ const MetricsDropdown_: React.FC<MetricsDropdownProps> = ({
       autocompleteFilter={fuzzyCaseInsensitive}
       disabled={isError}
       id="metrics-dropdown"
-      items={items}
+      items={items || {}}
       menuClassName="query-browser__metrics-dropdown-menu query-browser__metrics-dropdown-menu--insert"
       onChange={onChange}
       title={title}
@@ -437,7 +439,7 @@ const QueryInput_: React.FC<QueryInputProps> = ({
   // Order autocompletion suggestions so that exact matches (token as a substring) are first, then fuzzy matches after
   // Exact matches are sorted first by how early the token appears and secondarily by string length (shortest first)
   // Fuzzy matches are sorted by string length (shortest first)
-  const isMatch = (v) => fuzzyCaseInsensitive(token, v);
+  const isMatch = (v: string) => fuzzyCaseInsensitive(token, v);
   const matchScore = (v: string): number => {
     const i = v.toLowerCase().indexOf(token);
     return i === -1 ? Infinity : i;
@@ -702,13 +704,13 @@ const QueryTable_: React.FC<QueryTableProps> = ({
         ..._.map(allLabelKeys, (k) => metric[k]),
         {
           title: (
-            <React.Fragment>
+            <>
               {_.map(values, ([time, v]) => (
                 <div key={time}>
                   {v}&nbsp;@{time}
                 </div>
               ))}
-            </React.Fragment>
+            </>
           ),
         },
       ];
@@ -754,7 +756,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
     .map((cells) => ({ cells }));
 
   return (
-    <React.Fragment>
+    <>
       <Table
         aria-label="query results table"
         cells={columns}
@@ -774,7 +776,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
         setPage={setPage}
         setPerPage={setPerPage}
       />
-    </React.Fragment>
+    </>
   );
 };
 const QueryTable = connect(
@@ -782,7 +784,26 @@ const QueryTable = connect(
   queryDispatchToProps,
 )(QueryTable_);
 
+const NamespaceAlert_: React.FC<{ dismiss: () => undefined; isDismissed: boolean }> = ({
+  dismiss,
+  isDismissed,
+}) =>
+  isDismissed ? null : (
+    <Alert
+      action={<AlertActionCloseButton onClose={dismiss} />}
+      isInline
+      className="co-alert"
+      title="Queries entered here are limited to the data available in the currently selected project."
+      variant="info"
+    />
+  );
+const NamespaceAlert: React.ComponentType<{}> = connect(
+  ({ UI }: RootState) => ({ isDismissed: !!UI.getIn(['queryBrowser', 'dismissNamespaceAlert']) }),
+  { dismiss: UIActions.queryBrowserDismissNamespaceAlert },
+)(NamespaceAlert_);
+
 const Query_: React.FC<QueryProps> = ({
+  id,
   index,
   isExpanded,
   isEnabled,
@@ -806,7 +827,7 @@ const Query_: React.FC<QueryProps> = ({
         <div title={switchLabel}>
           <Switch
             aria-label={switchLabel}
-            id={`query-switch-${index}`}
+            id={id}
             isChecked={isEnabled}
             onChange={toggleIsEnabled}
           />
@@ -821,6 +842,7 @@ const Query_: React.FC<QueryProps> = ({
 };
 const Query = connect(
   ({ UI }: RootState, { index }) => ({
+    id: UI.getIn(['queryBrowser', 'queries', index, 'id']),
     isEnabled: UI.getIn(['queryBrowser', 'queries', index, 'isEnabled']),
     isExpanded: UI.getIn(['queryBrowser', 'queries', index, 'isExpanded']),
   }),
@@ -849,7 +871,9 @@ const QueryBrowserWrapper_: React.FC<QueryBrowserWrapperProps> = ({
   // re-renders of QueryBrowser, which can be quite slow
   const queriesMemoKey = JSON.stringify(_.map(queries, 'query'));
   const queryStrings = React.useMemo(() => _.map(queries, 'query'), [queriesMemoKey]);
-  const disabledSeriesMemoKey = JSON.stringify(_.map(queries, 'disabledSeries'));
+  const disabledSeriesMemoKey = JSON.stringify(
+    _.reject(_.map(queries, 'disabledSeries'), _.isEmpty),
+  );
   const disabledSeries = React.useMemo(() => _.map(queries, 'disabledSeries'), [
     disabledSeriesMemoKey,
   ]);
@@ -864,7 +888,12 @@ const QueryBrowserWrapper_: React.FC<QueryBrowserWrapperProps> = ({
 
   const insertExampleQuery = () => {
     const index = _.get(focusedQuery, 'index', 0);
-    const text = 'sum(sort_desc(sum_over_time(ALERTS{alertstate="firing"}[24h]))) by (alertname)';
+
+    // Pick a suitable example query based on whether we are limiting results to a single namespace
+    const text = namespace
+      ? 'sum(rate(container_cpu_usage_seconds_total{image!="", container!="POD"}[5m])) by (pod)'
+      : 'sum(sort_desc(sum_over_time(ALERTS{alertstate="firing"}[24h]))) by (alertname)';
+
     patchQuery(index, { isEnabled: true, query: text, text });
   };
 
@@ -920,15 +949,17 @@ const RunQueriesButton = connect(
   { runQueries: UIActions.queryBrowserRunQueries },
 )(RunQueriesButton_);
 
-const QueriesList_ = ({ count, namespace }) => (
-  <React.Fragment>
-    {_.map(_.range(count), (i) => (
-      <Query index={i} key={i} namespace={namespace} />
+const QueriesList_ = ({ ids, namespace }) => (
+  <>
+    {_.map(ids, (id, i) => (
+      <Query index={i} key={id} namespace={namespace} />
     ))}
-  </React.Fragment>
+  </>
 );
 const QueriesList = connect(({ UI }: RootState) => ({
-  count: UI.getIn(['queryBrowser', 'queries']).size,
+  ids: UI.getIn(['queryBrowser', 'queries'])
+    .map((q) => q.get('id'))
+    .toArray(),
 }))(QueriesList_);
 
 const TechPreview = () => (
@@ -942,7 +973,7 @@ const QueryBrowserPage_: React.FC<QueryBrowserPageProps> = ({ deleteAll, namespa
   React.useEffect(() => deleteAll, [deleteAll]);
 
   return (
-    <React.Fragment>
+    <>
       <Helmet>
         <title>Metrics</title>
       </Helmet>
@@ -958,6 +989,7 @@ const QueryBrowserPage_: React.FC<QueryBrowserPageProps> = ({ deleteAll, namespa
         </h1>
       </div>
       <div className="co-m-pane__body">
+        {namespace && <NamespaceAlert />}
         <div className="row">
           <div className="col-xs-12">
             <ToggleGraph />
@@ -981,7 +1013,7 @@ const QueryBrowserPage_: React.FC<QueryBrowserPageProps> = ({ deleteAll, namespa
           </div>
         </div>
       </div>
-    </React.Fragment>
+    </>
   );
 };
 export const QueryBrowserPage: React.ComponentType<{ namespace?: string }> = withFallback(
@@ -1033,6 +1065,7 @@ type QueryKebabProps = {
 };
 
 type QueryProps = {
+  id: string;
   index: number;
   isEnabled: boolean;
   isExpanded: boolean;

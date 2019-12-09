@@ -47,8 +47,10 @@ export class CatalogListPage extends React.Component<CatalogListPageProps, Catal
       projectTemplateMetadata,
       imageStreams,
       namespace,
+      loaded,
     } = this.props;
     if (
+      (!prevProps.loaded && loaded) ||
       !_.isEqual(namespace, prevProps.namespace) ||
       !_.isEqual(clusterServiceClasses, prevProps.clusterServiceClasses) ||
       !_.isEqual(templateMetadata, prevProps.templateMetadata) ||
@@ -104,16 +106,23 @@ export class CatalogListPage extends React.Component<CatalogListPageProps, Catal
       projectTemplateItems = this.normalizeTemplates(projectTemplateMetadata);
     }
 
-    return _.sortBy(
-      [
-        ...clusterServiceClassItems,
-        ...imageStreamItems,
-        ...templateItems,
-        ...extensionItems,
-        ...projectTemplateItems,
-      ],
-      'tileName',
-    );
+    const items = [
+      ...clusterServiceClassItems,
+      ...imageStreamItems,
+      ...templateItems,
+      ...extensionItems,
+      ...projectTemplateItems,
+    ];
+
+    //blacklisting all CRDs with annotation 'operators.operatorframework.io/internal-object' set to true
+    const filteredItems = _.reject(items, [
+      'obj',
+      'metadata',
+      'annotations',
+      'operators.operatorframework.io/internal-object',
+    ]);
+
+    return _.sortBy(filteredItems, 'tileName');
   }
 
   normalizeClusterServiceClasses(serviceClasses) {
@@ -352,7 +361,7 @@ export const Catalog = connectToFlags<CatalogProps>(
 export const CatalogPage = withStartGuide(({ match, noProjectsAvailable }) => {
   const namespace = _.get(match, 'params.ns');
   return (
-    <React.Fragment>
+    <>
       <Helmet>
         <title>Developer Catalog</title>
       </Helmet>
@@ -364,7 +373,7 @@ export const CatalogPage = withStartGuide(({ match, noProjectsAvailable }) => {
         </p>
         <Catalog namespace={namespace} mock={noProjectsAvailable} />
       </div>
-    </React.Fragment>
+    </>
   );
 });
 

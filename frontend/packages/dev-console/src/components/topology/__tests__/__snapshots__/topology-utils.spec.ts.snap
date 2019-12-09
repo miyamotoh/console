@@ -44,6 +44,10 @@ Object {
       "data": Object {
         "build": undefined,
         "builderImage": "test-file-stub",
+        "connectedPipeline": Object {
+          "pipeline": undefined,
+          "pipelineRuns": Array [],
+        },
         "donutStatus": Object {
           "current": Object {
             "alerts": Object {},
@@ -90,6 +94,7 @@ Object {
             "phase": "Complete",
             "pods": Array [
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -143,6 +148,7 @@ Object {
               "generation": 2,
               "labels": Object {
                 "app": "nodejs",
+                "app.kubernetes.io/instance": "nodejs",
               },
               "name": "nodejs",
               "namespace": "testproject1",
@@ -177,6 +183,7 @@ Object {
           "isRollingOut": undefined,
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -225,8 +232,10 @@ Object {
       },
       "id": "02f680df-680f-11e9-b69e-5254003f9382",
       "name": "nodejs",
+      "operatorBackedService": false,
       "pods": Array [
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -314,6 +323,7 @@ Object {
           "phase": "Complete",
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -368,6 +378,7 @@ Object {
             "generation": 2,
             "labels": Object {
               "app": "nodejs",
+              "app.kubernetes.io/instance": "nodejs",
             },
             "name": "nodejs",
             "namespace": "testproject1",
@@ -401,6 +412,7 @@ Object {
         },
         "pods": Array [
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -547,6 +559,10 @@ Object {
       "data": Object {
         "build": undefined,
         "builderImage": "test-file-stub",
+        "connectedPipeline": Object {
+          "pipeline": undefined,
+          "pipelineRuns": Array [],
+        },
         "donutStatus": Object {
           "current": Object {
             "alerts": Object {},
@@ -596,6 +612,7 @@ Object {
             },
             "pods": Array [
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -635,6 +652,7 @@ Object {
                 },
               },
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -667,13 +685,14 @@ Object {
                   "uid": "c4592a49-683c-11e9-8c69-5254003f9382",
                 },
                 "spec": Object {
-                  "constainers": Array [],
+                  "containers": Array [],
                 },
                 "status": Object {
                   "phase": "Running",
                 },
               },
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -706,7 +725,7 @@ Object {
                   "uid": "5cec1049-680d-11e9-8c69-5254003f9382",
                 },
                 "spec": Object {
-                  "constainers": Array [],
+                  "containers": Array [],
                 },
                 "status": Object {
                   "phase": "Running",
@@ -737,7 +756,6 @@ Object {
               "selfLink": "/apis/apps/v1/namespaces/testproject1/deployments/analytics-deployment",
               "uid": "5ca9ae28-680d-11e9-8c69-5254003f9382",
             },
-            "name": "analytics-deployment",
             "spec": Object {
               "progressDeadlineSeconds": 600,
               "replicas": 3,
@@ -769,7 +787,9 @@ Object {
                     "app.kubernetes.io/version": "1.0",
                   },
                 },
-                "spec": Object {},
+                "spec": Object {
+                  "containers": Array [],
+                },
               },
             },
             "status": Object {},
@@ -777,6 +797,7 @@ Object {
           "isRollingOut": false,
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -816,6 +837,7 @@ Object {
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -848,13 +870,14 @@ Object {
                 "uid": "c4592a49-683c-11e9-8c69-5254003f9382",
               },
               "spec": Object {
-                "constainers": Array [],
+                "containers": Array [],
               },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -887,7 +910,7 @@ Object {
                 "uid": "5cec1049-680d-11e9-8c69-5254003f9382",
               },
               "spec": Object {
-                "constainers": Array [],
+                "containers": Array [],
               },
               "status": Object {
                 "phase": "Running",
@@ -903,8 +926,10 @@ Object {
       },
       "id": "5ca9ae28-680d-11e9-8c69-5254003f9382",
       "name": "analytics-deployment",
+      "operatorBackedService": false,
       "pods": Array [
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -944,6 +969,7 @@ Object {
           },
         },
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -976,13 +1002,14 @@ Object {
             "uid": "c4592a49-683c-11e9-8c69-5254003f9382",
           },
           "spec": Object {
-            "constainers": Array [],
+            "containers": Array [],
           },
           "status": Object {
             "phase": "Running",
           },
         },
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -1015,7 +1042,7 @@ Object {
             "uid": "5cec1049-680d-11e9-8c69-5254003f9382",
           },
           "spec": Object {
-            "constainers": Array [],
+            "containers": Array [],
           },
           "status": Object {
             "phase": "Running",
@@ -1073,6 +1100,7 @@ Object {
           },
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1112,6 +1140,7 @@ Object {
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1144,13 +1173,14 @@ Object {
                 "uid": "c4592a49-683c-11e9-8c69-5254003f9382",
               },
               "spec": Object {
-                "constainers": Array [],
+                "containers": Array [],
               },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1183,7 +1213,7 @@ Object {
                 "uid": "5cec1049-680d-11e9-8c69-5254003f9382",
               },
               "spec": Object {
-                "constainers": Array [],
+                "containers": Array [],
               },
               "status": Object {
                 "phase": "Running",
@@ -1215,7 +1245,6 @@ Object {
             "selfLink": "/apis/apps/v1/namespaces/testproject1/deployments/analytics-deployment",
             "uid": "5ca9ae28-680d-11e9-8c69-5254003f9382",
           },
-          "name": "analytics-deployment",
           "spec": Object {
             "progressDeadlineSeconds": 600,
             "replicas": 3,
@@ -1247,13 +1276,16 @@ Object {
                   "app.kubernetes.io/version": "1.0",
                 },
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
             },
           },
           "status": Object {},
         },
         "pods": Array [
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -1293,6 +1325,7 @@ Object {
             },
           },
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -1325,13 +1358,14 @@ Object {
               "uid": "c4592a49-683c-11e9-8c69-5254003f9382",
             },
             "spec": Object {
-              "constainers": Array [],
+              "containers": Array [],
             },
             "status": Object {
               "phase": "Running",
             },
           },
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -1364,7 +1398,7 @@ Object {
               "uid": "5cec1049-680d-11e9-8c69-5254003f9382",
             },
             "spec": Object {
-              "constainers": Array [],
+              "containers": Array [],
             },
             "status": Object {
               "phase": "Running",
@@ -1498,6 +1532,10 @@ Object {
       "data": Object {
         "build": undefined,
         "builderImage": "test-file-stub",
+        "connectedPipeline": Object {
+          "pipeline": undefined,
+          "pipelineRuns": Array [],
+        },
         "donutStatus": Object {
           "current": Object {
             "alerts": Object {},
@@ -1545,6 +1583,7 @@ Object {
             },
             "pods": Array [
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -1576,12 +1615,15 @@ Object {
                   "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-2n6nl",
                   "uid": "610c7d95-680d-11e9-8c69-5254003f9382",
                 },
-                "spec": Object {},
+                "spec": Object {
+                  "containers": Array [],
+                },
                 "status": Object {
                   "phase": "Running",
                 },
               },
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -1613,12 +1655,15 @@ Object {
                   "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-kzh9c",
                   "uid": "60dbfd78-680d-11e9-8c69-5254003f9382",
                 },
-                "spec": Object {},
+                "spec": Object {
+                  "containers": Array [],
+                },
                 "status": Object {
                   "phase": "Running",
                 },
               },
               Object {
+                "apiVersion": "v1",
                 "kind": "Pod",
                 "metadata": Object {
                   "annotations": Object {
@@ -1650,7 +1695,9 @@ Object {
                   "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-r5nlj",
                   "uid": "610bbd96-680d-11e9-8c69-5254003f9382",
                 },
-                "spec": Object {},
+                "spec": Object {
+                  "containers": Array [],
+                },
                 "status": Object {
                   "phase": "Running",
                 },
@@ -1680,7 +1727,6 @@ Object {
               "selfLink": "/apis/apps/v1/namespaces/testproject1/deployments/wit-deployment",
               "uid": "60a9b423-680d-11e9-8c69-5254003f9382",
             },
-            "name": "wit-deployment",
             "spec": Object {
               "progressDeadlineSeconds": 600,
               "replicas": 3,
@@ -1712,7 +1758,9 @@ Object {
                     "app.kubernetes.io/version": "1.0",
                   },
                 },
-                "spec": Object {},
+                "spec": Object {
+                  "containers": Array [],
+                },
               },
             },
             "status": Object {},
@@ -1720,6 +1768,7 @@ Object {
           "isRollingOut": false,
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1751,12 +1800,15 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-2n6nl",
                 "uid": "610c7d95-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1788,12 +1840,15 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-kzh9c",
                 "uid": "60dbfd78-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -1825,7 +1880,9 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-r5nlj",
                 "uid": "610bbd96-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
@@ -1840,8 +1897,10 @@ Object {
       },
       "id": "60a9b423-680d-11e9-8c69-5254003f9382",
       "name": "wit-deployment",
+      "operatorBackedService": false,
       "pods": Array [
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -1873,12 +1932,15 @@ Object {
             "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-2n6nl",
             "uid": "610c7d95-680d-11e9-8c69-5254003f9382",
           },
-          "spec": Object {},
+          "spec": Object {
+            "containers": Array [],
+          },
           "status": Object {
             "phase": "Running",
           },
         },
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -1910,12 +1972,15 @@ Object {
             "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-kzh9c",
             "uid": "60dbfd78-680d-11e9-8c69-5254003f9382",
           },
-          "spec": Object {},
+          "spec": Object {
+            "containers": Array [],
+          },
           "status": Object {
             "phase": "Running",
           },
         },
         Object {
+          "apiVersion": "v1",
           "kind": "Pod",
           "metadata": Object {
             "annotations": Object {
@@ -1947,7 +2012,9 @@ Object {
             "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-r5nlj",
             "uid": "610bbd96-680d-11e9-8c69-5254003f9382",
           },
-          "spec": Object {},
+          "spec": Object {
+            "containers": Array [],
+          },
           "status": Object {
             "phase": "Running",
           },
@@ -2002,6 +2069,7 @@ Object {
           },
           "pods": Array [
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -2033,12 +2101,15 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-2n6nl",
                 "uid": "610c7d95-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -2070,12 +2141,15 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-kzh9c",
                 "uid": "60dbfd78-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
             },
             Object {
+              "apiVersion": "v1",
               "kind": "Pod",
               "metadata": Object {
                 "annotations": Object {
@@ -2107,7 +2181,9 @@ Object {
                 "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-r5nlj",
                 "uid": "610bbd96-680d-11e9-8c69-5254003f9382",
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
               "status": Object {
                 "phase": "Running",
               },
@@ -2138,7 +2214,6 @@ Object {
             "selfLink": "/apis/apps/v1/namespaces/testproject1/deployments/wit-deployment",
             "uid": "60a9b423-680d-11e9-8c69-5254003f9382",
           },
-          "name": "wit-deployment",
           "spec": Object {
             "progressDeadlineSeconds": 600,
             "replicas": 3,
@@ -2170,13 +2245,16 @@ Object {
                   "app.kubernetes.io/version": "1.0",
                 },
               },
-              "spec": Object {},
+              "spec": Object {
+                "containers": Array [],
+              },
             },
           },
           "status": Object {},
         },
         "pods": Array [
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -2208,12 +2286,15 @@ Object {
               "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-2n6nl",
               "uid": "610c7d95-680d-11e9-8c69-5254003f9382",
             },
-            "spec": Object {},
+            "spec": Object {
+              "containers": Array [],
+            },
             "status": Object {
               "phase": "Running",
             },
           },
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -2245,12 +2326,15 @@ Object {
               "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-kzh9c",
               "uid": "60dbfd78-680d-11e9-8c69-5254003f9382",
             },
-            "spec": Object {},
+            "spec": Object {
+              "containers": Array [],
+            },
             "status": Object {
               "phase": "Running",
             },
           },
           Object {
+            "apiVersion": "v1",
             "kind": "Pod",
             "metadata": Object {
               "annotations": Object {
@@ -2282,7 +2366,9 @@ Object {
               "selfLink": "/api/v1/namespaces/testproject3/pods/wit-deployment-656cc8b469-r5nlj",
               "uid": "610bbd96-680d-11e9-8c69-5254003f9382",
             },
-            "spec": Object {},
+            "spec": Object {
+              "containers": Array [],
+            },
             "status": Object {
               "phase": "Running",
             },

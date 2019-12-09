@@ -4,7 +4,7 @@ import * as _ from 'lodash';
 import { modelFor } from '@console/internal/module/k8s';
 import ApplicationGroupResource from './ApplicationGroupResource';
 import { TopologyDataObject } from './topology-types';
-import { getResourceDeploymentObject } from './topology-utils';
+import { getTopologyResourceObject } from './topology-utils';
 
 import './TopologyApplicationResources.scss';
 
@@ -19,13 +19,13 @@ const TopologyApplicationResources: React.FC<TopologyApplicationResourcesProps> 
 }) => {
   const resourcesData = {};
   _.forEach(resources, (res) => {
-    const a = getResourceDeploymentObject(res);
+    const a = getTopologyResourceObject(res);
     resourcesData[a.kind] = [...(resourcesData[a.kind] ? resourcesData[a.kind] : []), a];
   });
 
   return (
-    <React.Fragment>
-      <div
+    <>
+      <ul
         className={classNames(
           'co-m-horizontal-nav__menu',
           'co-m-horizontal-nav__menu--within-sidebar',
@@ -33,22 +33,20 @@ const TopologyApplicationResources: React.FC<TopologyApplicationResourcesProps> 
           'odc-application-resource-tab',
         )}
       >
-        <ul className="co-m-horizontal-nav__menu-primary">
-          <li className="co-m-horizontal-nav__menu-item">
-            <button type="button">Resources</button>
-          </li>
-        </ul>
-      </div>
+        <li className="co-m-horizontal-nav__menu-item">
+          <button type="button">Resources</button>
+        </li>
+      </ul>
       {_.map(_.keys(resourcesData), (key) => (
         <ApplicationGroupResource
           key={`${group}-${key}`}
-          title={modelFor(key).label}
+          title={modelFor(key) ? modelFor(key).label : key}
           kind={key}
           resourcesData={resourcesData[key]}
           group={group}
         />
       ))}
-    </React.Fragment>
+    </>
   );
 };
 

@@ -1,18 +1,26 @@
 import * as _ from 'lodash';
-import { K8sResourceKind, modelFor, RouteKind } from '@console/internal/module/k8s';
-import { getRouteWebURL } from '@console/internal/components/routes';
 import {
-  TransformResourceData,
-  OverviewItem,
-  isKnativeServing,
-  deploymentKindMap,
-} from '@console/shared';
+  K8sResourceKind,
+  modelFor,
+  RouteKind,
+  DeploymentKind,
+  referenceFor,
+} from '@console/internal/module/k8s';
+import { getRouteWebURL } from '@console/internal/components/routes';
+import { TransformResourceData, isKnativeServing, deploymentKindMap } from '@console/shared';
 import { getImageForIconClass } from '@console/internal/components/catalog/catalog-item-icon';
+import {
+  tranformKnNodeData,
+  filterNonKnativeDeployments,
+} from '@console/knative-plugin/src/utils/knative-topology-utils';
 import {
   edgesFromAnnotations,
   createResourceConnection,
   updateResourceApplication,
   removeResourceConnection,
+  createServiceBinding,
+  removeServiceBinding,
+  edgesFromServiceBinding,
 } from '../../utils/application-utils';
 import {
   TopologyDataModel,
@@ -21,6 +29,7 @@ import {
   Node,
   Edge,
   Group,
+  TopologyOverviewItem,
 } from './topology-types';
 
 export const getCheURL = (consoleLinks: K8sResourceKind[]) =>
@@ -59,7 +68,7 @@ const getRouteData = (ksroute: K8sResourceKind[]): string => {
 /**
  * get routes url
  */
-const getRoutesUrl = (routes: RouteKind[], ksroute?: K8sResourceKind[]): string => {
+export const getRoutesUrl = (routes: RouteKind[], ksroute?: K8sResourceKind[]): string => {
   if (routes.length > 0 && !_.isEmpty(routes[0].spec)) {
     return getRouteWebURL(routes[0]);
   }
@@ -87,19 +96,33 @@ const createInstanceForResource = (resources: TopologyDataResources, utils?: Fun
  * @param dc resource item
  * @param cheURL che link
  */
-const createTopologyNodeData = (dc: OverviewItem, cheURL?: string): TopologyDataObject => {
-  const { obj: deploymentConfig, current, previous, isRollingOut } = dc;
+export const createTopologyNodeData = (
+  dc: TopologyOverviewItem,
+  operatorBackedServiceKinds: string[],
+  cheURL?: string,
+  type?: string,
+): TopologyDataObject => {
+  const {
+    obj: deploymentConfig,
+    current,
+    previous,
+    isRollingOut,
+    buildConfigs,
+    pipelines = [],
+    pipelineRuns = [],
+  } = dc;
   const dcUID = _.get(deploymentConfig, 'metadata.uid');
   const deploymentsLabels = _.get(deploymentConfig, 'metadata.labels', {});
   const deploymentsAnnotations = _.get(deploymentConfig, 'metadata.annotations', {});
-  const { buildConfigs } = dc;
+  const nodeResourceKind = _.get(deploymentConfig, 'metadata.ownerReferences[0].kind');
   return {
     id: dcUID,
     name:
       _.get(deploymentConfig, 'metadata.name') || deploymentsLabels['app.kubernetes.io/instance'],
-    type: 'workload',
+    type: type || 'workload',
     resources: { ...dc },
     pods: dc.pods,
+    operatorBackedService: operatorBackedServiceKinds.includes(nodeResourceKind),
     data: {
       url: getRoutesUrl(dc.routes, _.get(dc, ['ksroutes'])),
       kind: deploymentConfig.kind,
@@ -110,8 +133,15 @@ const createTopologyNodeData = (dc: OverviewItem, cheURL?: string): TopologyData
         getImageForIconClass(`icon-${deploymentsLabels['app.openshift.io/runtime']}`) ||
         getImageForIconClass(`icon-${deploymentsLabels['app.kubernetes.io/name']}`) ||
         getImageForIconClass(`icon-openshift`),
-      isKnativeResource: isKnativeServing(deploymentConfig, 'metadata.labels'),
+      isKnativeResource:
+        type && (type === 'event-source' || 'knative-revision')
+          ? true
+          : isKnativeServing(deploymentConfig, 'metadata.labels'),
       build: _.get(buildConfigs[0], 'builds[0]'),
+      connectedPipeline: {
+        pipeline: pipelines[0],
+        pipelineRuns,
+      },
       donutStatus: {
         pods: dc.pods,
         current,
@@ -143,9 +173,14 @@ const getTopologyNodeItem = (dc: K8sResourceKind): Node => {
  * @param dc
  * @param resources
  */
-const getTopologyEdgeItems = (dc: K8sResourceKind, resources: K8sResourceKind[]): Edge[] => {
+const getTopologyEdgeItems = (
+  dc: K8sResourceKind,
+  resources: K8sResourceKind[],
+  sbrs: K8sResourceKind[],
+): Edge[] => {
   const annotations = _.get(dc, 'metadata.annotations');
   const edges = [];
+
   _.forEach(edgesFromAnnotations(annotations), (edge) => {
     // handles multiple edges
     const targetNode = _.get(
@@ -167,6 +202,32 @@ const getTopologyEdgeItems = (dc: K8sResourceKind, resources: K8sResourceKind[])
       });
     }
   });
+
+  _.forEach(edgesFromServiceBinding(dc, sbrs), (sbr) => {
+    // handles multiple edges
+    const targetNode = _.get(
+      _.find(resources, (deployment) => {
+        const targetFound =
+          _.get(deployment, 'metadata.ownerReferences[0].name') ===
+            sbr.spec.backingServiceSelector.resourceRef &&
+          _.get(deployment, 'metadata.ownerReferences[0].kind') ===
+            sbr.spec.backingServiceSelector.kind;
+        return targetFound;
+      }),
+      ['metadata', 'uid'],
+    );
+    const uid = _.get(dc, ['metadata', 'uid']);
+    if (targetNode) {
+      edges.push({
+        id: `${uid}_${targetNode}`,
+        type: 'service-binding',
+        source: uid,
+        target: targetNode,
+        data: { sbr },
+      });
+    }
+  });
+
   return edges;
 };
 
@@ -175,7 +236,7 @@ const getTopologyEdgeItems = (dc: K8sResourceKind, resources: K8sResourceKind[])
  * @param dc
  * @param groups
  */
-const getTopologyGroupItems = (dc: K8sResourceKind, groups: Group[]): Group[] => {
+export const getTopologyGroupItems = (dc: K8sResourceKind, groups: Group[]): Group[] => {
   const labels = _.get(dc, ['metadata', 'labels']);
   const uid = _.get(dc, ['metadata', 'uid']);
   _.forEach(labels, (label, key) => {
@@ -215,10 +276,74 @@ export const transformTopologyData = (
   cheURL?: string,
   utils?: Function[],
 ): TopologyDataModel => {
+  const installedOperators = _.get(resources, 'clusterServiceVersion.data');
+  const operatorBackedServiceKinds = [];
+  const serviceBindingRequests = _.get(resources, 'serviceBindingRequests.data');
+
+  if (installedOperators) {
+    _.forEach(installedOperators, (op) => {
+      _.get(op, 'spec.customresourcedefinitions.owned').map((service) =>
+        operatorBackedServiceKinds.push(service.kind),
+      );
+    });
+  }
+
   let topologyGraphAndNodeData: TopologyDataModel = {
     graph: { nodes: [], edges: [], groups: [] },
     topology: {},
   };
+
+  /**
+   * form data model specific to knative resources
+   */
+  const getKnativeTopologyData = (knativeResources: K8sResourceKind[], type: string) => {
+    if (knativeResources && knativeResources.length) {
+      const knativeResourceData = tranformKnNodeData(
+        knativeResources,
+        type,
+        topologyGraphAndNodeData,
+        resources,
+        operatorBackedServiceKinds,
+        utils,
+        cheURL,
+        application,
+      );
+      const {
+        graph: { nodes, edges },
+        topology,
+      } = topologyGraphAndNodeData;
+      topologyGraphAndNodeData = {
+        graph: {
+          nodes: [...nodes, ...knativeResourceData.nodesData],
+          edges: [...edges, ...knativeResourceData.edgesData],
+          groups: [...knativeResourceData.groupsData],
+        },
+        topology: { ...topology, ...knativeResourceData.dataToShowOnNodes },
+      };
+    }
+  };
+
+  const getKnativeEventSources = (): K8sResourceKind[] => {
+    const allEventSourcesResources = _.concat(
+      _.get(resources, 'eventSourceCronjob.data', []),
+      _.get(resources, 'eventSourceContainers.data', []),
+      _.get(resources, 'eventSourceApiserver.data', []),
+      _.get(resources, 'eventSourceCamel.data', []),
+      _.get(resources, 'eventSourcekafka.data', []),
+    );
+    return allEventSourcesResources;
+  };
+
+  const knSvcResources: K8sResourceKind[] = _.get(resources, ['ksservices', 'data'], []);
+  knSvcResources.length && getKnativeTopologyData(knSvcResources, 'knative-service');
+  const knEventSources: K8sResourceKind[] = getKnativeEventSources();
+  knEventSources.length && getKnativeTopologyData(knEventSources, 'event-source');
+  const knRevResources: K8sResourceKind[] = _.get(resources, ['revisions', 'data'], []);
+  knRevResources.length && getKnativeTopologyData(knRevResources, 'knative-revision');
+  const deploymentResources: DeploymentKind[] = _.get(resources, ['deployments', 'data'], []);
+  resources.deployments.data = filterNonKnativeDeployments(deploymentResources);
+  // END: kn call to form topology data
+
   const transformResourceData = createInstanceForResource(resources, utils);
   const allResources = _.cloneDeep(
     _.concat(
@@ -244,10 +369,13 @@ export const transformTopologyData = (
       transformResourceData[key](resourceData).forEach((item) => {
         const { obj: deploymentConfig } = item;
         const uid = _.get(deploymentConfig, ['metadata', 'uid']);
-        dataToShowOnNodes[uid] = createTopologyNodeData(item, cheURL);
+        dataToShowOnNodes[uid] = createTopologyNodeData(item, operatorBackedServiceKinds, cheURL);
         if (!_.some(topologyGraphAndNodeData.graph.nodes, { id: uid })) {
           nodesData = [...nodesData, getTopologyNodeItem(deploymentConfig)];
-          edgesData = [...edgesData, ...getTopologyEdgeItems(deploymentConfig, allResources)];
+          edgesData = [
+            ...edgesData,
+            ...getTopologyEdgeItems(deploymentConfig, allResources, serviceBindingRequests),
+          ];
           groupsData = [
             ...getTopologyGroupItems(deploymentConfig, topologyGraphAndNodeData.graph.groups),
           ];
@@ -270,9 +398,7 @@ export const transformTopologyData = (
   return topologyGraphAndNodeData;
 };
 
-export const getResourceDeploymentObject = (
-  topologyObject: TopologyDataObject,
-): K8sResourceKind => {
+export const getTopologyResourceObject = (topologyObject: TopologyDataObject): K8sResourceKind => {
   if (!topologyObject) {
     return null;
   }
@@ -287,22 +413,34 @@ export const updateTopologyResourceApplication = (
     return Promise.reject();
   }
 
-  const resource = getResourceDeploymentObject(item);
-  return updateResourceApplication(modelFor(resource.kind), resource, application);
+  const resource = getTopologyResourceObject(item);
+
+  const resourceKind = modelFor(referenceFor(resource));
+  if (!resourceKind) {
+    return Promise.reject(
+      new Error(`Unable to update application, invalid resource type: ${resource.kind}`),
+    );
+  }
+  return updateResourceApplication(resourceKind, resource, application);
 };
 
 export const createTopologyResourceConnection = (
   source: TopologyDataObject,
   target: TopologyDataObject,
   replaceTarget: TopologyDataObject = null,
+  serviceBindingFlag: boolean,
 ): Promise<any> => {
   if (!source || !target || source === target) {
     return Promise.reject();
   }
 
-  const sourceObj = getResourceDeploymentObject(source);
-  const targetObj = getResourceDeploymentObject(target);
-  const replaceTargetObj = replaceTarget && getResourceDeploymentObject(replaceTarget);
+  const sourceObj = getTopologyResourceObject(source);
+  const targetObj = getTopologyResourceObject(target);
+  const replaceTargetObj = replaceTarget && getTopologyResourceObject(replaceTarget);
+
+  if (serviceBindingFlag && target.operatorBackedService) {
+    return createServiceBinding(sourceObj, targetObj);
+  }
 
   return createResourceConnection(sourceObj, targetObj, replaceTargetObj);
 };
@@ -310,13 +448,19 @@ export const createTopologyResourceConnection = (
 export const removeTopologyResourceConnection = (
   source: TopologyDataObject,
   target: TopologyDataObject,
+  sbr: K8sResourceKind,
+  edgeType: string,
 ): Promise<any> => {
   if (!source || !target) {
     return Promise.reject();
   }
 
-  const sourceObj = getResourceDeploymentObject(source);
-  const targetObj = getResourceDeploymentObject(target);
+  const sourceObj = getTopologyResourceObject(source);
+  const targetObj = getTopologyResourceObject(target);
+
+  if (edgeType === 'service-binding') {
+    return removeServiceBinding(sbr);
+  }
 
   return removeResourceConnection(sourceObj, targetObj);
 };

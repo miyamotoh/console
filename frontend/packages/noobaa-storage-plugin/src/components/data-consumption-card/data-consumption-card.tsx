@@ -94,14 +94,14 @@ const DataConsumptionCard: React.FC<DashboardItemProps> = ({
       <DashboardCardBody className="co-dashboard-card__body--top-margin" isLoading={isLoading}>
         {!error && !chartData.some(_.isEmpty) ? (
           <>
-            <span className="text-secondary">
+            <div className="nb-data-consumption-card__chart-label text-secondary">
               {CHART_LABELS[sortByKpi]} {suffixLabel}
-            </span>
+            </div>
             <Chart
               containerComponent={
                 <ChartVoronoiContainer
                   labelComponent={<ChartTooltip style={{ fontSize: 8, paddingBottom: 0 }} />}
-                  labels={(datum) => `${datum.y} ${maxUnit}`}
+                  labels={({ datum }) => `${datum.y} ${maxUnit}`}
                   voronoiDimension="x"
                 />
               }

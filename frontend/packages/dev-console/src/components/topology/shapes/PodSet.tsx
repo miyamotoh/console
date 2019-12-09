@@ -5,6 +5,8 @@ import { DonutStatusData } from '../topology-types';
 interface PodSetProps {
   size: number;
   data: DonutStatusData;
+  x?: number;
+  y?: number;
 }
 
 interface InnerPodStatusRadius {
@@ -24,7 +26,7 @@ const calculateInnerPodStatusRadius = (
   return { innerPodStatusOuterRadius, innerPodStatusInnerRadius };
 };
 
-const PodSet: React.FC<PodSetProps> = ({ size, data }) => {
+const PodSet: React.FC<PodSetProps> = ({ size, data, x = 0, y = 0 }) => {
   const { podStatusOuterRadius, podStatusInnerRadius, podStatusStrokeWidth } = calculateRadius(
     size,
   );
@@ -40,11 +42,11 @@ const PodSet: React.FC<PodSetProps> = ({ size, data }) => {
     data.isRollingOut,
   );
   return (
-    <React.Fragment>
+    <>
       <PodStatus
         key={inProgressDeploymentData ? 'deploy' : 'notDeploy'}
-        x={-size / 2}
-        y={-size / 2}
+        x={x - size / 2}
+        y={y - size / 2}
         innerRadius={podStatusInnerRadius}
         outerRadius={podStatusOuterRadius}
         data={completedDeploymentData}
@@ -52,15 +54,15 @@ const PodSet: React.FC<PodSetProps> = ({ size, data }) => {
       />
       {inProgressDeploymentData && (
         <PodStatus
-          x={-size / 2}
-          y={-size / 2}
+          x={x - size / 2}
+          y={y - size / 2}
           innerRadius={innerPodStatusInnerRadius}
           outerRadius={innerPodStatusOuterRadius}
           data={inProgressDeploymentData}
           size={size}
         />
       )}
-    </React.Fragment>
+    </>
   );
 };
 

@@ -108,13 +108,13 @@ const BooleanSwitch: React.FC<SpecCapabilityProps> = (props) => {
       &nbsp;&nbsp;
       {value !== props.value && confirmed && <LoadingInline />}
       {value !== props.value && !confirmed && (
-        <React.Fragment>
+        <>
           &nbsp;&nbsp;
           <Button className="pf-m-link--align-left" type="button" variant="link" onClick={update}>
             <YellowExclamationTriangleIcon className="co-icon-space-r pf-c-button-icon--plain" />
             Confirm change
           </Button>
-        </React.Fragment>
+        </>
       )}
     </div>
   );
@@ -124,22 +124,22 @@ const Secret: React.FC<SpecCapabilityProps> = (props) => {
   const [reveal, setReveal] = React.useState(false);
 
   return (
-    <React.Fragment>
+    <>
       <Button type="button" onClick={() => setReveal(!reveal)}>
         {reveal ? (
-          <React.Fragment>
+          <>
             <EyeSlashIcon className="co-icon-space-r" />
             Hide Values
-          </React.Fragment>
+          </>
         ) : (
-          <React.Fragment>
+          <>
             <EyeIcon className="co-icon-space-r" />
             Reveal Values
-          </React.Fragment>
+          </>
         )}
       </Button>
       <SecretValue value={props.value} encoded={false} reveal={reveal} />
-    </React.Fragment>
+    </>
   );
 };
 
@@ -204,7 +204,9 @@ export const SpecDescriptor: React.SFC<DescriptorProps> = (props) => {
     <dl className="olm-descriptor">
       <div style={{ width: 'max-content' }}>
         <Tooltip content={descriptor.description}>
-          <dt className="olm-descriptor__title">{descriptor.displayName}</dt>
+          <dt className="olm-descriptor__title" data-test-descriptor-label={descriptor.displayName}>
+            {descriptor.displayName}
+          </dt>
         </Tooltip>
       </div>
       <dd className="olm-descriptor__value">

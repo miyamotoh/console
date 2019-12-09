@@ -5,7 +5,7 @@ import * as d3 from 'd3';
 import * as ReactDOM from 'react-dom';
 import * as _ from 'lodash';
 import { confirmModal, errorModal } from '@console/internal/components/modals';
-import SvgDefsProvider from '../svg/SvgDefsProvider';
+import { SVGDefsProvider } from '@console/topology';
 import {
   ContextMenuProvider,
   DragConnectionProps,
@@ -85,7 +85,7 @@ export interface D3ForceDirectedRendererProps {
     targetNodeId: string,
     replaceTargetNodeId?: string,
   ): Promise<any>;
-  onRemoveConnection?(sourceNodeId: string, targetNodeId: string): void;
+  onRemoveConnection?(sourceNodeId: string, targetNodeId: string, edgeType: string): void;
 }
 
 function getEdgeId(d: Edge): string {
@@ -536,11 +536,11 @@ export default class D3ForceDirectedRenderer extends React.Component<
     if (sourceGroup) {
       const title = targetGroup ? 'Move Component Node' : 'Remove Component Node from Application';
       const message = (
-        <React.Fragment>
+        <>
           Are you sure you want to {targetGroup ? 'move' : 'remove'} <strong>{d.name}</strong> from{' '}
           {groupsById[sourceGroup].name}
           {targetGroup ? ` to ${targetGroupName}` : ''}?
-        </React.Fragment>
+        </>
       );
       const btnText = targetGroup ? 'Move' : 'Remove';
 
@@ -1120,17 +1120,17 @@ export default class D3ForceDirectedRenderer extends React.Component<
         dragActive={this.isDragActive()}
         isDragging={viewEdge.source.id === dragNodeId || viewEdge.target.id === dragNodeId}
         onTargetArrowEnter={this.onMoveConnectionEnter}
-        onRemove={() => onRemoveConnection(viewEdge.source.id, viewEdge.target.id)}
+        onRemove={() => onRemoveConnection(viewEdge.source.id, viewEdge.target.id, viewEdge.type)}
       />
     );
   }
 
   renderDragItems(edges, nodes) {
     return (
-      <React.Fragment>
+      <>
         {_.map(edges, (edgeId) => this.renderEdge(edgeId))}
         {_.map(nodes, (nodeId) => this.renderNode(nodeId))}
-      </React.Fragment>
+      </>
     );
   }
 
@@ -1159,7 +1159,7 @@ export default class D3ForceDirectedRenderer extends React.Component<
         onClick={this.deselect}
         className={className}
       >
-        <SvgDefsProvider>
+        <SVGDefsProvider>
           <g transform={zoomTransform && zoomTransform.toString()} ref={this.zoomGroup}>
             <g>{groups.map((groupId) => this.renderGroup(groupId))}</g>
             <g>
@@ -1176,7 +1176,7 @@ export default class D3ForceDirectedRenderer extends React.Component<
               {this.renderMoveConnection()}
             </g>
           </g>
-        </SvgDefsProvider>
+        </SVGDefsProvider>
       </svg>
     );
   }
@@ -1255,7 +1255,7 @@ class EdgeWrapper extends React.Component<EdgeWrapperProps> {
   componentDidUpdate(prevProps: EdgeWrapperProps) {
     if (prevProps.view !== this.props.view) {
       // we need to update the data so that d3 apis get the correct new edge
-      this.$targetArrow.datum(this.props.view);
+      this.$targetArrow && this.$targetArrow.datum(this.props.view);
     }
   }
 

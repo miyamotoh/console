@@ -1,5 +1,6 @@
 import * as _ from 'lodash';
 import {
+  DeploymentKind,
   K8sResourceKind,
   LabelSelector,
   PodKind,
@@ -23,8 +24,9 @@ import {
   OverviewItemAlerts,
   PodControllerOverviewItem,
   OverviewItem,
-} from '../types/resource';
-import { PodRCData } from '../types';
+  PodRCData,
+  ExtPodKind,
+} from '../types';
 import {
   DEPLOYMENT_REVISION_ANNOTATION,
   DEPLOYMENT_CONFIG_LATEST_VERSION_ANNOTATION,
@@ -118,7 +120,7 @@ export const getResourceList = (namespace: string, resList?: any) => {
   return { resources, utils };
 };
 
-const getResourcePausedAlert = (resource: K8sResourceKind): OverviewItemAlerts => {
+export const getResourcePausedAlert = (resource: K8sResourceKind): OverviewItemAlerts => {
   if (!resource.spec.paused) {
     return {};
   }
@@ -130,7 +132,7 @@ const getResourcePausedAlert = (resource: K8sResourceKind): OverviewItemAlerts =
   };
 };
 
-const getBuildAlerts = (buildConfigs: BuildConfigOverviewItem[]): OverviewItemAlerts => {
+export const getBuildAlerts = (buildConfigs: BuildConfigOverviewItem[]): OverviewItemAlerts => {
   const buildAlerts = {};
   const addAlert = (build: K8sResourceKind, buildPhase: string) =>
     _.set(buildAlerts, `${build.metadata.uid}--build${buildPhase}`, {
@@ -169,7 +171,7 @@ const getBuildAlerts = (buildConfigs: BuildConfigOverviewItem[]): OverviewItemAl
   return buildAlerts;
 };
 
-const getOwnedResources = <T extends K8sResourceKind>(
+export const getOwnedResources = <T extends K8sResourceKind>(
   { metadata: { uid } }: K8sResourceKind,
   resources: T[],
 ): T[] => {
@@ -345,9 +347,7 @@ const getReplicationControllerAlerts = (rc: K8sResourceKind): OverviewItemAlerts
   }
 };
 
-// FIXME: This is not returning an actual PodKind. It's returning the RC spec
-// and status, and status.phase is not valid.
-const getAutoscaledPods = (rc: K8sResourceKind): any[] => {
+const getAutoscaledPods = (rc: K8sResourceKind): ExtPodKind[] => {
   return [
     {
       ..._.pick(rc, 'metadata', 'status', 'spec'),
@@ -370,7 +370,7 @@ const getIdledStatus = (
           ..._.pick(rc.obj, 'metadata', 'status', 'spec'),
           status: { phase: 'Idle' },
         },
-      ] as any[],
+      ],
     };
   }
   return rc;
@@ -481,7 +481,7 @@ export class TransformResourceData {
     );
   };
 
-  getReplicaSetsForResource = (deployment: K8sResourceKind): PodControllerOverviewItem[] => {
+  public getReplicaSetsForResource = (deployment: K8sResourceKind): PodControllerOverviewItem[] => {
     const replicaSets = this.getActiveReplicaSets(deployment);
     return sortReplicaSetsByRevision(replicaSets).map((rs) =>
       getIdledStatus(this.toReplicaSetItem(rs), deployment),
@@ -493,7 +493,7 @@ export class TransformResourceData {
     return getOwnedResources(buildConfig, builds.data);
   };
 
-  getBuildConfigsForResource = (resource: K8sResourceKind): BuildConfigOverviewItem[] => {
+  public getBuildConfigsForResource = (resource: K8sResourceKind): BuildConfigOverviewItem[] => {
     const buildConfigs = _.get(this.resources, ['buildConfigs', 'data']);
     const currentNamespace = resource.metadata.namespace;
     const nativeTriggers = _.get(resource, 'spec.triggers');
@@ -557,7 +557,7 @@ export class TransformResourceData {
     }
   };
 
-  getRoutesForServices = (services: K8sResourceKind[]): RouteKind[] => {
+  public getRoutesForServices = (services: K8sResourceKind[]): RouteKind[] => {
     const { routes } = this.resources;
     return _.filter(routes.data, (route) => {
       const name = _.get(route, 'spec.to.name');
@@ -565,7 +565,7 @@ export class TransformResourceData {
     });
   };
 
-  getServicesForResource = (resource: K8sResourceKind): K8sResourceKind[] => {
+  public getServicesForResource = (resource: K8sResourceKind): K8sResourceKind[] => {
     const { services } = this.resources;
     const template: PodTemplate = this.getPodTemplate(resource);
     return _.filter(services.data, (service: K8sResourceKind) => {
@@ -593,7 +593,7 @@ export class TransformResourceData {
       };
 
       const status = resourceStatus(obj, current, isRollingOut);
-      return {
+      const overviewItems = {
         alerts,
         buildConfigs,
         current,
@@ -605,12 +605,21 @@ export class TransformResourceData {
         services,
         status,
       };
+
+      if (this.utils) {
+        return this.utils.reduce((acc, element) => {
+          return { ...acc, ...element(obj, this.resources) };
+        }, overviewItems);
+      }
+      return overviewItems;
     });
   };
 
-  public createDeploymentItems = (deployments: K8sResourceKind[]): OverviewItem[] => {
+  public createDeploymentItems = (
+    deployments: DeploymentKind[],
+  ): OverviewItem<DeploymentKind>[] => {
     return _.map(deployments, (d) => {
-      const obj: K8sResourceKind = {
+      const obj: DeploymentKind = {
         ...d,
         apiVersion: apiVersionForModel(DeploymentModel),
         kind: DeploymentModel.kind,

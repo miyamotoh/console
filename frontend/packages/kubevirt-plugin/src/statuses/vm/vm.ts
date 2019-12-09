@@ -1,12 +1,17 @@
 import { PodKind, K8sResourceKind } from '@console/internal/module/k8s';
 import { parseNumber } from '../../utils';
-import { getAnnotationKeySuffix } from '../../selectors/selectors';
+import { getAnnotationKeySuffix, getStatusPhase } from '../../selectors/selectors';
 import {
   isMigrating,
   findVMIMigration,
   getMigrationStatusPhase,
 } from '../../selectors/vmi-migration';
-import { findVMPod, getVMImporterPods, getPodStatusPhase } from '../../selectors/pod/selectors';
+import {
+  findVMPod,
+  getVMImporterPods,
+  getPodStatusPhase,
+  getPodContainerStatuses,
+} from '../../selectors/pod/selectors';
 import {
   isVMRunning,
   isVMReady,
@@ -23,7 +28,7 @@ import {
   POD_PHASE_PENDING,
 } from '../pod/constants';
 import { NOT_HANDLED } from '../constants';
-import { VMKind } from '../../types';
+import { VMKind, VMIKind } from '../../types';
 import {
   VM_STATUS_V2V_CONVERSION_ERROR,
   VM_STATUS_V2V_CONVERSION_IN_PROGRESS,
@@ -35,6 +40,7 @@ import {
   VM_STATUS_OFF,
   VM_STATUS_RUNNING,
   VM_STATUS_STARTING,
+  VM_STATUS_STOPPING,
   VM_STATUS_VMI_WAITING,
   VM_STATUS_UNKNOWN,
   VM_SIMPLE_STATUS_OTHER,
@@ -51,11 +57,36 @@ const isBeingMigrated = (vm: VMKind, migrations?: K8sResourceKind[]): VMStatus =
   return NOT_HANDLED;
 };
 
+const isBeingStopped = (vm: VMKind, launcherPod: PodKind = null): VMStatus => {
+  if (isVMReady(vm) || isVMCreated(vm)) {
+    const podStatus = getPodStatus(launcherPod);
+    const containerStatuses = getPodContainerStatuses(launcherPod);
+
+    if (containerStatuses) {
+      const terminatedContainers = containerStatuses.filter(
+        (containerStatus) => containerStatus.state.terminated,
+      );
+      const runningContainers = containerStatuses.filter(
+        (containerStatus) => containerStatus.state.running,
+      );
+      if (terminatedContainers.length > 0 || (runningContainers.length > 0 && !isVMRunning(vm))) {
+        return {
+          ...podStatus,
+          status: VM_STATUS_STOPPING,
+          launcherPod,
+        };
+      }
+    }
+  }
+
+  return NOT_HANDLED;
+};
+
 const isRunning = (vm: VMKind): VMStatus =>
   isVMRunning(vm) ? NOT_HANDLED : { status: VM_STATUS_OFF };
 
-const isReady = (vm: VMKind, launcherPod: PodKind): VMStatus => {
-  if (isVMReady(vm)) {
+const isReady = (vmi: VMIKind, launcherPod: PodKind): VMStatus => {
+  if ((getStatusPhase(vmi) || '').toLowerCase() === 'running') {
     // we are all set
     return {
       status: VM_STATUS_RUNNING,
@@ -187,26 +218,38 @@ const isWaitingForVMI = (vm: VMKind): VMStatus => {
   return NOT_HANDLED;
 };
 
-export const getVMStatus = (
-  vm: VMKind,
-  pods?: PodKind[],
-  migrations?: K8sResourceKind[],
-): VMStatus => {
+export const getVMStatus = ({
+  vm,
+  vmi,
+  pods,
+  migrations,
+}: {
+  vm: VMKind;
+  vmi?: VMIKind;
+  pods?: PodKind[];
+  migrations?: K8sResourceKind[];
+}): VMStatus => {
   const launcherPod = findVMPod(vm, pods);
   return (
     isV2VConversion(vm, pods) || // these statuses must precede isRunning() because they do not rely on ready vms
     isBeingMigrated(vm, migrations) || //  -||-
     isBeingImported(vm, pods) || //  -||-
+    isBeingStopped(vm, launcherPod) ||
     isRunning(vm) ||
-    isReady(vm, launcherPod) ||
+    isReady(vmi, launcherPod) ||
     isVMError(vm) ||
     isCreated(vm, launcherPod) ||
     isWaitingForVMI(vm) || { status: VM_STATUS_UNKNOWN }
   );
 };
 
-export const getSimpleVMStatus = (vm: VMKind, pods?: PodKind[], migrations?: K8sResourceKind[]) => {
-  const vmStatus = getVMStatus(vm, pods, migrations).status;
+export const getSimpleVMStatus = (
+  vm: VMKind,
+  pods?: PodKind[],
+  migrations?: K8sResourceKind[],
+  vmi?: VMIKind,
+) => {
+  const vmStatus = getVMStatus({ vm, vmi, pods, migrations }).status;
   return vmStatus === VM_STATUS_OFF || vmStatus === VM_STATUS_RUNNING
     ? vmStatus
     : VM_SIMPLE_STATUS_OTHER;

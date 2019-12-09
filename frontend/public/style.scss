@@ -50,7 +50,6 @@
 @import "components/image-stream";
 @import "components/about-modal";
 @import "components/build-pipeline";
-@import "components/group";
 @import "components/configure-ports";
 @import "components/detail-table";
 @import "components/dropdown";
@@ -94,8 +93,6 @@
 @import "components/quota";
 @import "components/cluster-settings/cluster-settings";
 
-@import "components/dashboard/dashboards-page/overview-dashboard/top-consumers-card";
-@import "components/dashboard/dashboards-page/overview-dashboard/capacity-card";
 @import "components/dashboard/dashboards-page/overview-dashboard/status-card";
 
 @import "components/dashboard/project-dashboard/activity-card";

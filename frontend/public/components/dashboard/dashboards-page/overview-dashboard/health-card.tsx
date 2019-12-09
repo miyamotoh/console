@@ -25,9 +25,9 @@ import {
   FlagsObject,
   WithFlagsProps,
 } from '../../../../reducers/features';
-import { getFlagsForExtensions, isDashboardExtensionInUse } from '../../utils';
 import { uniqueResource } from './utils';
 import {
+  isDashboardsOverviewHealthSubsystem,
   isDashboardsOverviewHealthURLSubsystem,
   isDashboardsOverviewHealthPrometheusSubsystem,
 } from '@console/plugin-sdk';
@@ -95,7 +95,7 @@ const mapStateToProps = (state: RootState) => ({
 const getSubsystems = (flags: FlagsObject) =>
   plugins.registry
     .getDashboardsOverviewHealthSubsystems()
-    .filter((e) => isDashboardExtensionInUse(e, flags));
+    .filter((e) => plugins.registry.isExtensionInUse(e, flags));
 
 const HealthCard_ = connect(mapStateToProps)(
   ({
@@ -225,7 +225,7 @@ const HealthCard_ = connect(mapStateToProps)(
         </DashboardCardBody>
 
         {alerts.length > 0 && (
-          <React.Fragment>
+          <>
             <DashboardCardHeader className="co-health-card__alerts-border">
               <DashboardCardTitle>Alerts</DashboardCardTitle>
             </DashboardCardHeader>
@@ -236,7 +236,7 @@ const HealthCard_ = connect(mapStateToProps)(
                 ))}
               </AlertsBody>
             </DashboardCardBody>
-          </React.Fragment>
+          </>
         )}
       </DashboardCard>
     );
@@ -244,7 +244,7 @@ const HealthCard_ = connect(mapStateToProps)(
 );
 
 export const HealthCard = connectToFlags(
-  ...getFlagsForExtensions(plugins.registry.getDashboardsOverviewHealthSubsystems()),
+  ...plugins.registry.getRequiredFlags([isDashboardsOverviewHealthSubsystem]),
 )(withDashboardResources(HealthCard_));
 
 type ClusterHealth = {

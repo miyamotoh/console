@@ -98,10 +98,11 @@ export type Taint = {
 export type TolerationOperator = 'Exists' | 'Equal';
 
 export type Toleration = {
+  effect: TaintEffect;
   key?: string;
   operator: TolerationOperator;
+  tolerationSeconds?: number;
   value?: string;
-  effect: TaintEffect;
 };
 
 // Properties common to (almost) all Kubernetes resources.
@@ -117,8 +118,6 @@ export type K8sResourceKind = {
   apiVersion?: string;
   kind?: string;
   metadata?: ObjectMetadata;
-  // FIXME: This should not be in the generic `K8sResourceKind` definition.
-  pipelineTaskName?: string;
   spec?: {
     selector?: Selector | MatchLabels;
     [key: string]: any;
@@ -129,11 +128,11 @@ export type K8sResourceKind = {
 };
 
 export type VolumeMount = {
-  name: string;
-  readOnly: boolean;
   mountPath: string;
-  subPath?: string;
   mountPropagation?: 'None' | 'HostToContainer' | 'Bidirectional';
+  name: string;
+  readOnly?: boolean;
+  subPath?: string;
   subPathExpr?: string;
 };
 
@@ -283,7 +282,7 @@ export type PodSpec = {
 };
 
 // https://github.com/kubernetes/api/blob/release-1.16/core/v1/types.go#L2411-L2432
-type PodPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Unknown';
+export type PodPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Unknown';
 
 type ContainerStateValue = {
   reason?: string;
@@ -336,6 +335,35 @@ export type PodKind = {
   status: PodStatus;
 } & K8sResourceCommon &
   PodTemplate;
+
+export type DeploymentKind = {
+  spec: {
+    minReadySeconds?: number;
+    paused?: boolean;
+    progressDeadlineSeconds?: number;
+    replicas?: number;
+    revisionHistoryLimit?: number;
+    selector: Selector;
+    strategy?: {
+      rollingUpdate?: {
+        maxSurge: number | string;
+        maxUnavailable: number | string;
+      };
+      type?: string;
+    };
+    template: PodTemplate;
+  };
+  status?: {
+    availableReplicas?: number;
+    collisionCount?: number;
+    conditions?: any[];
+    observedGeneration?: number;
+    readyReplicas?: number;
+    replicas?: number;
+    unavailableReplicas?: number;
+    updatedReplicas?: number;
+  };
+} & K8sResourceCommon;
 
 export type StorageClassResourceKind = {
   provisioner: string;
@@ -432,6 +460,9 @@ export type CustomResourceDefinitionKind = {
       // NOTE: Actually a subset of JSONSchema, but using this type for convenience
       openAPIV3Schema: JSONSchema6;
     };
+  };
+  status?: {
+    conditions?: any[];
   };
 } & K8sResourceCommon;
 
