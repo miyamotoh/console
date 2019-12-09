@@ -12,7 +12,8 @@ import * as yamlView from '../views/yaml.view';
 import * as namespaceView from '../views/namespace.view';
 import * as createRoleBindingView from '../views/create-role-binding.view';
 
-const K8S_CREATION_TIMEOUT = 15000;
+const K8S_CREATION_TIMEOUT = 30000; //orig 15000;
+const K8S_DELETION_TIMEOUT = 180000; //HMtest
 
 describe('Kubernetes resource CRUD operations', () => {
   const testLabel = 'automatedTestName';
@@ -55,6 +56,7 @@ describe('Kubernetes resource CRUD operations', () => {
   afterEach(() => {
     checkLogs();
     checkErrors();
+    browser.sleep(3000); //HMtest
   });
 
   afterAll(() => {
@@ -72,6 +74,7 @@ describe('Kubernetes resource CRUD operations', () => {
           console.error(`Failed to delete ${plural} ${name}:\n${error}`);
         }
       });
+    browser.sleep(60000); //HMtest
   });
 
   testObjs.forEach(({ kind, namespaced = true }, resource) => {
@@ -170,7 +173,7 @@ describe('Kubernetes resource CRUD operations', () => {
         leakedResources.delete(
           JSON.stringify({ name, plural: resource, namespace: namespaced ? testName : undefined }),
         );
-      });
+      }, K8S_DELETION_TIMEOUT);
     });
   });
 
@@ -223,7 +226,7 @@ describe('Kubernetes resource CRUD operations', () => {
       leakedResources.delete(
         JSON.stringify({ name: bindingName, plural: 'rolebindings', namespace: testName }),
       );
-    });
+    }, K8S_DELETION_TIMEOUT);
   });
 
   describe('Namespace', () => {
@@ -254,11 +257,11 @@ describe('Kubernetes resource CRUD operations', () => {
       await browser.get(`${appHost}/k8s/cluster/namespaces`);
       // Filter by resource name to make sure the resource is on the first page of results.
       // Otherwise the tests fail since we do virtual scrolling and the element isn't found.
-      await crudView.filterForName(name);
       await crudView.resourceRowsPresent();
+      await crudView.filterForName(name);
       await crudView.deleteRow('Namespace')(name);
       leakedResources.delete(JSON.stringify({ name, plural: 'namespaces' }));
-    });
+    }, K8S_DELETION_TIMEOUT);
   });
 
   describe('CustomResourceDefinitions', () => {
@@ -316,11 +319,12 @@ describe('Kubernetes resource CRUD operations', () => {
     });
 
     it('deletes the `CustomResourceDefinition`', async () => {
-      await browser.get(`${appHost}/k8s/cluster/customresourcedefinitions?name=${name}`);
-      await crudView.resourceRowsPresent();
+      await browser.get(`${appHost}/k8s/cluster/customresourcedefinitions?name=cdtest`); // orig=${name}
+      //await crudView.resourceRowsPresent();
+      await browser.wait(until.presenceOf($('[data-test-rows=resource-row]')))
       await crudView.deleteRow('CustomResourceDefinition')(crd.spec.names.kind);
       leakedResources.delete(JSON.stringify({ name, plural: 'customresourcedefinitions' }));
-    });
+    }, K8S_DELETION_TIMEOUT);
   });
 
   describe('Editing labels', () => {

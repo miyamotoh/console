@@ -10,7 +10,8 @@ import { format } from 'util';
 
 const tap = !!process.env.TAP;
 
-export const BROWSER_TIMEOUT = 30000;
+export const BROWSER_TIMEOUT = 120000;
+export const DEFAULT_GET_PAGE_TIMEOUT = 120000;
 export const appHost = `${process.env.BRIDGE_BASE_ADDRESS || 'http://localhost:9000'}${(
   process.env.BRIDGE_BASE_PATH || '/'
 ).replace(/\/$/, '')}`;
@@ -44,14 +45,15 @@ export const config: Config = {
   skipSourceMapSupport: true,
   jasmineNodeOpts: {
     print: () => null,
-    defaultTimeoutInterval: 40000,
+    defaultTimeoutInterval:   300000,
+    DEFAULT_TIMEOUT_INTERVAL: 300000,
   },
-  allScriptsTimeout: 50000,
-  getPageTimeout: 50000,
+  allScriptsTimeout: 90000,
+  getPageTimeout: 90000,
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
-    browserName: 'chrome',
+    browserName: 'firefox',
     acceptInsecureCerts: true,
     chromeOptions: {
       // A path to chrome binary, if undefined will use system chrome browser.
@@ -129,6 +131,7 @@ export const config: Config = {
     return new Promise((resolve) => htmlReporter.afterLaunch(resolve.bind(this, exitCode)));
   },
   suites: {
+    hiro: ['tests/base.scenario.ts','tests/crud.scenario.ts'],
     filter: suite(['tests/filter.scenario.ts']),
     annotation: suite(['tests/modal-annotations.scenario.ts']),
     environment: suite(['tests/environment.scenario.ts']),
