@@ -135,12 +135,12 @@ export const config: Config = {
   skipSourceMapSupport: true,
   jasmineNodeOpts: {
     print: () => null,
-    defaultTimeoutInterval: 40000,
+    defaultTimeoutInterval: 80000,
   },
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
-    browserName: 'chrome',
+    browserName: 'firefox',
     acceptInsecureCerts: true,
     chromeOptions: {
       // A path to chrome binary, if undefined will use system chrome browser.
@@ -165,6 +165,18 @@ export const config: Config = {
         // eslint-disable-next-line camelcase
         password_manager_enabled: false,
       },
+    },
+    'moz:firefoxOptions': {
+      binary: '/usr/bin/firefox',
+      args: ['--headless',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--window-size=1920,1200',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-raf-throttling',
+      ],
+      log: {level: 'trace'},
     },
   },
   beforeLaunch: () => new Promise((resolve) => htmlReporter.beforeLaunch(resolve)),

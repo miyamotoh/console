@@ -13,6 +13,7 @@ import * as namespaceView from '../views/namespace.view';
 import * as createRoleBindingView from '../views/create-role-binding.view';
 
 const K8S_CREATION_TIMEOUT = 30000; //orig 15000;
+const YAML_EDITOR_TIMEOUT = 40000; //HMtest
 const K8S_DELETION_TIMEOUT = 180000; //HMtest
 
 describe('Kubernetes resource CRUD operations', () => {
@@ -115,7 +116,7 @@ describe('Kubernetes resource CRUD operations', () => {
           safeLoad(content),
         );
         await yamlView.setEditorContent(safeDump(newContent));
-      });
+      }, YAML_EDITOR_TIMEOUT);
 
       it('creates a new resource instance', async () => {
         leakedResources.add(

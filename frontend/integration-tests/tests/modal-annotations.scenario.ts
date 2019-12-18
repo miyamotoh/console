@@ -8,6 +8,7 @@ import * as modalAnnotationsView from '../views/modal-annotations.view';
 import * as yamlView from '../views/yaml.view';
 
 const BROWSER_TIMEOUT = 15000;
+const GIVE_ANNOTATION_EXTRA = 120000; //HMtest
 const WORKLOAD_NAME = `modal-${testName}`;
 const Actions = {
   add: 'add',
@@ -156,7 +157,7 @@ describe('Modal Annotations', () => {
     await clickModalAnnotationsLink();
     await modalAnnotationsView.isLoaded();
     await validateKeyAndValue(annotationKey, annotationValue, false);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add numeric Annotation from grid
   // Given I log in into the console if it's required
@@ -188,7 +189,7 @@ describe('Modal Annotations', () => {
     await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add alphanumeric Annotation from object detail
   // Given I log in into the console if it's required
@@ -210,7 +211,7 @@ describe('Modal Annotations', () => {
     await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add Annotation without value
   // Given I log in into the console if it's required
@@ -230,7 +231,7 @@ describe('Modal Annotations', () => {
     await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add annotation wihout key
   // Given I log in into the console if it's required
@@ -240,12 +241,12 @@ describe('Modal Annotations', () => {
   //  When I add an annotation without key
   //   And I close the modal
   //  Then I expect that the annotation is not displayed
-  it('Add annotation wihout key', async () => {
+  it('Add annotation without key', async () => {
     const annotationKey = '';
     const annotationValue = 'value_no_key';
 
     await crudAndValidate(Actions.add, annotationKey, annotationValue, false);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Update Annotation from value to empty value
   // Given I log in into the console if it's required
@@ -263,7 +264,7 @@ describe('Modal Annotations', () => {
 
     await crudAndValidate(Actions.add, annotationKey, annotationValueBeforeUpd, true);
     await crudAndValidate(Actions.update, annotationKey, annotationValueAfterUpd, true);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   //   And I create a deployment
   //   And I open modal annotations from gear option
@@ -283,7 +284,7 @@ describe('Modal Annotations', () => {
     await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Cancel add Annotation
   // Given I log in into the console if it's required

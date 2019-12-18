@@ -17,7 +17,7 @@
     "lint": "yarn eslint .",
     "test": "jest",
     "debug-test": "node --inspect-brk node_modules/.bin/jest --runInBand",
-    "webdriver-update": "webdriver-manager update --gecko=false",
+    "webdriver-update": "webdriver-manager update --gecko=true",
     "test-gui-tap": "TAP=true yarn run test-gui",
     "test-gui-openshift": "yarn run test-suite --suite crud --params.openshift true",
     "test-gui": "yarn run test-suite --suite all",
