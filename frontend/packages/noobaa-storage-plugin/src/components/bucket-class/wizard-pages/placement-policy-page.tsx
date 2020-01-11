@@ -23,25 +23,28 @@ const PlacementPolicyPage: React.FC<PlacementPolicyPageProps> = ({ dispatch, sta
           isInline
           variant="info"
           title="What is a Placement Policy?"
+          className="nb-create-bc-step-page__info"
           action={<AlertActionCloseButton onClose={() => setShowHelp(false)} />}
         >
           <p>
-            Data placement capabilities are builtas a multi-layer structure, here are the layers
-            bottom up:
+            Data placement capabilities are built as a multi-layer structure, here are the layers
+            bottom-up:
           </p>
           <ul>
             <li>
               Spread Tier - list of backing-stores, aggregates the storage of multiple stores.
             </li>
             <li>
-              Mirroring Tier - list of spread-layers, async-mirroring to all amrrors with locality
-              optimization
+              Mirroring Tier - list of spread-layers, async-mirroring to all mirrors, with locality
+              optimization (will allocate on the closest region to the source endpoint), mirroring
+              requires at least two backing-stores.
             </li>
           </ul>
+          The number of replicas can be configured via the NooBaa management console.
         </Alert>
       )}
       <Form className="nb-create-bc-step-page-form">
-        <Title size="xl" headingLevel="h2">
+        <Title size="xl" headingLevel="h2" className="nb-bc-step-page-form__title">
           Tier 1 - Policy Type
         </Title>
         <Radio
@@ -53,8 +56,8 @@ const PlacementPolicyPage: React.FC<PlacementPolicyPageProps> = ({ dispatch, sta
           name="placement-policy-1"
         />
         <p className="nb-create-bc-step-page-form__element--light-text">
-          Spreading the data across the chosen resources does not includes failure tolerance in case
-          of resource failure.
+          Spreading the data across the chosen resources. By default, a replica of one copy is used
+          and does not include failure tolerance in case of resource failure.
         </p>
         <Radio
           value="Mirror"
@@ -66,8 +69,8 @@ const PlacementPolicyPage: React.FC<PlacementPolicyPageProps> = ({ dispatch, sta
         />
         <p className="nb-create-bc-step-page-form__element--light-text">
           {' '}
-          Full duplication of the data in each chosen resource, includes failure tolerance in cause
-          of resource failure.
+          Full duplication of the data in each chosen resource, By default, a replica of one copy
+          per location is used. includes failure tolerance in case of resource failure.
         </p>
       </Form>
       {!showTier2 && (
@@ -82,7 +85,7 @@ const PlacementPolicyPage: React.FC<PlacementPolicyPageProps> = ({ dispatch, sta
       )}
       {showTier2 && (
         <Form className="nb-create-bc-step-page-form">
-          <Title headingLevel="h2" size="xl">
+          <Title headingLevel="h2" size="xl" className="nb-bc-step-page-form__title">
             Tier 2 - Policy type{' '}
             <Button
               variant="link"

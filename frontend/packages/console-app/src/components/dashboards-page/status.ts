@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
-import { PrometheusHealthHandler, URLHealthHandler } from '@console/plugin-sdk';
-import { HealthState } from '@console/shared/src/components/dashboard/health-card/states';
+import { PrometheusHealthHandler, URLHealthHandler, SubsystemHealth } from '@console/plugin-sdk';
+import { HealthState } from '@console/shared/src/components/dashboard/status-card/states';
 import { coFetch } from '@console/internal/co-fetch';
 import {
   ClusterVersionKind,
@@ -9,7 +9,6 @@ import {
 } from '@console/internal/module/k8s';
 import { PrometheusResponse } from '@console/internal/components/graphs';
 import { humanizePercentage } from '@console/internal/components/utils/units';
-import { SubsystemHealth } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/health-card';
 
 export const fetchK8sHealth = async (url: string) => {
   const response = await coFetch(url);
@@ -20,7 +19,7 @@ export const getK8sHealthState: URLHealthHandler<string> = (k8sHealth, error, re
   if (error) {
     return { state: HealthState.UNKNOWN };
   }
-  if (!k8sHealth || !_.get(resource, 'loaded')) {
+  if (!k8sHealth) {
     return { state: HealthState.LOADING };
   }
   if (
@@ -36,7 +35,11 @@ export const getControlPlaneComponentHealth = (
   response: PrometheusResponse,
   error,
 ): SubsystemHealth => {
-  if (error) {
+  if (
+    error ||
+    (response &&
+      (response.status === 'success' && _.isNil(_.get(response, 'data.result[0].value[1]'))))
+  ) {
     return { state: HealthState.UNKNOWN, message: 'Not available' };
   }
   if (!response) {

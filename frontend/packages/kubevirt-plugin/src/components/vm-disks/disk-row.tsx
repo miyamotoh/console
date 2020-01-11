@@ -15,9 +15,7 @@ import { VirtualMachineModel } from '../../models';
 import { ValidationCell } from '../table/validation-cell';
 import { VMNicRowActionOpts } from '../vm-nics/types';
 import { diskModalEnhanced } from '../modals/disk-modal/disk-modal-enhanced';
-import { VMCDRomModal } from '../modals/cdrom-vm-modal';
 import { CombinedDisk } from '../../k8s/wrapper/vm/combined-disk';
-import { DiskType } from '../../constants';
 import {
   StorageBundle,
   StorageSimpleData,
@@ -33,22 +31,15 @@ const menuActionEdit = (
 ): KebabOption => ({
   label: 'Edit',
   callback: () =>
-    disk.getType() !== DiskType.CDROM
-      ? withProgress(
-          diskModalEnhanced({
-            vmLikeEntity,
-            disk: disk.diskWrapper.asResource(),
-            volume: disk.volumeWrapper.asResource(),
-            dataVolume: disk.dataVolumeWrapper && disk.dataVolumeWrapper.asResource(),
-          }).result,
-        )
-      : withProgress(
-          VMCDRomModal({
-            vmLikeEntity,
-            dataVolume: disk.dataVolumeWrapper && disk.dataVolumeWrapper.asResource(),
-            modalClassName: 'modal-lg',
-          }).result,
-        ),
+    withProgress(
+      diskModalEnhanced({
+        vmLikeEntity,
+        isEditing: true,
+        disk: disk.diskWrapper.asResource(),
+        volume: disk.volumeWrapper.asResource(),
+        dataVolume: disk.dataVolumeWrapper && disk.dataVolumeWrapper.asResource(),
+      }).result,
+    ),
   accessReview: asAccessReview(
     isVM(vmLikeEntity) ? VirtualMachineModel : TemplateModel,
     vmLikeEntity,
@@ -88,7 +79,7 @@ const getActions = (
   }
 
   const isTemplate = vmLikeEntity && !isVM(vmLikeEntity);
-  if (isTemplate || disk.isEditingSupported()) {
+  if (disk.isEditingSupported(isTemplate)) {
     actions.push(menuActionEdit);
   }
 
@@ -106,7 +97,7 @@ export type VMDiskSimpleRowProps = {
 };
 
 export const DiskSimpleRow: React.FC<VMDiskSimpleRowProps> = ({
-  data: { name, type, size, diskInterface, storageClass },
+  data: { name, source, size, diskInterface, storageClass },
   validation = {},
   columnClasses,
   actionsComponent,
@@ -123,6 +114,9 @@ export const DiskSimpleRow: React.FC<VMDiskSimpleRowProps> = ({
         <ValidationCell validation={validation.name}>{name}</ValidationCell>
       </TableData>
       <TableData className={dimensify()}>
+        <ValidationCell validation={validation.source}>{source || DASH}</ValidationCell>
+      </TableData>
+      <TableData className={dimensify()}>
         {isSizeLoading && <LoadingInline />}
         {!isSizeLoading && (
           <ValidationCell validation={validation.size}>{size || DASH}</ValidationCell>
@@ -130,9 +124,6 @@ export const DiskSimpleRow: React.FC<VMDiskSimpleRowProps> = ({
       </TableData>
       <TableData className={dimensify()}>
         <ValidationCell validation={validation.diskInterface}>{diskInterface}</ValidationCell>
-      </TableData>
-      <TableData className={dimensify()}>
-        <ValidationCell>{type || DASH}</ValidationCell>
       </TableData>
       <TableData className={dimensify()}>
         {isStorageClassLoading && <LoadingInline />}

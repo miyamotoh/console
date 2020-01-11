@@ -1,31 +1,32 @@
 import * as React from 'react';
 import * as _ from 'lodash';
-import {
-  // Firehose,
-  ScrollToTopOnMount,
-  SectionHeading,
-  StatusBox,
-} from '@console/internal/components/utils';
-import { getName, getUID } from '@console/shared/src';
+import { ScrollToTopOnMount, SectionHeading, StatusBox } from '@console/internal/components/utils';
+import { getName, getNamespace } from '@console/shared/src';
+import { K8sResourceKind } from '@console/internal/module/k8s';
 import { getConfigAsJSON, getDescription, getType } from '../../selectors';
 import { networkTypes } from '../../constants';
 import { NetworkAttachmentDefinitionKind } from '../../types';
 
 const NET_ATTACH_DEF_OVERVIEW_HEADING = 'Network Attachment Definition Overview';
 
+export const getBasicID = <A extends K8sResourceKind = K8sResourceKind>(entity: A) =>
+  `${getNamespace(entity)}-${getName(entity)}`;
+
 export const prefixedID = (idPrefix: string, id: string) =>
   idPrefix && id ? `${idPrefix}-${id}` : null;
 
+// FIXME: Use DetailsItem from common console utils.
 export const DetailsItem: React.FC<DetailsItemProps> = ({
   title,
   isNotAvail = false,
+  idValue,
   valueClassName,
   children,
 }) => {
   return (
     <>
       <dt>{title}</dt>
-      <dd className={valueClassName}>
+      <dd id={idValue} className={valueClassName}>
         {isNotAvail ? <span className="text-secondary">Not available</span> : children}
       </dd>
     </>
@@ -38,8 +39,9 @@ export const NetAttachDefinitionSummary: React.FC<NetAttachDefinitionSummaryProp
   const name = getName(netAttachDef);
   const description = getDescription(netAttachDef);
   const type = getType(getConfigAsJSON(netAttachDef));
-  const id = getUID(netAttachDef);
+  const id = getBasicID(netAttachDef);
 
+  // FIXME: This should use ResourceSummary like all other details pages.
   return (
     <>
       <DetailsItem title="Name" idValue={prefixedID(id, 'name')} isNotAvail={!name}>
@@ -62,22 +64,20 @@ export const NetAttachDefinitionSummary: React.FC<NetAttachDefinitionSummaryProp
 };
 
 export const NetworkAttachmentDefinitionDetails: React.FC<NetAttachDefDetailsProps> = (props) => {
-  const { netAttachDef } = props;
+  const { obj: netAttachDef } = props;
 
   return (
-    <div className="co-m-pane__body">
-      <StatusBox data={netAttachDef} loaded={!!netAttachDef}>
-        <ScrollToTopOnMount />
-        <div className="co-m-pane__body">
-          <SectionHeading text={NET_ATTACH_DEF_OVERVIEW_HEADING} />
-          <div className="row">
-            <div className="col-sm-6">
-              <NetAttachDefinitionSummary netAttachDef={netAttachDef} />
-            </div>
+    <StatusBox data={netAttachDef} loaded={!!netAttachDef}>
+      <ScrollToTopOnMount />
+      <div className="co-m-pane__body">
+        <SectionHeading text={NET_ATTACH_DEF_OVERVIEW_HEADING} />
+        <div className="row">
+          <div className="col-sm-6">
+            <NetAttachDefinitionSummary netAttachDef={netAttachDef} />
           </div>
         </div>
-      </StatusBox>
-    </div>
+      </div>
+    </StatusBox>
   );
 };
 
@@ -86,7 +86,7 @@ type NetAttachDefinitionSummaryProps = {
 };
 
 type NetAttachDefDetailsProps = {
-  netAttachDef: NetworkAttachmentDefinitionKind;
+  obj: NetworkAttachmentDefinitionKind;
 };
 
 type DetailsItemProps = {

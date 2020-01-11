@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as d3 from 'd3';
-import { action, computed, comparer } from 'mobx';
+import { action, computed, comparer, flow } from 'mobx';
 import { observer } from 'mobx-react';
 import ElementContext from '../utils/ElementContext';
 import useCallbackRef from '../utils/useCallbackRef';
@@ -12,6 +12,7 @@ import {
   Identifier,
   DragEvent,
   DragSpecOperation,
+  DragSource,
 } from './dnd-types';
 import { useDndManager } from './useDndManager';
 
@@ -94,6 +95,9 @@ export const useDndDrag = <
       receiveHandlerId: (sourceId: string | undefined): void => {
         idRef.current = sourceId;
       },
+      getDropHints: (): string[] | undefined => {
+        return dndManager.getDropHints();
+      },
       canDrag: (): boolean => {
         return dndManager.canDragSource(idRef.current);
       },
@@ -129,10 +133,13 @@ export const useDndDrag = <
     React.useCallback(
       (node: SVGElement | null) => {
         if (node) {
-          let operationChangeEvents: {
-            begin: [number, number, number, number];
-            drag: [number, number, number, number];
-          } | null = null;
+          let operationChangeEvents:
+            | {
+                begin: [number, number, number, number];
+                drag: [number, number, number, number];
+              }
+            | undefined;
+          let operation: DragSpecOperation | undefined;
           d3.select(node).call(
             d3
               .drag()
@@ -145,8 +152,11 @@ export const useDndDrag = <
                     .node() as any,
               )
               .on('start', function() {
-                const updateOperation = () => {
-                  const { operation } = specRef.current;
+                operation =
+                  typeof specRef.current.operation === 'function'
+                    ? specRef.current.operation(monitor, propsRef.current)
+                    : specRef.current.operation;
+                const updateOperation = async () => {
                   if (operation && idRef.current) {
                     const op = getOperation(operation);
                     if (dndManager.getOperation() !== op) {
@@ -164,12 +174,12 @@ export const useDndDrag = <
                           ],
                           drag: [event.x, event.y, event.pageX, event.pageY],
                         };
-                        dndManager.endDrag();
+                        await dndManager.endDrag();
                       }
                       if (op && operationChangeEvents) {
                         dndManager.beginDrag(idRef.current, op, ...operationChangeEvents.begin);
                         dndManager.drag(...operationChangeEvents.drag);
-                        operationChangeEvents = null;
+                        operationChangeEvents = undefined;
                       }
                     }
                   }
@@ -177,21 +187,26 @@ export const useDndDrag = <
                 d3.select(node.ownerDocument)
                   .on(
                     'keydown.useDndDrag',
-                    action(() => {
+                    flow(function*() {
                       const e = d3.event as KeyboardEvent;
                       if (e.key === 'Escape') {
                         if (dndManager.isDragging() && dndManager.cancel()) {
-                          operationChangeEvents = null;
+                          operationChangeEvents = undefined;
                           d3.select(d3.event.view).on('.drag', null);
                           d3.select(node.ownerDocument).on('.useDndDrag', null);
-                          dndManager.endDrag();
+                          yield dndManager.endDrag();
                         }
                       } else {
-                        updateOperation();
+                        yield updateOperation();
                       }
                     }),
                   )
-                  .on('keyup.useDndDrag', action(updateOperation));
+                  .on(
+                    'keyup.useDndDrag',
+                    flow(function*() {
+                      yield updateOperation();
+                    }),
+                  );
               })
               .on(
                 'drag',
@@ -203,8 +218,8 @@ export const useDndDrag = <
                   } else if (operationChangeEvents) {
                     operationChangeEvents.drag = [x, y, pageX, pageY];
                   } else {
-                    const op = getOperation(specRef.current.operation);
-                    if (op || !hasOperation(specRef.current.operation)) {
+                    const op = getOperation(operation);
+                    if (op || !hasOperation(operation)) {
                       if (idRef.current) {
                         dndManager.beginDrag(idRef.current, op, x, y, pageX, pageY);
                       }
@@ -219,45 +234,48 @@ export const useDndDrag = <
               )
               .on(
                 'end',
-                action(() => {
-                  operationChangeEvents = null;
+                flow(function*() {
+                  operationChangeEvents = undefined;
+                  operation = undefined;
                   d3.select(node.ownerDocument).on('.useDndDrag', null);
                   if (dndManager.isDragging()) {
                     dndManager.drop();
-                    dndManager.endDrag();
+                    yield dndManager.endDrag();
                   }
                 }),
               )
-              .filter(() => dndManager.canDragSource(idRef.current)),
+              .filter(
+                () =>
+                  !d3.event.ctrlKey && !d3.event.button && dndManager.canDragSource(idRef.current),
+              ),
           );
         }
         return () => {
           node && d3.select(node).on('mousedown.drag', null);
         };
       },
-      [dndManager],
+      [dndManager, monitor],
     ),
   );
 
   React.useEffect(() => {
-    const [sourceId, unregister] = dndManager.registerSource({
+    const dragSource: DragSource = {
       type: spec.item.type,
-      canCancel: (): boolean =>
+      canCancel: () =>
         typeof specRef.current.canCancel === 'boolean'
           ? specRef.current.canCancel
           : typeof specRef.current.canCancel === 'function'
           ? specRef.current.canCancel(monitor, propsRef.current)
           : true,
-      canDrag: (): boolean =>
+      canDrag: () =>
         typeof specRef.current.canDrag === 'boolean'
           ? specRef.current.canDrag
           : typeof specRef.current.canDrag === 'function'
           ? specRef.current.canDrag(monitor, propsRef.current)
           : true,
-      beginDrag: (): any =>
-        specRef.current.begin && specRef.current.begin(monitor, propsRef.current),
-
-      drag: (): void => {
+      beginDrag: () =>
+        specRef.current.begin ? specRef.current.begin(monitor, propsRef.current) : undefined,
+      drag: () => {
         if (specRef.current.drag) {
           const event = monitor.getDragEvent();
           if (event) {
@@ -265,10 +283,12 @@ export const useDndDrag = <
           }
         }
       },
-      endDrag: (): void =>
-        specRef.current.end &&
-        specRef.current.end(monitor.getDropResult(), monitor, propsRef.current),
-    });
+      endDrag: () =>
+        specRef.current.end
+          ? specRef.current.end(monitor.getDropResult(), monitor, propsRef.current)
+          : undefined,
+    };
+    const [sourceId, unregister] = dndManager.registerSource(dragSource);
     monitor.receiveHandlerId(sourceId);
     return unregister;
   }, [spec.item.type, dndManager, monitor]);

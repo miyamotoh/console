@@ -24,24 +24,19 @@ export const isLoaded = () =>
     .then(() => browser.sleep(1000));
 export const resourceRowsPresent = () =>
   browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 30000);
+export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
 export const resourceRowNamesAndNs = $$('.co-m-resource-icon + a');
+
+// FIXME: Avoid this helper since it can result in StaleElementReferenceErrors.
+// Prefer to use a `data-test-` attribute on the row.
 export const rowForName = (name: string) =>
   resourceRows
     .filter((row) =>
       row
         .$$('.co-m-resource-icon + a')
         .first()
-        .getText()
-        .then((text) => text === name),
-    )
-    .first();
-export const rowForOperator = (name: string) =>
-  resourceRows
-    .filter((row) =>
-      row
-        .$('.co-clusterserviceversion-logo__name__clusterserviceversion')
         .getText()
         .then((text) => text === name),
     )
@@ -127,6 +122,7 @@ export const deleteRow = (kind: string) => (name: string) =>
   });
 
 export const rowFilters = $$('.row-filter__box');
+export const rowFiltersPresent = () => browser.wait(until.presenceOf($('.row-filter__box')));
 export const rowFilterFor = (name: string) =>
   rowFilters.filter((el) => el.getText().then((text) => text.includes(name))).first();
 export const activeRowFilters = $$('.row-filter__box--active');

@@ -1,8 +1,14 @@
+import * as classNames from 'classnames';
 import * as _ from 'lodash-es';
 import * as React from 'react';
-import * as classNames from 'classnames';
+import { connect } from 'react-redux';
+import { Link } from 'react-router-dom';
 
-import { connectToURLs, MonitoringRoutes } from '../../reducers/monitoring';
+import { FLAGS } from '@console/internal/const';
+import { featureReducerName } from '../../reducers/features';
+import { MonitoringRoutes } from '../../reducers/monitoring';
+import { getActivePerspective } from '../../reducers/ui';
+import { RootState } from '../../redux';
 
 export const getPrometheusExpressionBrowserURL = (urls, queries): string => {
   const base = urls && urls[MonitoringRoutes.Prometheus];
@@ -18,23 +24,37 @@ export const getPrometheusExpressionBrowserURL = (urls, queries): string => {
   return `${base}/graph?${params.toString()}`;
 };
 
-export const PrometheusGraphLink = connectToURLs(MonitoringRoutes.Prometheus)(
-  ({ children, query, urls }: React.PropsWithChildren<PrometheusGraphLinkProps>) => {
-    const url = getPrometheusExpressionBrowserURL(urls, [query]);
-    return query ? (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: 'inherit', textDecoration: 'none' }}
-      >
-        {children}
-      </a>
-    ) : (
-      <>{children}</>
-    );
-  },
-);
+const mapStateToProps = (state: RootState) => ({
+  canAccessMonitoring:
+    !!state[featureReducerName].get(FLAGS.CAN_GET_NS) && !!window.SERVER_FLAGS.prometheusBaseURL,
+  perspective: getActivePerspective(state),
+});
+
+export const PrometheusGraphLink_: React.FC<PrometheusGraphLinkProps> = ({
+  canAccessMonitoring,
+  children,
+  perspective,
+  query,
+}) => {
+  if (!query) {
+    return <>{children}</>;
+  }
+
+  const params = new URLSearchParams();
+  params.set('query0', query);
+
+  const url =
+    canAccessMonitoring && perspective === 'admin'
+      ? `/monitoring/query-browser?${params.toString()}`
+      : `/metrics?${params.toString()}`;
+
+  return (
+    <Link to={url} style={{ color: 'inherit', textDecoration: 'none' }}>
+      {children}
+    </Link>
+  );
+};
+export const PrometheusGraphLink = connect(mapStateToProps)(PrometheusGraphLink_);
 
 export const PrometheusGraph: React.FC<PrometheusGraphProps> = React.forwardRef(
   ({ children, className, title }, ref: React.RefObject<HTMLDivElement>) => (
@@ -46,8 +66,9 @@ export const PrometheusGraph: React.FC<PrometheusGraphProps> = React.forwardRef(
 );
 
 type PrometheusGraphLinkProps = {
+  canAccessMonitoring: boolean;
+  perspective: string;
   query: string;
-  urls?: string[];
 };
 
 type PrometheusGraphProps = {

@@ -27,7 +27,9 @@ import {
   isDevCatalogModel,
   isDashboardsOverviewResourceActivity,
   isDashboardsOverviewPrometheusActivity,
+  isProjectDashboardInventoryItem,
   isReduxReducer,
+  isDashboardsOverviewInventoryItemReplacement,
 } from './typings';
 
 /**
@@ -152,6 +154,14 @@ export class ExtensionRegistry {
 
   public getReduxReducers() {
     return this.extensions.filter(isReduxReducer);
+  }
+
+  public getProjectDashboardInventoryItems() {
+    return this.extensions.filter(isProjectDashboardInventoryItem);
+  }
+
+  public getDashboardsOverviewInventoryItemReplacements() {
+    return this.extensions.filter(isDashboardsOverviewInventoryItemReplacement);
   }
 }
 

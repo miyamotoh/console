@@ -107,17 +107,14 @@ export type Toleration = {
 
 // Properties common to (almost) all Kubernetes resources.
 export type K8sResourceCommon = {
-  apiVersion: string;
-  kind: string;
-  metadata: ObjectMetadata;
+  apiVersion?: string;
+  kind?: string;
+  metadata?: ObjectMetadata;
 };
 
 // Generic, unknown kind. Avoid when possible since it allows any key in spec
 // or status, weakening type checking.
-export type K8sResourceKind = {
-  apiVersion?: string;
-  kind?: string;
-  metadata?: ObjectMetadata;
+export type K8sResourceKind = K8sResourceCommon & {
   spec?: {
     selector?: Selector | MatchLabels;
     [key: string]: any;
@@ -559,6 +556,7 @@ export type MachineSpec = {
 export type MachineKind = {
   spec: MachineSpec;
   status?: {
+    phase?: string;
     addresses: {
       address?: string;
       type: string;
@@ -856,6 +854,12 @@ export type K8sKind = {
   verbs?: K8sVerb[];
   shortNames?: string[];
   badge?: BadgeType;
+  color?: string;
+
+  // Legacy option for supporing plural names in URL paths when `crd: true`.
+  // This should not be set for new models, but is needed to avoid breaking
+  // existing links as we transition to using the API group in URL paths.
+  legacyPluralURL?: boolean;
 };
 
 export type Cause = {
@@ -892,15 +896,22 @@ export type GroupVersionKind = string;
 export type K8sResourceKindReference = GroupVersionKind | string;
 
 export type EventKind = {
-  count: number;
-  type: string;
+  action?: string;
+  count?: number;
+  type?: string;
   involvedObject: EventInvolvedObject;
-  message: string;
-  lastTimestamp: string;
-  firstTimestamp: string;
-  reason: string;
+  message?: string;
+  eventTime?: string;
+  lastTimestamp?: string;
+  firstTimestamp?: string;
+  reason?: string;
   source: {
     component: string;
     host?: string;
+  };
+  series?: {
+    count?: number;
+    lastObservedTime?: string;
+    state?: string;
   };
 } & K8sResourceCommon;

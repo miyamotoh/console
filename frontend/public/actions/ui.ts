@@ -1,5 +1,6 @@
 import { Base64 } from 'js-base64';
 import { action, ActionType as Action } from 'typesafe-actions';
+import * as _ from 'lodash-es';
 
 // FIXME(alecmerdler): Do not `import store`
 import store from '../redux';
@@ -9,8 +10,9 @@ import {
   LAST_NAMESPACE_NAME_LOCAL_STORAGE_KEY,
   LAST_PERSPECTIVE_LOCAL_STORAGE_KEY,
 } from '../const';
+import { K8sResourceKind, PodKind } from '../module/k8s';
 import { allModels } from '../module/k8s/k8s-models';
-import { detectFeatures } from './features';
+import { detectFeatures, clearSSARFlags } from './features';
 import { OverviewSpecialGroup } from '../components/overview/constants';
 import { OverviewItem } from '@console/shared';
 export enum ActionType {
@@ -47,7 +49,27 @@ export enum ActionType {
   UpdateOverviewFilterValue = 'updateOverviewFilterValue',
   UpdateTimestamps = 'updateTimestamps',
   SetConsoleLinks = 'setConsoleLinks',
+  SetPodMetrics = 'setPodMetrics',
+  SetNamespaceMetrics = 'setNamespaceMetrics',
 }
+
+type MetricValuesByName = {
+  [name: string]: number;
+};
+
+export type NamespaceMetrics = {
+  cpu: MetricValuesByName;
+  memory: MetricValuesByName;
+};
+
+type MetricValuesByNamespace = {
+  [namespace: string]: MetricValuesByName;
+};
+
+export type PodMetrics = {
+  cpu: MetricValuesByNamespace;
+  memory: MetricValuesByNamespace;
+};
 
 // URL routes that can be namespaced
 export const namespacedResources = new Set();
@@ -58,13 +80,23 @@ allModels().forEach((v, k) => {
   }
   if (v.crd) {
     namespacedResources.add(k);
-    return;
   }
-
-  namespacedResources.add(v.plural);
+  if (!v.crd || v.legacyPluralURL) {
+    namespacedResources.add(v.plural);
+  }
 });
 
 export const getActiveNamespace = (): string => store.getState().UI.get('activeNamespace');
+
+export const getNamespaceMetric = (ns: K8sResourceKind, metric: string): number => {
+  const metrics = store.getState().UI.getIn(['metrics', 'namespace']);
+  return _.get(metrics, [metric, ns.metadata.name], 0);
+};
+
+export const getPodMetric = (pod: PodKind, metric: string): number => {
+  const metrics = store.getState().UI.getIn(['metrics', 'pod']);
+  return _.get(metrics, [metric, pod.metadata.namespace, pod.metadata.name], 0);
+};
 
 export const formatNamespacedRouteForResource = (
   resource,
@@ -191,11 +223,13 @@ export const startImpersonate = (kind: string, name: string) => async (dispatch,
   }
 
   dispatch(beginImpersonate(kind, name, subprotocols));
+  dispatch(clearSSARFlags());
   dispatch(detectFeatures());
   history.push(window.SERVER_FLAGS.basePath);
 };
 export const stopImpersonate = () => (dispatch) => {
   dispatch(endImpersonate());
+  dispatch(clearSSARFlags());
   dispatch(detectFeatures());
   history.push(window.SERVER_FLAGS.basePath);
 };
@@ -275,6 +309,10 @@ export const queryBrowserToggleSeries = (index: number, labels: { [key: string]:
 };
 export const setConsoleLinks = (consoleLinks: string[]) =>
   action(ActionType.SetConsoleLinks, { consoleLinks });
+export const setPodMetrics = (podMetrics: PodMetrics) =>
+  action(ActionType.SetPodMetrics, { podMetrics });
+export const setNamespaceMetrics = (namespaceMetrics: NamespaceMetrics) =>
+  action(ActionType.SetNamespaceMetrics, { namespaceMetrics });
 
 // TODO(alecmerdler): Implement all actions using `typesafe-actions` and add them to this export
 const uiActions = {
@@ -313,6 +351,8 @@ const uiActions = {
   queryBrowserToggleIsEnabled,
   queryBrowserToggleSeries,
   setConsoleLinks,
+  setPodMetrics,
+  setNamespaceMetrics,
 };
 
 export type UIAction = Action<typeof uiActions>;

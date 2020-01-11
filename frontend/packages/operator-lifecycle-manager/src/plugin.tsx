@@ -80,6 +80,10 @@ const plugin: Plugin<ConsumedExtensions> = [
       componentProps: {
         name: 'Installed Operators',
         resource: referenceForModel(models.ClusterServiceVersionModel),
+        startsWith: [
+          models.ClusterServiceVersionModel.apiGroup,
+          models.ClusterServiceVersionModel.plural,
+        ],
       },
     },
   },
@@ -239,6 +243,24 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: `/k8s/ns/:ns/${referenceForModel(models.CatalogSourceModel)}/~new`,
       loader: async () => (await import('./components/create-catalog-source')).CreateCatalogSource,
+    },
+  },
+  {
+    type: 'Page/Resource/Details',
+    properties: {
+      model: models.InstallPlanModel,
+      loader: async () =>
+        (await import('./components/install-plan' /* webpackChunkName: "install-plan" */))
+          .InstallPlanDetailsPage,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: models.InstallPlanModel,
+      loader: async () =>
+        (await import('./components/install-plan' /* webpackChunkName: "install-plan" */))
+          .InstallPlansPage,
     },
   },
 ];

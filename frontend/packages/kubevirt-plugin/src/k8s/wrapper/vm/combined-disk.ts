@@ -6,11 +6,18 @@ import { V1Disk } from '../../../types/vm/disk/V1Disk';
 import { V1Volume } from '../../../types/vm/disk/V1Volume';
 import { V1alpha1DataVolume } from '../../../types/vm/disk/V1alpha1DataVolume';
 import { getSimpleName } from '../../../selectors/utils';
-import { VolumeType } from '../../../constants/vm/storage';
+import { VolumeType, DiskType } from '../../../constants/vm/storage';
 import { VMLikeEntityKind } from '../../../types';
-import { asVM, getDataVolumeTemplates, getDisks, getVolumes } from '../../../selectors/vm';
+import {
+  asVM,
+  getDataVolumeTemplates,
+  getDisks,
+  getVolumes,
+  isWinToolsImage,
+} from '../../../selectors/vm';
 import { getLoadedData, isLoaded } from '../../../utils';
 import { StorageUISource } from '../../../components/modals/disk-modal/storage-ui-source';
+import { DYNAMIC } from '../../../utils/strings';
 import { DiskWrapper } from './disk-wrapper';
 import { DataVolumeWrapper } from './data-volume-wrapper';
 import { VolumeWrapper } from './volume-wrapper';
@@ -36,6 +43,7 @@ export class CombinedDisk {
     volumeWrapper,
     dataVolumeWrapper,
     persistentVolumeClaimWrapper,
+    isNewPVC,
     dataVolumesLoading,
     pvcsLoading,
   }: {
@@ -45,6 +53,7 @@ export class CombinedDisk {
     persistentVolumeClaimWrapper?: PersistentVolumeClaimWrapper;
     dataVolumesLoading?: boolean;
     pvcsLoading?: boolean;
+    isNewPVC?: boolean;
   }) {
     this.diskWrapper = diskWrapper;
     this.volumeWrapper = volumeWrapper;
@@ -55,13 +64,34 @@ export class CombinedDisk {
     this.source = StorageUISource.fromTypes(
       volumeWrapper.getType(),
       dataVolumeWrapper && dataVolumeWrapper.getType(),
-      !!persistentVolumeClaimWrapper,
+      !!persistentVolumeClaimWrapper && isNewPVC,
     );
   }
 
   getSource = () => this.source;
 
-  isEditingSupported = () => !!this.source && this.source.isEditingSupported();
+  getInitialSource = (isEditing) => {
+    if (this.diskWrapper.getType() === DiskType.CDROM) {
+      return this.source || StorageUISource.URL;
+    }
+    if (isEditing) {
+      return this.source || StorageUISource.OTHER;
+    }
+    return StorageUISource.BLANK;
+  };
+
+  getSourceValue = () => this.source && this.source.getValue();
+
+  isEditingSupported = (isTemplate: boolean) => {
+    if (isTemplate) {
+      // plain dataVolume creates dataVolumes on template creation
+      return this.source && this.source.isPlainDataVolume(isTemplate)
+        ? this.source.isEditingSupported()
+        : true;
+    }
+
+    return !!this.source && this.source.isEditingSupported();
+  };
 
   getName = () => this.diskWrapper.getName();
 
@@ -71,11 +101,18 @@ export class CombinedDisk {
 
   getDiskInterface = () => this.diskWrapper.getReadableDiskBus();
 
-  getReadableSize = (): string =>
-    this.volumeTypeOperation(
+  getReadableSize = (): string => {
+    let result = this.volumeTypeOperation(
       (persistentVolumeClaimWrapper) => persistentVolumeClaimWrapper.getReadabableSize(),
       (dataVolumeWrapper) => dataVolumeWrapper.getReadabableSize(),
     );
+
+    if (result === null && this.source && this.source.hasDynamicSize()) {
+      result = DYNAMIC;
+    }
+
+    return result;
+  };
 
   getSize = (): { value: number; unit: string } =>
     this.volumeTypeOperation(
@@ -90,13 +127,7 @@ export class CombinedDisk {
     );
 
   getPVCName = (source?: StorageUISource) => {
-    const resolvedSource =
-      source ||
-      StorageUISource.fromTypes(
-        this.volumeWrapper.getType(),
-        this.dataVolumeWrapper && this.dataVolumeWrapper.getType(),
-        !!this.persistentVolumeClaimWrapper,
-      );
+    const resolvedSource = source || this.source;
     if (resolvedSource === StorageUISource.IMPORT_DISK) {
       return this.persistentVolumeClaimWrapper && this.persistentVolumeClaimWrapper.getName();
     }
@@ -109,6 +140,33 @@ export class CombinedDisk {
 
     return null;
   };
+
+  getContent = () => {
+    switch (this.source) {
+      case StorageUISource.CONTAINER: {
+        return this.volumeWrapper.getContainerImage();
+      }
+      case StorageUISource.URL: {
+        return this.dataVolumeWrapper.getURL();
+      }
+      case StorageUISource.IMPORT_DISK: {
+        return this.getPVCName(this.source);
+      }
+      case StorageUISource.ATTACH_DISK: {
+        return this.getPVCName(this.source);
+      }
+      case StorageUISource.ATTACH_CLONED_DISK: {
+        return this.getPVCName(this.source);
+      }
+      default:
+        return null;
+    }
+  };
+
+  getCDROMSourceValue = () =>
+    isWinToolsImage(this.volumeWrapper.getContainerImage())
+      ? 'Windows Tools'
+      : this.getSourceValue();
 
   toString = () => {
     return _.compact([

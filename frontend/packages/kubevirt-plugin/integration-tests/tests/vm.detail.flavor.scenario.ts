@@ -8,15 +8,16 @@ import {
 import * as virtualMachineView from '../views/virtualMachine.view';
 import { VM_CREATE_AND_EDIT_TIMEOUT_SECS } from './utils/consts';
 import { VirtualMachine } from './models/virtualMachine';
-import { vmConfig, getProvisionConfigs, CONFIG_NAME_CONTAINER } from './vm.wizard.configs';
+import { vmConfig, getProvisionConfigs } from './vm.wizard.configs';
 import * as editFlavorView from './models/editFlavorView';
 import { fillInput } from './utils/utils';
+import { ProvisionConfigName } from './utils/constants/wizard';
 
 describe('KubeVirt VM detail - edit flavor', () => {
   const leakedResources = new Set<string>();
-  const provisionConfigs = getProvisionConfigs(testName);
+  const provisionConfigs = getProvisionConfigs();
 
-  const configName = CONFIG_NAME_CONTAINER;
+  const configName = ProvisionConfigName.CONTAINER;
   const provisionConfig = provisionConfigs.get(configName);
 
   // not needed for testing flavor
@@ -26,10 +27,10 @@ describe('KubeVirt VM detail - edit flavor', () => {
   it(
     'changes tiny to large',
     async () => {
-      const vm1Config = vmConfig(configName.toLowerCase(), provisionConfig, testName);
+      const vm1Config = vmConfig(configName.toLowerCase(), testName, provisionConfig);
       vm1Config.startOnCreation = false;
 
-      const vm = new VirtualMachine(vmConfig(configName.toLowerCase(), provisionConfig, testName));
+      const vm = new VirtualMachine(vmConfig(configName.toLowerCase(), testName, provisionConfig));
       await withResource(leakedResources, vm.asResource(), async () => {
         await vm.create(vm1Config);
         await vm.navigateToDetail();
@@ -71,10 +72,10 @@ describe('KubeVirt VM detail - edit flavor', () => {
   it(
     'changes tiny to custom',
     async () => {
-      const vm1Config = vmConfig(configName.toLowerCase(), provisionConfig, testName);
+      const vm1Config = vmConfig(configName.toLowerCase(), testName, provisionConfig);
       vm1Config.startOnCreation = false;
 
-      const vm = new VirtualMachine(vmConfig(configName.toLowerCase(), provisionConfig, testName));
+      const vm = new VirtualMachine(vmConfig(configName.toLowerCase(), testName, provisionConfig));
       await withResource(leakedResources, vm.asResource(), async () => {
         await vm.create(vm1Config);
         await vm.navigateToDetail();

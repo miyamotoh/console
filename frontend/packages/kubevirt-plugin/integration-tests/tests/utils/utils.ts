@@ -1,17 +1,25 @@
 /* eslint-disable no-await-in-loop */
 import { execSync } from 'child_process';
 import * as _ from 'lodash';
-import { $, $$, ElementFinder, browser, by, ExpectedConditions as until } from 'protractor';
-import { appHost } from '@console/internal-integration-tests/protractor.conf';
+import { $, $$, browser, by, ExpectedConditions as until } from 'protractor';
+import { testName, appHost } from '@console/internal-integration-tests/protractor.conf';
 import {
   isLoaded,
   createYAMLButton,
   rowForName,
+  createItemButton,
+  createYAMLLink,
+  resourceTitle,
 } from '@console/internal-integration-tests/views/crud.view';
+import { click } from '@console/shared/src/test-utils/utils';
+import {
+  isLoaded as yamlPageIsLoaded,
+  saveButton,
+} from '@console/internal-integration-tests/views/yaml.view';
 import { STORAGE_CLASS, PAGE_LOAD_TIMEOUT_SECS } from './consts';
 import { NodePortService } from './types';
 
-export async function fillInput(elem: ElementFinder, value: string) {
+export async function fillInput(elem: any, value: string) {
   // Sometimes there seems to be an issue with clear() method not clearing the input
   let attempts = 3;
   do {
@@ -51,14 +59,44 @@ export async function createProject(name: string) {
   }
 }
 
-export async function getInputValue(elem: ElementFinder) {
+export async function createExampleVMViaYAML() {
+  await browser.get(`${appHost}/k8s/ns/${testName}/virtualmachines`);
+  await isLoaded();
+  await click(createItemButton);
+  await click(createYAMLLink);
+  await yamlPageIsLoaded();
+  await click(saveButton);
+  await browser.wait(until.presenceOf(resourceTitle));
+}
+
+export async function getInputValue(elem: any) {
   return elem.getAttribute('value');
 }
 
-export async function selectSelectorOption(selectorId: string, option: string) {
-  await $(selectorId)
-    .all(by.css(`option[value="${option}"]`))
-    .click();
+export async function getSelectedOptionText(selector: any) {
+  return selector.$('option:checked').getText();
+}
+
+export async function selectOptionByText(selector: any, option: string) {
+  await click(selector.all(by.cssContainingText('option', option)).first());
+}
+
+export async function selectOptionByOptionValue(selector: any, option: string) {
+  await click(selector.all(by.css(`option[value="${option}"]`)).first());
+}
+
+export async function getSelectOptions(selector: any): Promise<string[]> {
+  const options = [];
+  await selector.$$('option').each((elem) => {
+    elem
+      .getText()
+      .then((text) => options.push(text))
+      .catch((err) => Promise.reject(err));
+  });
+  if (options.length > 0 && options[0].startsWith('---')) {
+    return options.slice(1);
+  }
+  return options;
 }
 
 export function getRandStr(length: number) {

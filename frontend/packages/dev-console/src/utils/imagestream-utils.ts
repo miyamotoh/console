@@ -1,4 +1,5 @@
 import * as _ from 'lodash';
+import * as semver from 'semver';
 import { ContainerPort, K8sResourceKind } from '@console/internal/module/k8s';
 import {
   isBuilder,
@@ -9,6 +10,8 @@ import {
   getImageStreamIcon,
   getImageForIconClass,
 } from '@console/internal/components/catalog/catalog-item-icon';
+import { ProjectModel, ImageStreamModel } from '@console/internal/models';
+import { FirehoseResource } from '@console/internal/components/utils';
 
 export interface ImageTag {
   name: string;
@@ -135,20 +138,69 @@ export const getSuggestedName = (name: string): string | undefined => {
   return _.first(imageName.split(/[^a-z0-9-]/));
 };
 
-export enum registryType {
+export enum RegistryType {
   External = 'external',
   Internal = 'internal',
 }
-export enum builderImagesNamespace {
+export enum BuilderImagesNamespace {
   Openshift = 'openshift',
 }
 export const imageRegistryType = {
   External: {
-    value: registryType.External,
+    value: RegistryType.External,
     label: 'Image name from external registry',
   },
   Internal: {
-    value: registryType.Internal,
-    label: 'Image name from internal registry',
+    value: RegistryType.Internal,
+    label: 'Image stream tag from internal registry',
   },
+};
+
+export const getSortedTags = (imageStream: K8sResourceKind) => {
+  return _.isArray(imageStream.status.tags) && imageStream.status.tags.length
+    ? imageStream.status.tags.sort(({ tag: a }, { tag: b }) => {
+        const v1 = semver.coerce(a);
+        const v2 = semver.coerce(b);
+        if (!v1 && !v2) {
+          return a.localeCompare(b);
+        }
+        if (!v1) {
+          return 1;
+        }
+        if (!v2) {
+          return -1;
+        }
+        return semver.rcompare(v1, v2);
+      })
+    : [];
+};
+export const getImageStreamTags = (imageStream: K8sResourceKind) => {
+  const sortedTags = imageStream && !_.isEmpty(imageStream) ? getSortedTags(imageStream) : [];
+  return sortedTags.reduce((tags, { tag }) => {
+    tags[tag] = tag;
+    return tags;
+  }, {});
+};
+
+export const getProjectResource = (): FirehoseResource[] => {
+  return [
+    {
+      isList: true,
+      kind: ProjectModel.kind,
+      prop: ProjectModel.id,
+    },
+  ];
+};
+
+export const getImageStreamResource = (namespace: string): FirehoseResource[] => {
+  const resource = [];
+  if (namespace) {
+    resource.push({
+      isList: true,
+      kind: ImageStreamModel.kind,
+      prop: ImageStreamModel.id,
+      namespace,
+    });
+  }
+  return resource;
 };

@@ -1,5 +1,5 @@
 /* eslint-disable lines-between-class-members */
-import { getName, getNamespace } from '@console/shared/src';
+import { getName, getNamespace, K8sEntityMap } from '@console/shared/src';
 import { ValueEnum } from '../value-enum';
 import {
   asVM,
@@ -13,6 +13,7 @@ import { VMLikeEntityKind } from '../../types';
 import { StorageUISource } from '../../components/modals/disk-modal/storage-ui-source';
 import { VolumeWrapper } from '../../k8s/wrapper/vm/volume-wrapper';
 import { DataVolumeWrapper } from '../../k8s/wrapper/vm/data-volume-wrapper';
+import { V1alpha1DataVolume } from '../../types/vm/disk/V1alpha1DataVolume';
 import { VolumeType } from './storage';
 
 type ProvisionSourceDetails = {
@@ -47,7 +48,18 @@ export class ProvisionSource extends ValueEnum<string> {
 
   static fromString = (source: string): ProvisionSource => ProvisionSource.stringMapper[source];
 
-  static getProvisionSourceDetails = (vmLikeEntity: VMLikeEntityKind): ProvisionSourceDetails => {
+  static getProvisionSourceDetails = (
+    vmLikeEntity: VMLikeEntityKind,
+    {
+      convertTemplateDataVolumesToAttachClonedDisk,
+      dataVolumes,
+      dataVolumeLookup,
+    }: {
+      convertTemplateDataVolumesToAttachClonedDisk?: boolean;
+      dataVolumes?: V1alpha1DataVolume[];
+      dataVolumeLookup?: K8sEntityMap<V1alpha1DataVolume>;
+    } = {},
+  ): ProvisionSourceDetails => {
     const vm = asVM(vmLikeEntity);
     if (getInterfaces(vm).some((i) => i.bootOrder === 1)) {
       return {
@@ -58,13 +70,33 @@ export class ProvisionSource extends ValueEnum<string> {
     const bootDisk = getDisks(vm).find((disk) => disk.bootOrder === 1);
     if (bootDisk) {
       const volume = getVolumes(vm).find((vol) => vol.name === bootDisk.name);
+      if (!volume) {
+        return {
+          error: 'No Volume has been found.',
+        };
+      }
       const volumeWrapper = VolumeWrapper.initialize(volume);
       let dataVolumeWrapper;
 
       if (volumeWrapper.getType() === VolumeType.DATA_VOLUME) {
-        const dataVolume = getDataVolumeTemplates(vm).find(
-          (dv) => getName(dv) === getVolumeDataVolumeName(volume),
-        );
+        if (convertTemplateDataVolumesToAttachClonedDisk) {
+          return {
+            type: ProvisionSource.DISK,
+            source: `${getNamespace(vmLikeEntity)}/${volumeWrapper.getDataVolumeName()}`,
+          };
+        }
+        let dataVolume;
+
+        if (dataVolumeLookup) {
+          dataVolume = dataVolumeLookup[getVolumeDataVolumeName(volume)];
+        }
+        if (!dataVolume) {
+          const allDataVolumes = [...getDataVolumeTemplates(vm)];
+          if (dataVolumes) {
+            allDataVolumes.push(...dataVolumes);
+          }
+          dataVolume = allDataVolumes.find((dv) => getName(dv) === getVolumeDataVolumeName(volume));
+        }
         if (!dataVolume) {
           return {
             error: `Datavolume ${volumeWrapper.getDataVolumeName()} does not exist.`,
@@ -105,7 +137,7 @@ export class ProvisionSource extends ValueEnum<string> {
           };
         default:
           return {
-            error: `Datavolume ${volumeWrapper.getDataVolumeName()} does not have a supported source.`,
+            error: `Volume ${volumeWrapper.getName()} does not have a supported source.`,
           };
       }
     }

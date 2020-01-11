@@ -301,12 +301,31 @@ h6 {
 
     .pf-c-nav__simple-list .pf-c-nav__link {
       font-size: $font-size-base;
+      // fix bug where nav items retain focus after navigation
+      // see https://github.com/patternfly/patternfly-next/issues/2463
+      &:focus {
+        background-color: transparent;
+        color: var(--pf-global--Color--light-300); // escape PF var chaos
+        font-weight: var(--pf-c-nav__list-link--FontWeight);
+      }
+      &:focus:hover,
+      &.pf-m-current:focus {
+        background-color: var(--pf-c-nav__simple-list-link--focus--BackgroundColor);
+        color: var(--pf-c-nav__simple-list-link--focus--Color);
+        font-weight: var(--pf-c-nav__simple-list-link--m-current--FontWeight);
+      }
     }
 
     // override list styles, necessary due to setting $pf-global--enable-reset to false
     ul {
       list-style: none;
     }
+  }
+
+  // fix bug where nav items retain focus after navigation
+  // see https://github.com/patternfly/patternfly-next/issues/2463
+  .pf-c-nav__item.pf-m-current .pf-c-nav__simple-list .pf-c-nav__link:focus {
+    color: var(--pf-global--Color--light-100); // escape PF var chaos
   }
 }
 
@@ -322,16 +341,10 @@ h6 {
 
 .pf-c-table tr > * {
   --pf-c-table-cell--FontSize: $font-size-base;
-  --pf-c-table-cell--PaddingLeft: 16px;
-  --pf-c-table-cell--PaddingRight: 16px;
-  --pf-c-table--m-compact-cell--first-last-child--PaddingLeft: 16px;
-  --pf-c-table--m-compact-cell--first-last-child--PaddingRight: 16px;
-}
-
-// react-virtualized disables pointer-events when scrolling, but this prevents
-// users from being able to click actions in the last row of a long list
-.dropdown-kebab-pf.pf-c-table__action .pf-c-dropdown__menu {
-  pointer-events: auto;
+  --pf-c-table-cell--PaddingLeft: 12px;
+  --pf-c-table-cell--PaddingRight: 12px;
+  --pf-c-table--m-compact-cell--first-last-child--PaddingLeft: 12px;
+  --pf-c-table--m-compact-cell--first-last-child--PaddingRight: 12px;
 }
 
 .pf-c-table.pf-c-virtualized tr {
@@ -352,13 +365,6 @@ h6 {
   }
 }
 
-.pf-c-table.pf-m-compact .pf-c-table__action {
-  --pf-c-table__action--PaddingLeft: 16px;
-  --pf-c-table__action--PaddingRight: 16px;
-  --pf-c-table__action--PaddingTop: 8px;
-  --pf-c-table__action--PaddingBottom: 8px;
-}
-
 .pf-c-table__check {
   width: 8.333% !important;
 
@@ -368,16 +374,8 @@ h6 {
 }
 
 .pf-c-table__action {
-  width: 5% !important;
-  padding-left: 0px !important;
-
-  @media screen and (max-width: 992px) {
-    width: 10% !important;
-  }
-}
-
-.pf-c-table__action.dropdown-kebab-pf .pf-c-dropdown__menu.pf-m-align-right {
-  right: -16px; // align with table edge, offset pf-c-table--m-compact-cell--first-last-child--PaddingRight
+  padding: 8px 0 !important;
+  width: 44px !important;
 }
 
 // FIXME: Pass as `style` prop to `List` once this is resolved (https://github.com/bvaughn/react-virtualized/issues/876). This is for the kebab menus' overflow.

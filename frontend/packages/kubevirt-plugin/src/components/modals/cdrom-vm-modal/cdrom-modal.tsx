@@ -6,14 +6,13 @@ import {
   HandlePromiseProps,
   withHandlePromise,
 } from '@console/internal/components/utils';
-import { isWindows } from 'kubevirt-web-ui-components';
 import { ModalTitle, ModalBody, ModalComponentProps } from '@console/internal/components/factory';
 import { PlusCircleIcon, OutlinedQuestionCircleIcon } from '@patternfly/react-icons';
 import { k8sPatch } from '@console/internal/module/k8s';
 import { ModalFooter } from '../modal/modal-footer';
 import { getCDsPatch } from '../../../k8s/patches/vm/vm-cdrom-patches';
 import { getRemoveDiskPatches } from '../../../k8s/patches/vm/vm-disk-patches';
-import { getVMLikeModel, asVM } from '../../../selectors/vm';
+import { getVMLikeModel, asVM, isWindows } from '../../../selectors/vm';
 import {
   getCDRoms,
   getContainerImageByDisk,
@@ -26,6 +25,7 @@ import {
 import { isValidationError, validateURL } from '../../../utils/validations/common';
 import { VMKind, VMLikeEntityKind } from '../../../types';
 import { CDRomRow } from './cdrom-row';
+import { getAvailableCDName } from './helpers';
 import { initialDisk, WINTOOLS_CONTAINER_NAMES, StorageType, CD, CDMap } from './constants';
 import './cdrom-modal.scss';
 
@@ -37,6 +37,7 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
     errorMessage,
     persistentVolumeClaims,
     storageClasses,
+    winToolsContainer,
     cancel,
     close,
   } = props;
@@ -102,12 +103,7 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
   };
 
   const onCDAdd = () => {
-    let index = 1;
-    let name = `cd-drive-${index}`;
-    while (cds[name]) {
-      index++;
-      name = `cd-drive-${index}`;
-    }
+    const name = getAvailableCDName(Object.values(cds));
     const newCD = {
       ...initialDisk,
       type: StorageType.CONTAINER,
@@ -153,7 +149,8 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
   const isFormInvalid =
     !!cdsValue.find((vol) => !vol.isURLValid) ||
     !!cdsValue.find((cd) => cd.type === StorageType.PVC && !cd.pvc) ||
-    !!cdsValue.find((cd) => cd.type === StorageType.URL && !cd.storageClass);
+    !!cdsValue.find((cd) => cd.type === StorageType.URL && !cd.storageClass) ||
+    !!cdsValue.find((cd) => cd.type === StorageType.WINTOOLS && !cd.windowsTools);
 
   return (
     <div className="modal-content">
@@ -175,6 +172,7 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
                 pvcs={persistentVolumeClaims}
                 usedPVCs={usedPVCs}
                 storageClasses={storageClasses}
+                winToolsContainer={winToolsContainer}
                 index={i}
                 isWindows={windowsBool}
                 inProgress={inProgress}
@@ -231,4 +229,5 @@ type CDRomModalProps = HandlePromiseProps &
     vmLikeEntity: VMLikeEntityKind;
     persistentVolumeClaims?: FirehoseResult<VMKind[]>;
     storageClasses?: FirehoseResult<VMKind[]>;
+    winToolsContainer: string;
   };

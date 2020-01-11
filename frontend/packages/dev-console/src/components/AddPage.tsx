@@ -3,7 +3,8 @@ import * as _ from 'lodash';
 import { Helmet } from 'react-helmet';
 import { match as RMatch } from 'react-router';
 import { history, Firehose, FirehoseResource, HintBlock } from '@console/internal/components/utils';
-import { K8sResourceKind } from '@console/internal/module/k8s';
+import { K8sResourceKind, referenceForModel } from '@console/internal/module/k8s';
+import { ServiceModel } from '@console/knative-plugin';
 import ODCEmptyState from './EmptyState';
 import NamespacedPage from './NamespacedPage';
 import ProjectsExistWrapper from './ProjectsExistWrapper';
@@ -20,6 +21,7 @@ interface ResourcesType {
   deployments: K8sResourceKind;
   daemonSets: K8sResourceKind;
   statefulSets: K8sResourceKind;
+  knativeService?: K8sResourceKind;
 }
 interface EmptyStateLoaderProps {
   resources?: ResourcesType;
@@ -32,6 +34,7 @@ const handleProjectCreate = (project: K8sResourceKind) =>
 
 const EmptyStateLoader: React.FC<EmptyStateLoaderProps> = ({ resources, loaded, loadError }) => {
   const [noWorkloads, setNoWorkloads] = React.useState(false);
+  const knativeData = _.get(resources, ['knativeService', 'data'], null);
 
   React.useEffect(() => {
     if (loaded) {
@@ -39,7 +42,8 @@ const EmptyStateLoader: React.FC<EmptyStateLoaderProps> = ({ resources, loaded, 
         _.isEmpty(resources.deploymentConfigs.data) &&
           _.isEmpty(resources.deployments.data) &&
           _.isEmpty(resources.daemonSets.data) &&
-          _.isEmpty(resources.statefulSets.data),
+          _.isEmpty(resources.statefulSets.data) &&
+          _.isEmpty(knativeData),
       );
     } else if (loadError) {
       setNoWorkloads(false);
@@ -51,6 +55,7 @@ const EmptyStateLoader: React.FC<EmptyStateLoaderProps> = ({ resources, loaded, 
     resources.deploymentConfigs.data,
     resources.deployments.data,
     resources.statefulSets.data,
+    knativeData,
   ]);
   return noWorkloads ? (
     <ODCEmptyState
@@ -76,24 +81,36 @@ const RenderEmptyState = ({ namespace }) => {
       kind: 'DeploymentConfig',
       namespace,
       prop: 'deploymentConfigs',
+      limit: 1,
     },
     {
       isList: true,
       kind: 'Deployment',
       namespace,
       prop: 'deployments',
+      limit: 1,
     },
     {
       isList: true,
       kind: 'DaemonSet',
       namespace,
       prop: 'daemonSets',
+      limit: 1,
     },
     {
       isList: true,
       kind: 'StatefulSet',
       namespace,
       prop: 'statefulSets',
+      limit: 1,
+    },
+    {
+      isList: true,
+      kind: referenceForModel(ServiceModel),
+      namespace,
+      prop: 'knativeService',
+      optional: true,
+      limit: 1,
     },
   ];
   return (

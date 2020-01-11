@@ -1,23 +1,14 @@
 import { last, includes } from 'lodash';
-import {
-  BOOT_ORDER_SECOND,
-  BOOT_ORDER_FIRST,
-  getBootableDevicesInOrder,
-} from 'kubevirt-web-ui-components';
 import { getName } from '@console/shared';
 import { Volume, k8sGet } from '@console/internal/module/k8s';
-import {
-  CD,
-  WINTOOLS_CONTAINER_NAMES,
-  StorageType,
-} from '../../../components/modals/cdrom-vm-modal/constants';
+import { PatchBuilder, PatchOperation } from '@console/shared/src/k8s';
+import { CD, StorageType } from '../../../components/modals/cdrom-vm-modal/constants';
 import { DataVolumeWrapper } from '../../wrapper/vm/data-volume-wrapper';
 import {
   getDefaultSCAccessMode,
   getDefaultSCVolumeMode,
 } from '../../../selectors/config-map/sc-defaults';
 import { getStorageClassConfigMap } from '../../requests/config-map/storage-class';
-import { PatchBuilder, PatchOperation } from '../../utils/patch';
 import { VMLikeEntityKind } from '../../../types';
 import {
   getVolumes,
@@ -25,8 +16,10 @@ import {
   getDisks,
   getVolumeDataVolumeName,
   asVM,
+  getBootableDevicesInOrder,
 } from '../../../selectors/vm';
 import { getVMLikePatches } from '../vm-template';
+import { BOOT_ORDER_FIRST, BOOT_ORDER_SECOND } from '../../../constants';
 
 const getNextAvailableBootOrderIndex = (vm: VMLikeEntityKind) => {
   const sortedBootableDevices = getBootableDevicesInOrder(vm);
@@ -56,7 +49,6 @@ export const getCDsPatch = async (vm: VMLikeEntityKind, cds: CD[]) => {
     .filter((cd) => cd.changed)
     .forEach(
       ({ name, pvc, type, bootOrder, bus, container, windowsTools, url, storageClass, size }) => {
-        const windowsTool = windowsTools || WINTOOLS_CONTAINER_NAMES.upstream;
         const existingCD = !!bootOrder;
 
         const disk: CD = {
@@ -119,7 +111,7 @@ export const getCDsPatch = async (vm: VMLikeEntityKind, cds: CD[]) => {
           volume = { name, containerDisk: { image: container } };
         }
         if (type === StorageType.WINTOOLS) {
-          volume = { name, containerDisk: { image: windowsTool } };
+          volume = { name, containerDisk: { image: windowsTools } };
         }
 
         const restOfDisks = DISKS.filter((vol) => vol.name !== name);

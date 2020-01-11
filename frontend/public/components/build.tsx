@@ -60,7 +60,7 @@ const CloneBuildAction: KebabAction = (kind: K8sKind, build: K8sResourceKind) =>
   accessReview: {
     group: kind.apiGroup,
     resource: kind.plural,
-    subresource: 'instantiate',
+    subresource: 'clone',
     name: build.metadata.name,
     namespace: build.metadata.namespace,
     verb: 'create',
@@ -113,7 +113,7 @@ export const BuildLogLink = ({ build }) => {
   return isPipeline ? (
     <BuildPipelineLogLink obj={build} />
   ) : (
-    <Link to={`${resourcePath('Build', name, namespace)}/logs`}>View Logs</Link>
+    <Link to={`${resourcePath('Build', name, namespace)}/logs`}>View logs</Link>
   );
 };
 

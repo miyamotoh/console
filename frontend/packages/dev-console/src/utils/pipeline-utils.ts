@@ -7,8 +7,15 @@ import {
   LOG_SOURCE_RUNNING,
   LOG_SOURCE_TERMINATED,
 } from '@console/internal/components/utils';
-import { getLatestRun, Pipeline, PipelineRun, runStatus } from './pipeline-augment';
-import { pipelineFilterReducer } from './pipeline-filter-reducer';
+import {
+  getLatestRun,
+  Pipeline,
+  PipelineRun,
+  runStatus,
+  PipelineParam,
+  PipelineRunParam,
+} from './pipeline-augment';
+import { pipelineFilterReducer, pipelineRunStatus } from './pipeline-filter-reducer';
 
 interface Resources {
   inputs?: Resource[];
@@ -22,6 +29,7 @@ interface Resource {
 }
 
 export interface ContainerStatus {
+  name: string;
   lastState?: string;
   state?: {
     waiting?: Record<string, any>;
@@ -61,12 +69,14 @@ export enum ListFilterId {
   Running = 'Running',
   Failed = 'Failed',
   Succeeded = 'Succeeded',
+  Cancelled = 'Cancelled',
 }
 
 export const ListFilterLabels = {
   [ListFilterId.Running]: 'Running',
   [ListFilterId.Failed]: 'Failed',
   [ListFilterId.Succeeded]: 'Complete',
+  [ListFilterId.Cancelled]: 'Cancelled',
 };
 
 // to be used by both Pipeline and Pipelinerun visualisation
@@ -127,23 +137,8 @@ const appendPipelineRunStatus = (pipeline, pipelineRun) => {
     if (!mTask.status) {
       mTask.status = { reason: runStatus.Idle };
     } else if (mTask.status && mTask.status.conditions) {
-      const statusCondition = mTask.status.conditions.pop() || {};
-      switch (statusCondition.status) {
-        case 'True':
-          mTask.status.reason = runStatus.Succeeded;
-          break;
-        case 'Unknown':
-          mTask.status.reason = runStatus['In Progress'];
-          break;
-        case 'False':
-          mTask.status.reason = runStatus.Failed;
-          break;
-        default:
-          mTask.status.reason = runStatus.Idle;
-          break;
-      }
+      mTask.status.reason = pipelineRunStatus(mTask) || runStatus.Idle;
     }
-
     return mTask;
   });
 };
@@ -289,4 +284,31 @@ export const constructCurrentPipeline = (
     currentPipeline,
     status,
   };
+};
+
+export const getPipelineRunParams = (pipelineParams: PipelineParam[]): PipelineRunParam[] => {
+  return (
+    pipelineParams &&
+    pipelineParams.map((param) => ({
+      name: param.name,
+      value: param.default,
+    }))
+  );
+};
+
+export const pipelineRunDuration = (run: PipelineRun): string => {
+  const startTime = _.get(run, ['status', 'startTime'], null);
+  const completionTime = _.get(run, ['status', 'completionTime'], null);
+
+  // Duration cannot be computed if start time is missing or a completed/failed pipeline has no end time
+  if (!startTime || (!completionTime && pipelineRunStatus(run) !== 'Running')) {
+    return '-';
+  }
+  const start = new Date(startTime).getTime();
+
+  // For running pipelines duration must be current time - starttime.
+  const duration = completionTime
+    ? new Date(completionTime).getTime() - start
+    : new Date().getTime() - start;
+  return formatDuration(duration);
 };

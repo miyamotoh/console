@@ -1,3 +1,6 @@
+import { DISK_SOURCE } from './consts';
+import { Flavor, OperatingSystem, WorkloadProfile } from './constants/wizard';
+
 export type ProvisionOption = {
   method: string;
   source?: string;
@@ -5,16 +8,26 @@ export type ProvisionOption = {
 
 export type NetworkResource = {
   name: string;
+  model: string;
   mac: string;
-  binding: string;
-  networkDefinition: string;
+  network: string;
+  type: string;
+};
+
+export type DiskSourceConfig = {
+  PVCName?: string;
+  PVCNamespace?: string;
+  URL?: string;
+  container?: string;
 };
 
 export type StorageResource = {
   name: string;
-  size: string;
+  size?: string;
   storageClass: string;
-  attached?: boolean;
+  interface: string;
+  sourceConfig?: DiskSourceConfig;
+  source?: DISK_SOURCE;
 };
 
 export type CloudInitConfig = {
@@ -22,7 +35,7 @@ export type CloudInitConfig = {
   useCustomScript?: boolean;
   customScript?: string;
   hostname?: string;
-  sshKey?: string;
+  sshKeys?: string[];
 };
 
 export type NodePortService = {
@@ -37,7 +50,6 @@ export type NodePortService = {
 
 export type VMConfig = {
   name: string;
-  namespace: string;
   description: string;
   template?: string;
   provisionSource?: ProvisionOption;
@@ -48,6 +60,16 @@ export type VMConfig = {
   cloudInit: CloudInitConfig;
   storageResources: StorageResource[];
   networkResources: NetworkResource[];
+  bootableDevice?: string;
+};
+
+export type BaseVMConfig = {
+  operatingSystem: OperatingSystem;
+  flavor: Flavor;
+  workloadProfile: WorkloadProfile;
+  sourceURL: string;
+  sourceContainer: string;
+  cloudInitScript: string;
 };
 
 export type ProvisionConfig = {
@@ -58,7 +80,6 @@ export type ProvisionConfig = {
 
 export type VMTemplateConfig = {
   name: string;
-  namespace: string;
   description: string;
   provisionSource?: ProvisionOption;
   operatingSystem?: string;

@@ -13,18 +13,19 @@ import { findKeySuffixValue, getSimpleName, getValueByPrefix } from '../utils';
 import { getAnnotations, getLabels } from '../selectors';
 import { NetworkWrapper } from '../../k8s/wrapper/vm/network-wrapper';
 import { getDataVolumeStorageSize, getDataVolumeStorageClassName } from '../dv/selectors';
+import { V1Disk } from '../../types/vm/disk/V1Disk';
 import { getDiskBus } from './disk';
 import {
   getVolumeContainerImage,
   getVolumePersistentVolumeClaimName,
-  getVolumeCloudInitUserData,
+  getVolumeCloudInitNoCloud,
 } from './volume';
 import { vCPUCount } from './cpu';
 
 export const getMemory = (vm: VMKind) =>
   _.get(vm, 'spec.template.spec.domain.resources.requests.memory');
 export const getCPU = (vm: VMKind): CPURaw => _.get(vm, 'spec.template.spec.domain.cpu');
-export const getDisks = (vm: VMKind, defaultValue = []) =>
+export const getDisks = (vm: VMKind, defaultValue = []): V1Disk[] =>
   _.get(vm, 'spec.template.spec.domain.devices.disks') == null
     ? defaultValue
     : vm.spec.template.spec.domain.devices.disks;
@@ -40,10 +41,14 @@ export const getVolumes = (vm: VMKind, defaultValue = []) =>
 export const getDataVolumeTemplates = (vm: VMKind, defaultValue = []) =>
   _.get(vm, 'spec.dataVolumeTemplates') == null ? defaultValue : vm.spec.dataVolumeTemplates;
 
-export const getOperatingSystem = (vm: VMLikeEntityKind) =>
-  findKeySuffixValue(getLabels(vm), TEMPLATE_OS_LABEL);
-export const getOperatingSystemName = (vm: VMKind) =>
-  getValueByPrefix(getAnnotations(vm), `${TEMPLATE_OS_NAME_ANNOTATION}/${getOperatingSystem(vm)}`);
+export const getOperatingSystem = (vmLike: VMLikeEntityKind): string =>
+  findKeySuffixValue(getLabels(vmLike), TEMPLATE_OS_LABEL);
+export const getOperatingSystemName = (vmLike: VMLikeEntityKind) =>
+  getValueByPrefix(
+    getAnnotations(vmLike),
+    `${TEMPLATE_OS_NAME_ANNOTATION}/${getOperatingSystem(vmLike)}`,
+  );
+
 export const getWorkloadProfile = (vm: VMLikeEntityKind) =>
   findKeySuffixValue(getLabels(vm), TEMPLATE_WORKLOAD_LABEL);
 export const getFlavor = (vmLike: VMLikeEntityKind) =>
@@ -85,7 +90,7 @@ export const getVMStatusConditions = (vm: VMKind) =>
   _.get(vm, 'status.conditions', []) as VMKind['status']['conditions'];
 
 export const getCloudInitVolume = (vm: VMKind) => {
-  const cloudInitVolume = getVolumes(vm).find(getVolumeCloudInitUserData);
+  const cloudInitVolume = getVolumes(vm).find(getVolumeCloudInitNoCloud);
 
   if (cloudInitVolume) {
     // make sure volume is used by disk
@@ -96,9 +101,6 @@ export const getCloudInitVolume = (vm: VMKind) => {
   }
   return null;
 };
-
-export const getCloudInitUserData = (vm: VMKind) =>
-  getVolumeCloudInitUserData(getCloudInitVolume(vm));
 
 export const hasAutoAttachPodInterface = (vm: VMKind, defaultValue = false) =>
   _.get(vm, 'spec.template.spec.domain.devices.autoattachPodInterface', defaultValue);

@@ -25,9 +25,11 @@ import { DiskModal } from '../../../modals/disk-modal';
 import { VM_TEMPLATE_NAME_PARAMETER } from '../../../../constants/vm-templates';
 import { PersistentVolumeClaimWrapper } from '../../../../k8s/wrapper/vm/persistent-volume-claim-wrapper';
 
-const VMWizardNICModal: React.FC<VMWizardStorageModalProps> = (props) => {
+const VMWizardStorageModal: React.FC<VMWizardStorageModalProps> = (props) => {
   const {
     storage,
+    isCreateTemplate,
+    isEditing,
     namespace: vmNamespace,
     useProjects,
     addUpdateStorage,
@@ -96,6 +98,8 @@ const VMWizardNICModal: React.FC<VMWizardStorageModalProps> = (props) => {
           VMWizardStorageType.PROVISION_SOURCE_DISK,
           VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK,
         ].includes(type)}
+        isCreateTemplate={isCreateTemplate}
+        isEditing={isEditing}
         onSubmit={(
           resultDiskWrapper,
           resultVolumeWrapper,
@@ -128,9 +132,11 @@ const VMWizardNICModal: React.FC<VMWizardStorageModalProps> = (props) => {
 };
 
 type VMWizardStorageModalProps = ModalComponentProps & {
+  isEditing?: boolean;
   storage?: VMWizardStorageWithWrappers;
   namespace: string;
   useProjects?: boolean;
+  isCreateTemplate: boolean;
   storages: VMWizardStorageWithWrappers[];
   addUpdateStorage: (storage: VMWizardStorage) => void;
 };
@@ -140,6 +146,7 @@ const stateToProps = (state, { wizardReduxID }) => {
   return {
     useProjects,
     namespace: iGetCommonData(state, wizardReduxID, VMWizardProps.activeNamespace),
+    isCreateTemplate: iGetCommonData(state, wizardReduxID, VMWizardProps.isCreateTemplate),
     storages: getStoragesWithWrappers(state, wizardReduxID),
   };
 };
@@ -153,6 +160,6 @@ const dispatchToProps = (dispatch, { wizardReduxID }) => ({
 const VMWizardStorageModalConnected = connect(
   stateToProps,
   dispatchToProps,
-)(VMWizardNICModal);
+)(VMWizardStorageModal);
 
 export const vmWizardStorageModalEnhanced = createModalLauncher(VMWizardStorageModalConnected);

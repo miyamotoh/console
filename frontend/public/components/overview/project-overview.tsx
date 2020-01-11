@@ -3,9 +3,9 @@ import * as classnames from 'classnames';
 import * as React from 'react';
 import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { ListView } from 'patternfly-react';
 import { Button, Tooltip } from '@patternfly/react-core';
 
+import { ListView, ListViewItem } from './list-view';
 import {
   Status as TooltipStatus,
   YellowExclamationTriangleIcon,
@@ -15,22 +15,16 @@ import {
 import { KEYBOARD_SHORTCUTS } from '../../const';
 import { K8sResourceKind } from '../../module/k8s';
 import * as UIActions from '../../actions/ui';
-import { pluralize, ResourceIcon, resourceObjPath, truncateMiddle } from '../utils';
+import {
+  ResourceIcon,
+  formatBytesAsMiB,
+  formatCores,
+  pluralize,
+  resourceObjPath,
+  truncateMiddle,
+} from '../utils';
 
 import { OverviewGroup, OverviewMetrics } from '.';
-
-const formatToFractionalDigits = (value: number, digits: number): string =>
-  Intl.NumberFormat(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(value);
-
-const formatBytesAsMiB = (bytes: number): string => {
-  const mib = bytes / 1024 / 1024;
-  return formatToFractionalDigits(mib, 1);
-};
-
-const formatCores = (cores: number): string => formatToFractionalDigits(cores, 3);
 
 // Consider this mobile if the device screen width is less than 768. (This value shouldn't change.)
 const isMobile = window.screen.width < 768;
@@ -324,7 +318,7 @@ const ProjectOverviewListItem = connect<
   );
 
   return (
-    <ListView.Item
+    <ListViewItem
       onClick={onClick}
       className={className}
       heading={heading}

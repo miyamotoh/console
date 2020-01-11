@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
 import { Status, SuccessStatus } from '@console/shared';
+import { Conditions } from '@console/internal/components/conditions';
 import { ErrorPage404 } from '@console/internal/components/error';
 import {
   MultiListPage,
@@ -15,28 +16,31 @@ import {
   TableData,
 } from '@console/internal/components/factory';
 import {
-  ResourceSummary,
-  StatusBox,
-  navFactory,
-  Timestamp,
-  LabelList,
-  MsgBox,
-  ResourceKebab,
   Kebab,
   KebabAction,
+  LabelList,
   LoadingBox,
+  MsgBox,
+  ResourceKebab,
+  ResourceSummary,
+  SectionHeading,
+  StatusBox,
+  Timestamp,
+  navFactory,
+  resourcePathFromModel,
 } from '@console/internal/components/utils';
 import { connectToModel, connectToPlural } from '@console/internal/kinds';
 import {
-  apiVersionForReference,
-  kindForReference,
+  GroupVersionKind,
+  K8sKind,
   K8sResourceKind,
   OwnerReference,
-  K8sKind,
-  referenceFor,
-  GroupVersionKind,
-  referenceForModel,
+  apiVersionForReference,
   groupVersionFor,
+  kindForReference,
+  modelFor,
+  referenceFor,
+  referenceForModel,
 } from '@console/internal/module/k8s';
 import { deleteModal } from '@console/internal/components/modals';
 import { RootState } from '@console/internal/redux';
@@ -72,19 +76,25 @@ const getActions = (selectedObj: any) => {
   }));
   return [
     ...pluginActions,
-    (kind, obj) => ({
-      label: `Edit ${kind.label}`,
-      href: `/k8s/ns/${obj.metadata.namespace}/${
-        ClusterServiceVersionModel.plural
-      }/${csvName()}/${referenceFor(obj)}/${obj.metadata.name}/yaml`,
-      accessReview: {
-        group: kind.apiGroup,
-        resource: kind.plural,
-        name: obj.metadata.name,
-        namespace: obj.metadata.namespace,
-        verb: 'update',
-      },
-    }),
+    (kind, obj) => {
+      const reference = referenceFor(obj);
+      const href = kind.namespaced
+        ? `/k8s/ns/${obj.metadata.namespace}/${
+            ClusterServiceVersionModel.plural
+          }/${csvName()}/${reference}/${obj.metadata.name}/yaml`
+        : `/k8s/cluster/${reference}/${obj.metadata.name}/yaml`;
+      return {
+        label: `Edit ${kind.label}`,
+        href,
+        accessReview: {
+          group: kind.apiGroup,
+          resource: kind.plural,
+          name: obj.metadata.name,
+          namespace: obj.metadata.namespace,
+          verb: 'update',
+        },
+      };
+    },
 
     (kind, obj) => ({
       label: `Delete ${kind.label}`,
@@ -109,12 +119,12 @@ const getActions = (selectedObj: any) => {
 };
 
 const tableColumnClasses = [
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'hidden-xs'),
-  classNames('col-lg-2', 'col-md-3', 'hidden-sm', 'hidden-xs'),
-  classNames('col-lg-2', 'hidden-md', 'hidden-sm', 'hidden-xs'),
-  classNames('col-lg-2', 'hidden-md', 'hidden-sm', 'hidden-xs'),
+  '',
+  '',
+  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-16-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-xl'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-2xl'),
   Kebab.columnClass,
 ];
 
@@ -127,26 +137,26 @@ export const OperandTableHeader = () => {
       props: { className: tableColumnClasses[0] },
     },
     {
-      title: 'Labels',
-      sortField: 'metadata.labels',
-      transforms: [sortable],
-      props: { className: tableColumnClasses[1] },
-    },
-    {
       title: 'Kind',
       sortField: 'kind',
       transforms: [sortable],
-      props: { className: tableColumnClasses[2] },
+      props: { className: tableColumnClasses[1] },
     },
     {
       title: 'Status',
       sortField: 'status.phase',
       transforms: [sortable],
-      props: { className: tableColumnClasses[3] },
+      props: { className: tableColumnClasses[2] },
     },
     {
       title: 'Version',
       sortField: 'spec.version',
+      transforms: [sortable],
+      props: { className: tableColumnClasses[3] },
+    },
+    {
+      title: 'Labels',
+      sortField: 'metadata.labels',
       transforms: [sortable],
       props: { className: tableColumnClasses[4] },
     },
@@ -170,13 +180,13 @@ export const OperandTableRow: React.FC<OperandTableRowProps> = ({ obj, index, ke
       <TableData className={tableColumnClasses[0]}>
         <OperandLink obj={obj} />
       </TableData>
-      <TableData className={tableColumnClasses[1]}>
-        <LabelList kind={obj.kind} labels={obj.metadata.labels} />
-      </TableData>
-      <TableData className={classNames(tableColumnClasses[2], 'co-break-word')}>
+      <TableData
+        className={classNames(tableColumnClasses[1], 'co-break-word')}
+        data-test-operand-kind={obj.kind}
+      >
         {obj.kind}
       </TableData>
-      <TableData className={tableColumnClasses[3]}>
+      <TableData className={tableColumnClasses[2]}>
         {_.isEmpty(status) ? (
           <div className="text-muted">Unknown</div>
         ) : (
@@ -185,8 +195,11 @@ export const OperandTableRow: React.FC<OperandTableRowProps> = ({ obj, index, ke
           </>
         )}
       </TableData>
-      <TableData className={tableColumnClasses[4]}>
+      <TableData className={tableColumnClasses[3]}>
         {_.get(obj.spec, 'version') || <div className="text-muted">Unknown</div>}
+      </TableData>
+      <TableData className={tableColumnClasses[4]}>
+        <LabelList kind={obj.kind} labels={obj.metadata.labels} />
       </TableData>
       <TableData className={tableColumnClasses[5]}>
         <Timestamp timestamp={obj.metadata.creationTimestamp} />
@@ -238,11 +251,20 @@ const inFlightStateToProps = ({ k8s }: RootState) => ({
 export const ProvidedAPIsPage = connect(inFlightStateToProps)((props: ProvidedAPIsPageProps) => {
   const { obj } = props;
   const { owned = [] } = obj.spec.customresourcedefinitions;
-  const firehoseResources = owned.map((desc) => ({
-    kind: referenceForProvidedAPI(desc),
-    namespaced: true,
-    prop: desc.kind,
-  }));
+  const firehoseResources = owned.reduce((resources, desc) => {
+    const reference = referenceForProvidedAPI(desc);
+    const model = modelFor(reference);
+    return model
+      ? [
+          ...resources,
+          {
+            kind: referenceForProvidedAPI(desc),
+            namespaced: model.namespaced,
+            prop: desc.kind,
+          },
+        ]
+      : resources;
+  }, []);
 
   const EmptyMsg = () => (
     <MsgBox
@@ -320,17 +342,18 @@ export const ProvidedAPIPage = connectToModel((props: ProvidedAPIPageProps) => {
     );
   }
 
+  const to = kindObj.namespaced
+    ? `/k8s/ns/${csv.metadata.namespace}/${ClusterServiceVersionModel.plural}/${
+        csv.metadata.name
+      }/${kind}/~new`
+    : `${resourcePathFromModel(kindObj)}/~new`;
   return (
     <ListPage
       kind={kind}
       ListComponent={OperandList}
       canCreate={_.get(kindObj, 'verbs', [] as string[]).some((v) => v === 'create')}
-      createProps={{
-        to: `/k8s/ns/${csv.metadata.namespace}/${ClusterServiceVersionModel.plural}/${
-          csv.metadata.name
-        }/${kind}/~new`,
-      }}
-      namespace={_.get(kindObj, 'namespaced') ? namespace : null}
+      createProps={{ to }}
+      namespace={kindObj.namespaced ? namespace : null}
     />
   );
 });
@@ -352,6 +375,7 @@ export const OperandDetails = connectToModel((props: OperandDetailsProps) => {
     !_.isEmpty(descriptor) ? _.get(block, descriptor.path, descriptor.value) : undefined;
 
   const { kind, metadata, spec, status } = props.obj;
+  const conditions = status && status.conditions;
 
   // Find the matching CRD spec for the kind of this resource in the CSV.
   const ownedDefinitions = _.get(
@@ -368,7 +392,10 @@ export const OperandDetails = connectToModel((props: OperandDetailsProps) => {
     ownedDefinitions.concat(reqDefinitions),
     (def) => def.name.split('.')[0] === props.kindObj.plural,
   );
-  const statusDescriptors = _.get<Descriptor[]>(thisDefinition, 'statusDescriptors', []);
+  const statusDescriptors = _.get<Descriptor[]>(thisDefinition, 'statusDescriptors', []).filter(
+    // exclude Conditions since they are included in their own section
+    (descriptor) => descriptor.path !== 'conditions',
+  );
   const specDescriptors = _.get<Descriptor[]>(thisDefinition, 'specDescriptors', []);
   const currentStatus = _.find(statusDescriptors, { displayName: 'Status' });
   const primaryDescriptors = statusDescriptors.filter((descriptor) => isMainDescriptor(descriptor));
@@ -461,6 +488,12 @@ export const OperandDetails = connectToModel((props: OperandDetailsProps) => {
           </div>
           <div className="co-m-pane__body">{details}</div>
         </>
+      )}
+      {conditions && (
+        <div className="co-m-pane__body">
+          <SectionHeading text="Conditions" />
+          <Conditions conditions={conditions} />
+        </div>
       )}
     </div>
   );

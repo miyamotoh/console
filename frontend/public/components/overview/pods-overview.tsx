@@ -1,7 +1,6 @@
 import * as _ from 'lodash-es';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { ListGroup } from 'patternfly-react';
 
 import { Status } from '@console/shared';
 import { ResourceLink, resourcePath, SidebarSectionHeading } from '../utils';
@@ -91,7 +90,7 @@ const PodOverviewItem: React.FC<PodOverviewItemProps> = ({ pod }) => {
           <Status status={phase} />
         </span>
         <span className="col-xs-3 text-right">
-          <Link to={`${resourcePath(kind, name, namespace)}/logs`}>View Logs</Link>
+          <Link to={`${resourcePath(kind, name, namespace)}/logs`}>View logs</Link>
         </span>
       </div>
     </li>
@@ -105,11 +104,11 @@ type PodOverviewItemProps = {
 };
 
 const PodsOverviewList: React.SFC<PodOverviewListProps> = ({ pods }) => (
-  <ListGroup componentClass="ul">
+  <ul className="list-group">
     {_.map(pods, (pod) => (
       <PodOverviewItem key={pod.metadata.uid} pod={pod} />
     ))}
-  </ListGroup>
+  </ul>
 );
 
 PodsOverviewList.displayName = 'PodsOverviewList';
@@ -132,7 +131,7 @@ export const PodsOverview: React.SFC<PodsOverviewProps> = ({ pods, obj }) => {
             className="sidebar__section-view-all"
             to={`${resourcePath(obj.kind, name, namespace)}/pods`}
           >
-            {`View All (${_.size(pods)})`}
+            {`View all (${_.size(pods)})`}
           </Link>
         )}
       </SidebarSectionHeading>

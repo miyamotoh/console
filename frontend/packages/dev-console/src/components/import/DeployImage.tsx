@@ -14,7 +14,6 @@ import DeployImageForm from './DeployImageForm';
 export interface DeployImageProps {
   namespace: string;
   projects?: FirehoseList;
-  imageStreams?: FirehoseList;
 }
 
 interface StateProps {
@@ -23,7 +22,7 @@ interface StateProps {
 
 type Props = DeployImageProps & StateProps;
 
-const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication, imageStreams }) => {
+const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }) => {
   const initialValues: DeployImageFormData = {
     project: {
       name: namespace || '',
@@ -42,6 +41,7 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication, 
       image: '',
       tag: '',
       namespace: '',
+      grantAccess: true,
     },
     isi: {
       name: '',
@@ -67,6 +67,7 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication, 
       },
     },
     route: {
+      show: true,
       create: true,
       targetPort: '',
       unknownTargetPort: '',
@@ -107,14 +108,18 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication, 
       cpu: {
         request: '',
         requestUnit: 'm',
+        defaultRequestUnit: 'm',
         limit: '',
         limitUnit: 'm',
+        defaultLimitUnit: 'm',
       },
       memory: {
         request: '',
         requestUnit: 'Mi',
+        defaultRequestUnit: 'Mi',
         limit: '',
         limitUnit: 'Mi',
+        defaultLimitUnit: 'Mi',
       },
     },
   };
@@ -146,9 +151,7 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication, 
       onSubmit={handleSubmit}
       onReset={history.goBack}
       validationSchema={deployValidationSchema}
-      render={(props) => (
-        <DeployImageForm {...props} projects={projects} imageStreams={imageStreams} />
-      )}
+      render={(props) => <DeployImageForm {...props} projects={projects} />}
     />
   );
 };

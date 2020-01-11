@@ -8,6 +8,7 @@ import {
   modelFor,
   k8sCreate,
   LabelSelector,
+  referenceFor,
 } from '@console/internal/module/k8s';
 import {
   ImageStreamModel,
@@ -21,10 +22,13 @@ import {
   StatefulSetModel,
 } from '@console/internal/models';
 import {
-  RevisionModel,
-  ConfigurationModel,
   ServiceModel as KnativeServiceModel,
   RouteModel as KnativeRouteModel,
+  EventSourceCronJobModel,
+  EventSourceContainerModel,
+  EventSourceApiServerModel,
+  EventSourceCamelModel,
+  EventSourceKafkaModel,
 } from '@console/knative-plugin';
 import { checkAccess } from '@console/internal/components/utils';
 import { TopologyDataObject } from '../components/topology/topology-types';
@@ -54,7 +58,7 @@ export const edgesFromServiceBinding = (
   const sourceBindings = [];
   _.forEach(sbrs, (sbr) => {
     let edgeExists = false;
-    if (_.get(sbr, 'spec.applicationSelector.resource') === modelFor(source.kind).plural) {
+    if (_.get(sbr, 'spec.applicationSelector.resource') === modelFor(referenceFor(source)).plural) {
       if (_.get(sbr, 'spec.applicationSelector.resourceRef') === source.metadata.name) {
         edgeExists = true;
       } else {
@@ -180,7 +184,7 @@ const updateItemAppConnectTo = (
   connectValue: string,
   oldValue: string = undefined,
 ) => {
-  const model = modelFor(item.kind);
+  const model = modelFor(referenceFor(item));
 
   if (!model) {
     return Promise.reject();
@@ -242,7 +246,7 @@ export const createServiceBinding = (
   const targetResourceGroup = _.split(_.get(target, 'metadata.ownerReferences[0].apiVersion'), '/');
   const targetResourceKind = _.get(target, 'metadata.ownerReferences[0].kind');
   const targetResourceRefName = _.get(target, 'metadata.ownerReferences[0].name');
-  const sbrName = `${sourceName}-${modelFor(source.kind).abbr}-${targetName}-${
+  const sbrName = `${sourceName}-${modelFor(referenceFor(source)).abbr}-${targetName}-${
     modelFor(target.kind).abbr
   }`;
 
@@ -258,7 +262,7 @@ export const createServiceBinding = (
         resourceRef: sourceName,
         group: sourceGroup[0],
         version: sourceGroup[1],
-        resource: modelFor(source.kind).plural,
+        resource: modelFor(referenceFor(source)).plural,
       },
       backingServiceSelector: {
         group: targetResourceGroup[0],
@@ -357,11 +361,9 @@ export const cleanUpWorkload = (
 ): Promise<K8sResourceKind[]> => {
   const reqs = [];
   const webhooks = [];
-  let webhooksAvailable = true;
-  const deleteModels = [BuildConfigModel, DeploymentConfigModel, ServiceModel, RouteModel];
+  let webhooksAvailable = false;
+  const deleteModels = [BuildConfigModel, ServiceModel, RouteModel];
   const knativeDeleteModels = [
-    ConfigurationModel,
-    RevisionModel,
     KnativeServiceModel,
     KnativeRouteModel,
     BuildConfigModel,
@@ -391,36 +393,32 @@ export const cleanUpWorkload = (
   const batchDeleteRequests = (models: K8sKind[], resourceObj: K8sResourceKind): void => {
     models.forEach((model) => deleteRequest(model, resourceObj));
   };
-  if (isKnativeResource) {
-    // delete knative resources
-    const knativeService = _.find(workload.resources.ksservices, { kind: 'Service' });
-    resourceData.metadata.name = _.get(knativeService, 'metadata.name', '');
-    batchDeleteRequests(knativeDeleteModels, resourceData);
-  } else {
-    // delete non knative resources
-    switch (resource.kind) {
-      case DeploymentModel.kind:
-        deleteRequest(DeploymentModel, resource);
-        webhooksAvailable = false;
-        break;
-      case DeploymentConfigModel.kind:
-        batchDeleteRequests(deleteModels, resource);
-        deleteRequest(ImageStreamModel, resource); // delete imageStream
-        break;
-      case DaemonSetModel.kind:
-        deleteRequest(DaemonSetModel, resource);
-        webhooksAvailable = false;
-        break;
-      case StatefulSetModel.kind:
-        deleteRequest(StatefulSetModel, resource);
-        webhooksAvailable = false;
-        break;
-      default:
-        webhooksAvailable = false;
-        break;
-    }
+  switch (resource.kind) {
+    case DaemonSetModel.kind:
+    case StatefulSetModel.kind:
+      deleteRequest(modelFor(resource.kind), resource);
+      break;
+    case DeploymentModel.kind:
+    case DeploymentConfigModel.kind:
+      deleteRequest(modelFor(resource.kind), resource);
+      batchDeleteRequests(deleteModels, resource);
+      deleteRequest(ImageStreamModel, resource); // delete imageStream
+      webhooksAvailable = true;
+      break;
+    case EventSourceCronJobModel.kind:
+    case EventSourceApiServerModel.kind:
+    case EventSourceContainerModel.kind:
+    case EventSourceKafkaModel.kind:
+    case EventSourceCamelModel.kind:
+      deleteRequest(modelFor(referenceFor(resource)), resource);
+      break;
+    case KnativeServiceModel.kind:
+      batchDeleteRequests(knativeDeleteModels, resourceData);
+      webhooksAvailable = true;
+      break;
+    default:
+      break;
   }
-  // Delete webhook secrets for both knative and non-knative resources
   if (webhooksAvailable) {
     webhooks.push('generic');
     if (!isKnativeResource && gitType !== GitTypes.unsure) {

@@ -3,25 +3,45 @@ import * as _ from 'lodash';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
 import {
-  TemplateSource,
-  getTemplateOperatingSystems,
-  getTemplateFlavors,
-  TEMPLATE_TYPE_LABEL,
-} from 'kubevirt-web-ui-components';
-import { ListPage, Table, TableRow, TableData } from '@console/internal/components/factory';
-import { Kebab, ResourceLink, ResourceKebab } from '@console/internal/components/utils';
+  ListPage,
+  Table,
+  TableRow,
+  TableData,
+  MultiListPage,
+} from '@console/internal/components/factory';
+import {
+  Kebab,
+  ResourceLink,
+  ResourceKebab,
+  FirehoseResult,
+} from '@console/internal/components/utils';
 import { TemplateModel } from '@console/internal/models';
 import { TemplateKind } from '@console/internal/module/k8s';
-import { dimensifyHeader, dimensifyRow, getNamespace, DASH } from '@console/shared';
+import {
+  dimensifyHeader,
+  dimensifyRow,
+  getNamespace,
+  DASH,
+  getUID,
+  getName,
+  createLookup,
+  K8sEntityMap,
+} from '@console/shared';
 import { match } from 'react-router';
 import { VM_TEMPLATE_LABEL_PLURAL } from '../../constants/vm-templates';
-import { menuActions } from './menu-actions';
+import {
+  getTemplateOperatingSystems,
+  getTemplateFlavors,
+} from '../../selectors/vm-template/advanced';
+import { getLoadedData } from '../../utils';
+import { TEMPLATE_TYPE_LABEL, TEMPLATE_TYPE_VM } from '../../constants/vm';
+import { DataVolumeModel } from '../../models';
+import { V1alpha1DataVolume } from '../../types/vm/disk/V1alpha1DataVolume';
 import { VMTemplateLink } from './vm-template-link';
+import { menuActions } from './menu-actions';
+import { TemplateSource } from './vm-template-source';
 
-const { kind } = TemplateModel;
-const selector = {
-  matchLabels: { [TEMPLATE_TYPE_LABEL]: 'vm' },
-};
+import './vm-template.scss';
 
 const tableColumnClass = classNames('col-lg-2', 'col-md-2', 'col-sm-4', 'col-xs-4');
 const tableColumnClassHiddenOnSmall = classNames('col-lg-2', 'col-md-2', 'hidden-sm', 'hidden-xs');
@@ -74,6 +94,7 @@ VMTemplateTableHeader.displayName = 'VMTemplateTableHeader';
 
 const VMTemplateTableRow: React.FC<VMTemplateTableRowProps> = ({
   obj: template,
+  customData: { dataVolumeLookup },
   index,
   key,
   style,
@@ -84,7 +105,11 @@ const VMTemplateTableRow: React.FC<VMTemplateTableRowProps> = ({
   return (
     <TableRow id={template.metadata.uid} index={index} trKey={key} style={style}>
       <TableData className={dimensify()}>
-        <VMTemplateLink template={template} />
+        <VMTemplateLink
+          name={getName(template)}
+          namespace={getNamespace(template)}
+          uid={getUID(template)}
+        />
       </TableData>
       <TableData className={dimensify()}>
         <ResourceLink
@@ -97,27 +122,41 @@ const VMTemplateTableRow: React.FC<VMTemplateTableRowProps> = ({
         {_.get(template.metadata, 'annotations.description', DASH)}
       </TableData>
       <TableData className={dimensify()}>
-        <TemplateSource template={template} />
+        <TemplateSource template={template} dataVolumeLookup={dataVolumeLookup} />
       </TableData>
-      <TableData className={dimensify()}>{os ? os.name || os.fieldId : DASH}</TableData>
+      <TableData className={dimensify()}>{os ? os.name || os.id : DASH}</TableData>
       <TableData className={dimensify()}>{getTemplateFlavors([template])[0]}</TableData>
       <TableData className={dimensify(true)}>
-        <ResourceKebab actions={menuActions} kind={kind} resource={template} />
+        <ResourceKebab actions={menuActions} kind={TemplateModel.kind} resource={template} />
       </TableData>
     </TableRow>
   );
 };
 VMTemplateTableRow.displayName = 'VmTemplateTableRow';
 
-const VirtualMachineTemplates: React.FC<React.ComponentProps<typeof Table>> = (props) => {
+type VirtualMachineTemplatesProps = {
+  data: TemplateKind[];
+  resources: {
+    dataVolumes: FirehoseResult<V1alpha1DataVolume[]>;
+  };
+};
+
+const VirtualMachineTemplates: React.FC<
+  React.ComponentProps<typeof Table> & VirtualMachineTemplatesProps
+> = (props) => {
   return (
-    <Table
-      {...props}
-      aria-label={VM_TEMPLATE_LABEL_PLURAL}
-      Header={VMTemplateTableHeader}
-      Row={VMTemplateTableRow}
-      virtualize
-    />
+    <div className="kubevirt-vm-template-list">
+      <Table
+        {...props}
+        aria-label={VM_TEMPLATE_LABEL_PLURAL}
+        Header={VMTemplateTableHeader}
+        Row={VMTemplateTableRow}
+        virtualize
+        customData={{
+          dataVolumeLookup: createLookup(props.resources.dataVolumes, getName),
+        }}
+      />
+    </div>
   );
 };
 const getCreateProps = ({ namespace }: { namespace: string }) => {
@@ -137,29 +176,63 @@ const getCreateProps = ({ namespace }: { namespace: string }) => {
 
 const VirtualMachineTemplatesPage: React.FC<
   VirtualMachineTemplatesPageProps & React.ComponentProps<typeof ListPage>
-> = (props) => (
-  <ListPage
-    {...props}
-    title={VM_TEMPLATE_LABEL_PLURAL}
-    ListComponent={VirtualMachineTemplates}
-    kind={kind}
-    selector={selector}
-    canCreate
-    createProps={getCreateProps({
-      namespace: props.match.params.ns,
-    })}
-  />
-);
+> = (props) => {
+  const { skipAccessReview } = props;
+  const namespace = props.match.params.ns;
+
+  const resources = [
+    {
+      kind: TemplateModel.kind,
+      isList: true,
+      namespace,
+      prop: 'vmTemplates',
+      selector: {
+        matchLabels: { [TEMPLATE_TYPE_LABEL]: TEMPLATE_TYPE_VM },
+      },
+    },
+    {
+      kind: DataVolumeModel.kind,
+      isList: true,
+      namespace,
+      prop: 'dataVolumes',
+      optional: true,
+    },
+  ];
+
+  const flatten = ({ vmTemplates }) => getLoadedData(vmTemplates, []);
+  const createAccessReview = skipAccessReview ? null : { model: TemplateModel, namespace };
+
+  return (
+    <MultiListPage
+      {...props}
+      createAccessReview={createAccessReview}
+      createButtonText="Create Template"
+      canCreate
+      title={VM_TEMPLATE_LABEL_PLURAL}
+      ListComponent={VirtualMachineTemplates}
+      createProps={getCreateProps({
+        namespace,
+      })}
+      resources={resources}
+      flatten={flatten}
+      label={VM_TEMPLATE_LABEL_PLURAL}
+    />
+  );
+};
 
 type VMTemplateTableRowProps = {
   obj: TemplateKind;
   index: number;
   key: string;
   style: any;
+  customData: {
+    dataVolumeLookup: K8sEntityMap<V1alpha1DataVolume>;
+  };
 };
 
 type VirtualMachineTemplatesPageProps = {
   match: match<{ ns?: string }>;
+  skipAccessReview?: boolean;
 };
 
 export { VirtualMachineTemplatesPage };

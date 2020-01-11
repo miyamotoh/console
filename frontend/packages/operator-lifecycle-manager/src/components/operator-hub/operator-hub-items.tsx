@@ -1,12 +1,13 @@
 import * as React from 'react';
 import * as _ from 'lodash';
+import LazyLoad from 'react-lazyload';
 import { Modal } from 'patternfly-react';
-import { CatalogTile } from 'patternfly-react-extensions';
+import { CatalogTile } from '@patternfly/react-catalog-view-extension';
 import { GreenCheckCircleIcon } from '@console/shared';
 import { history } from '@console/internal/components/utils/router';
 import { COMMUNITY_PROVIDERS_WARNING_LOCAL_STORAGE_KEY } from '@console/internal/const';
-import { normalizeIconClass } from '@console/internal/components/catalog/catalog-item-icon';
 import { TileViewPage } from '@console/internal/components/utils/tile-view-page';
+import * as operatorLogo from '@console/internal/imgs/operator.svg';
 import { OperatorHubItemDetails } from './operator-hub-item-details';
 import { communityOperatorWarningModal } from './operator-hub-community-provider-modal';
 import { OperatorHubItem, InstalledState, ProviderType, CapabilityLevel } from './index';
@@ -24,6 +25,7 @@ const operatorHubFilterGroups = ['providerType', 'provider', 'installState', 'ca
 
 const operatorHubFilterMap = {
   providerType: 'Provider Type',
+  provider: 'Provider',
   installState: 'Install State',
   capabilityLevel: 'Capability Level',
 };
@@ -269,23 +271,32 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
       return null;
     }
 
-    const { uid, name, imgUrl, iconClass, provider, description, installed } = item;
-    const normalizedIconClass = iconClass && `icon ${normalizeIconClass(iconClass)}`;
+    const { uid, name, imgUrl, provider, description, installed } = item;
     const vendor = provider ? `provided by ${provider}` : null;
     const badges = [COMMUNITY_PROVIDER_TYPE, CUSTOM_PROVIDER_TYPE].includes(item.providerType)
       ? [badge(item.providerType)]
       : [];
-
+    const icon = (
+      <LazyLoad
+        offset={1000}
+        once
+        placeholder={<img className="catalog-tile-pf-icon" src={operatorLogo} alt="" />}
+        scrollContainer="#content-scrollable"
+      >
+        <img className="catalog-tile-pf-icon" src={imgUrl} alt="" />
+      </LazyLoad>
+    );
     return (
       <CatalogTile
+        className="co-catalog-tile"
         key={uid}
         title={name}
         badges={badges}
-        iconImg={imgUrl}
-        iconClass={normalizedIconClass}
+        icon={icon}
         vendor={vendor}
         description={description}
         onClick={() => openOverlay(item)}
+        maxDescriptionLength={installed ? 80 : 120}
         footer={
           installed ? (
             <span>

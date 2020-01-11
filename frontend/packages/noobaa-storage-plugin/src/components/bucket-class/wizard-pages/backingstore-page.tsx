@@ -5,6 +5,9 @@ import * as React from 'react';
 import {
   Alert,
   AlertActionCloseButton,
+  Button,
+  Flex,
+  FlexItem,
   Form,
   FormGroup,
   TextInput,
@@ -25,9 +28,10 @@ import {
   ExternalLink,
 } from '@console/internal/components/utils';
 import { K8sResourceKind, referenceForModel } from '@console/internal/module/k8s';
-import { connectToModel } from '@console/internal/kinds';
 import { NooBaaBackingStoreModel } from '@console/noobaa-storage-plugin/src/models';
+import { PlusCircleIcon } from '@patternfly/react-icons';
 import { Action, BackingStoreStateType, State } from '../state';
+import CreateBackingStoreFormModal from '../../create-backingstore-page/create-bs-modal';
 
 const tableColumnClasses = [
   classNames('col-md-4', 'col-sm-4', 'col-xs-6', 'nb-bc-bs-table__data'),
@@ -79,6 +83,7 @@ const getTableRows = (list: K8sResourceKind[]) => {
           title: (
             <ResourceLink
               kind={referenceForModel(NooBaaBackingStoreModel)}
+              namespace={bs.metadata.namespace}
               name={bs.metadata.name}
               title={bs.metadata.uid}
             />
@@ -104,20 +109,24 @@ const filterSelectedItems = (items: BackingStoreStateType[], tableId: number): s
 
 const getBsLabel = (policy: string) =>
   policy === 'Mirror'
-    ? 'Select at least 2 Backingstore resources'
-    : 'Select at least 1 Backingstore resource';
+    ? 'Select at least 2 Backing Store resources'
+    : 'Select at least 1 Backing Store resource';
 
 const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
   ({ backingStores, dispatcher, state }) => {
     // CR data
     const { data: backingStoreData } = backingStores;
     // CR data clones to maintain order and selection state for table rows
-    const { backingStores: storeMain } = state;
+    const { backingStores: storeMain, namespace } = state;
     const { tier2Policy } = state;
     const showTier2Table = !!tier2Policy;
     const [searchInput, setSearchInput] = React.useState('');
     const [searchInput2, setSearchInput2] = React.useState('');
     const [showHelp, setShowHelp] = React.useState(true);
+
+    const openModal = () => {
+      CreateBackingStoreFormModal({ namespace });
+    };
 
     const filterSearch = (search: string, list: BackingStoreStateType[]) => {
       if (!search) return list;
@@ -125,11 +134,10 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
     };
 
     React.useEffect(() => {
-      if (state.backingStores.length === 0) {
-        const stores = getTableRows(backingStoreData);
-        dispatcher({ type: 'setBackingStores', value: stores });
-      }
-    }, [backingStoreData, dispatcher, state.backingStores.length]);
+      const stores = getTableRows(backingStoreData);
+      dispatcher({ type: 'setBackingStores', value: stores });
+      // eslint-disable-next-line
+    }, [JSON.stringify(backingStoreData), dispatcher]);
 
     const onSelect = (isSelected: boolean, tableId: number, rowData: IRowData) => {
       const selectedItem = storeMain.find((elem) => elem.id === rowData.id);
@@ -150,13 +158,14 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
       <div className="nb-create-bc-step-page">
         {showHelp && (
           <Alert
+            className="nb-create-bc-step-page__info"
             isInline
             variant="info"
-            title="What is a BackingStore?"
+            title="What is a Backing Store?"
             action={<AlertActionCloseButton onClose={() => setShowHelp(false)} />}
           >
             <p>
-              BackingStore represents a storage target to be used as the underlying storage for the
+              Backing Store represents a storage target to be used as the underlying storage for the
               data in MCG buckets.
             </p>
             <p>
@@ -170,8 +179,19 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
           </Alert>
         )}
         <Form className="nb-bc-step-page-form">
-          <Title headingLevel="h3" size="xl">
-            Tier 1 - backingStore ({state.tier1Policy})
+          <Title headingLevel="h3" size="xl" className="nb-bc-step-page-form__title">
+            <Flex breakpointMods={[{ modifier: 'justify-content-space-between' }] as any}>
+              <FlexItem>Tier 1 - Backing Store ({state.tier1Policy})</FlexItem>
+              <FlexItem>
+                <Button
+                  variant="link"
+                  onClick={openModal}
+                  className="nb-bc-step-page-form__modal-launcher"
+                >
+                  <PlusCircleIcon /> Create Backing Store
+                </Button>
+              </FlexItem>
+            </Flex>
           </Title>
 
           <FormGroup
@@ -182,7 +202,7 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
           >
             <TextInput
               className="nb-bc-step-page-form__element--short"
-              placeholder="Search BackingStore"
+              placeholder="Search Backing Store"
               onChange={setSearchInput}
               value={searchInput}
               type="text"
@@ -209,7 +229,7 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
         {showTier2Table && (
           <Form className="nb-bc-step-page-form">
             <Title headingLevel="h3" size="xl">
-              Tier 2 - backingStore ({state.tier2Policy}){' '}
+              Tier 2 - Backing Store ({state.tier2Policy}){' '}
             </Title>
             <FormGroup
               className="nb-bc-step-page-form__element"
@@ -219,9 +239,9 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
             >
               <TextInput
                 className="nb-bc-step-page-form__element--short"
-                placeholder="Search BackingStore"
+                placeholder="Search Backing Store"
                 onChange={(v) => setSearchInput2(v)}
-                value={searchInput}
+                value={searchInput2}
                 type="text"
                 aria-label="Search Backing Store"
               />
@@ -250,7 +270,12 @@ const BackingStorePage: React.FC<BackingStorePageProps> = React.memo(
 );
 const BackingStorePageWithFirehose: React.FC<BackingStorePageWithFirehoseProps> = (props) => {
   const resource = [
-    { kind: referenceForModel(NooBaaBackingStoreModel), prop: 'backingStores', isList: true },
+    {
+      kind: referenceForModel(NooBaaBackingStoreModel),
+      namespace: props.state.namespace,
+      prop: 'backingStores',
+      isList: true,
+    },
   ];
   return (
     <Firehose resources={resource}>
@@ -259,7 +284,7 @@ const BackingStorePageWithFirehose: React.FC<BackingStorePageWithFirehoseProps> 
   );
 };
 
-export default connectToModel(BackingStorePageWithFirehose);
+export default BackingStorePageWithFirehose;
 
 type BackingStorePageProps = {
   backingStores?: FirehoseResult<K8sResourceKind[]>;

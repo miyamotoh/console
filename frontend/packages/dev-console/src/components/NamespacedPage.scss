@@ -5,14 +5,21 @@
   flex-direction: column;
 
   &__content {
-    flex-grow: 1;
-    position: relative;
-    overflow: auto;
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
     background-color: var(--pf-global--Color--light-200);
+    position: relative;
 
     &.is-light {
       background-color: var(--pf-global--Color--light-100);
     }
+  }
+
+  &__toolbar {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
   }
 
   // Override styles of namespace bar to support the addition of the application selector on mobile

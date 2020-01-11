@@ -194,7 +194,7 @@ spec:
   .setIn(
     [referenceForModel(k8sModels.ChargebackReportModel), 'default'],
     `
-apiVersion: metering.openshift.io/v1alpha1
+apiVersion: metering.openshift.io/v1
 kind: Report
 metadata:
   name: namespace-memory-request
@@ -348,7 +348,7 @@ spec:
     storage: 5Gi
   accessModes:
     - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Recycle
+  persistentVolumeReclaimPolicy: Retain
   storageClassName: slow
   nfs:
     path: /tmp

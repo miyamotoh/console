@@ -17,7 +17,7 @@ export enum CloudInitDataFormKeys {
 }
 export const CLOUD_CONFIG_HEADER = '#cloud-config';
 
-const formAllowedKeys = new Set([
+export const formAllowedKeys = new Set([
   CloudInitDataFormKeys.NAME,
   CloudInitDataFormKeys.HOSTNAME,
   CloudInitDataFormKeys.SSH_AUTHORIZED_KEYS,
@@ -73,8 +73,9 @@ export class CloudInitDataHelper {
   isEmpty = () => !this.otherFormatData && _.isEmpty(this.cloudConfigData);
 
   includesOnlyFormValues = () =>
-    !this.cloudConfigData ||
-    Object.keys(this.cloudConfigData).every((key) => formAllowedKeys.has(key as any));
+    this.cloudConfigData
+      ? Object.keys(this.cloudConfigData).every((key) => formAllowedKeys.has(key as any))
+      : !this.otherFormatData;
 
   areAllFormValuesEmpty = () =>
     this.isEmpty() ||

@@ -1,9 +1,17 @@
 import * as React from 'react';
+import * as _ from 'lodash';
 import { RouteComponentProps } from 'react-router';
-import { Wizard } from '@patternfly/react-core';
-import { apiVersionForModel, k8sCreate, referenceFor } from '@console/internal/module/k8s';
+import { Title, Wizard } from '@patternfly/react-core';
+import {
+  apiVersionForModel,
+  k8sCreate,
+  k8sGet,
+  referenceForModel,
+} from '@console/internal/module/k8s';
 import { history } from '@console/internal/components/utils/router';
-import { resourceObjPath } from '@console/internal/components/utils';
+import { BreadCrumbs, resourcePathFromModel } from '@console/internal/components/utils';
+import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager';
+import { getName } from '@console/shared';
 import { NooBaaBucketClassModel } from '../../models';
 import GeneralPage from './wizard-pages/general-page';
 import PlacementPolicyPage from './wizard-pages/placement-policy-page';
@@ -21,7 +29,16 @@ enum CreateStepsBC {
 
 const CreateBucketClass: React.FC<CreateBCProps> = ({ match }) => {
   const [state, dispatch] = React.useReducer(reducer, initialState);
-  const { ns } = match.params;
+  const { ns, appName } = match.params;
+  const [clusterServiceVersion, setClusterServiceVersion] = React.useState(null);
+
+  React.useEffect(() => {
+    k8sGet(ClusterServiceVersionModel, appName, ns)
+      .then((clusterServiceVersionObj) => {
+        setClusterServiceVersion(clusterServiceVersionObj);
+      })
+      .catch(() => setClusterServiceVersion(null));
+  }, [appName, ns]);
 
   const finalStep = () => {
     dispatch({ type: 'setIsLoading', value: true });
@@ -53,11 +70,15 @@ const CreateBucketClass: React.FC<CreateBCProps> = ({ match }) => {
     promiseObj
       .then((obj) => {
         dispatch({ type: 'setIsLoading', value: false });
-        history.push(resourceObjPath(obj, referenceFor(obj)));
+        history.push(
+          `/k8s/ns/${ns}/clusterserviceversions/${getName(
+            clusterServiceVersion,
+          )}/${referenceForModel(NooBaaBucketClassModel)}/${getName(obj)}`,
+        );
       })
       .catch((err) => {
         dispatch({ type: 'setIsLoading', value: false });
-        dispatch({ type: 'setError', value: err });
+        dispatch({ type: 'setError', value: err.message });
       });
   };
 
@@ -81,7 +102,7 @@ const CreateBucketClass: React.FC<CreateBCProps> = ({ match }) => {
       id: CreateStepsBC.GENERAL,
       name: 'General',
       component: <GeneralPage dispatch={dispatch} state={state} />,
-      enableNext: !!state.bucketClassName,
+      enableNext: !!state.bucketClassName.trim().length,
     },
     {
       id: CreateStepsBC.PLACEMENT,
@@ -91,7 +112,7 @@ const CreateBucketClass: React.FC<CreateBCProps> = ({ match }) => {
     },
     {
       id: CreateStepsBC.BACKINGSTORE,
-      name: 'BackingStore',
+      name: 'Backing Store',
       component: <BackingStorePageWithFirehose state={state} dispatcher={dispatch} />,
       enableNext: backingStoreNextConditions(),
     },
@@ -99,27 +120,55 @@ const CreateBucketClass: React.FC<CreateBCProps> = ({ match }) => {
       id: CreateStepsBC.REVIEW,
       name: 'Review',
       component: <ReviewPage state={state} />,
-      nextButtonText: 'Create BucketClass',
+      nextButtonText: 'Create Bucket Class',
       enableNext: creationConditionsSatisfied(),
     },
   ];
 
   return (
     <>
-      <Wizard
-        isCompactNav
-        isInPage
-        isOpen
-        title="Create new Bucket Class"
-        description="NooBaaBucketClass is a CRD representing a class for buckets that defines policies for data placement and more"
-        steps={steps}
-        onSave={finalStep}
-        onClose={() => history.goBack()}
-      />
+      <div className="co-create-operand__header">
+        <div className="co-create-operand__header-buttons">
+          <BreadCrumbs
+            breadcrumbs={[
+              {
+                name: _.get(
+                  clusterServiceVersion,
+                  'spec.displayName',
+                  'Openshift Container Storage Operator',
+                ),
+                path: resourcePathFromModel(ClusterServiceVersionModel, appName, ns),
+              },
+              { name: `Create ${NooBaaBucketClassModel.label}`, path: match.url },
+            ]}
+          />
+        </div>
+        <div className="nb-create-bc-header-title">
+          <Title size="2xl" headingLevel="h1" className="nb-create-bc-header-title__main">
+            Create new Bucket Class
+          </Title>
+          <p className="nb-create-bc-header-title__info">
+            Bucket Class is a CRD representing a class for buckets that defines tiering policies and
+            data placements for an OBC.
+          </p>
+        </div>
+      </div>
+      <div className="nb-create-bc-wizard">
+        <Wizard
+          isCompactNav
+          isInPage
+          isOpen
+          title="Create new Bucket Class"
+          description="NooBaa Bucket Class is a CRD representing a class for buckets that defines policies for data placement and more"
+          steps={steps}
+          onSave={finalStep}
+          onClose={() => history.goBack()}
+        />
+      </div>
     </>
   );
 };
 
-type CreateBCProps = RouteComponentProps<{ ns?: string }>;
+type CreateBCProps = RouteComponentProps<{ ns?: string; appName?: string }>;
 
 export default CreateBucketClass;

@@ -1,3 +1,4 @@
+import * as _ from 'lodash';
 import {
   LOG_SOURCE_RESTARTING,
   LOG_SOURCE_WAITING,
@@ -8,8 +9,14 @@ import {
   getPipelineTasks,
   containerToLogSourceStatus,
   constructCurrentPipeline,
+  getPipelineRunParams,
+  pipelineRunDuration,
 } from '../pipeline-utils';
-import { constructPipelineData, mockPipelinesJSON } from './pipeline-test-data';
+import {
+  constructPipelineData,
+  mockPipelinesJSON,
+  mockRunDurationTest,
+} from './pipeline-test-data';
 
 describe('pipeline-utils ', () => {
   it('For first pipeline there should be 1 stages of length 2', () => {
@@ -27,13 +34,17 @@ describe('pipeline-utils ', () => {
   });
 
   it('should return correct Container Status', () => {
-    let status = containerToLogSourceStatus({ state: { waiting: {} } });
+    let status = containerToLogSourceStatus({ name: 'test', state: { waiting: {} } });
     expect(status).toBe(LOG_SOURCE_WAITING);
-    status = containerToLogSourceStatus({ state: { waiting: {} }, lastState: LOG_SOURCE_WAITING });
+    status = containerToLogSourceStatus({
+      name: 'test',
+      state: { waiting: {} },
+      lastState: LOG_SOURCE_WAITING,
+    });
     expect(status).toBe(LOG_SOURCE_RESTARTING);
-    status = containerToLogSourceStatus({ state: { running: {} } });
+    status = containerToLogSourceStatus({ name: 'test', state: { running: {} } });
     expect(status).toBe(LOG_SOURCE_RUNNING);
-    status = containerToLogSourceStatus({ state: { terminated: {} } });
+    status = containerToLogSourceStatus({ name: 'test', state: { terminated: {} } });
     expect(status).toBe(LOG_SOURCE_TERMINATED);
   });
 
@@ -43,6 +54,7 @@ describe('pipeline-utils ', () => {
     expect(constructCurrentPipeline(constructPipelineData.pipeline, [])).toBeNull();
     expect(constructCurrentPipeline(null, constructPipelineData.pipelineRuns)).toBeNull();
   });
+
   it('expect constructCurrentPipeline to produce a grouped pipeline with the latest run', () => {
     const data = constructCurrentPipeline(
       constructPipelineData.pipeline,
@@ -55,5 +67,30 @@ describe('pipeline-utils ', () => {
     expect(data.currentPipeline.latestRun).not.toBeNull();
     expect(data.status).not.toBeNull();
     expect(data.status).toBe('Pending');
+  });
+
+  it('should return correct params for a pipeline run', () => {
+    const pipelineParams = _.get(mockPipelinesJSON[0], 'spec.params');
+    const params = getPipelineRunParams(pipelineParams);
+    expect(params[0].name).toBe('APP_NAME');
+    expect(params[0].value).toBe('default-app-name');
+  });
+
+  it('expect duration to be "-" for PipelineRun without start Time', () => {
+    const duration = pipelineRunDuration(mockRunDurationTest[0]);
+    expect(duration).not.toBeNull();
+    expect(duration).toBe('-');
+  });
+
+  it('expect duration to be "-" for non running PipelineRun without end Time', () => {
+    const duration = pipelineRunDuration(mockRunDurationTest[1]);
+    expect(duration).not.toBeNull();
+    expect(duration).toBe('-');
+  });
+
+  it('expect duration to be a time formatted string for PipelineRun with start and end Time', () => {
+    const duration = pipelineRunDuration(mockRunDurationTest[2]);
+    expect(duration).not.toBeNull();
+    expect(duration).toBe('1m 13s');
   });
 });

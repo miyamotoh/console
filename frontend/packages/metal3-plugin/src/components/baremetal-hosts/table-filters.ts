@@ -9,6 +9,7 @@ import {
   HOST_STATUS_PROVISIONED,
   HOST_STATUS_EXTERNALLY_PROVISIONED,
   NODE_STATUS_TITLES,
+  HOST_STATUS_AVAILABLE,
 } from '../../constants';
 import { BareMetalHostBundle } from '../types';
 
@@ -18,8 +19,8 @@ const hostStatesToFilterMap = Object.freeze({
     states: HOST_REGISTERING_STATES,
   },
   ready: {
-    title: 'Ready',
-    states: [HOST_STATUS_READY],
+    title: 'Available',
+    states: [HOST_STATUS_READY, HOST_STATUS_AVAILABLE],
   },
   provisioning: {
     title: 'Provisioning',
@@ -33,9 +34,13 @@ const hostStatesToFilterMap = Object.freeze({
     title: 'Error',
     states: HOST_ERROR_STATES,
   },
+  maintenance: {
+    title: 'Maintenance',
+    states: Object.keys(NODE_STATUS_TITLES),
+  },
   other: {
     title: 'Other',
-    states: [...Object.keys(HOST_STATUS_TITLES), ...Object.keys(NODE_STATUS_TITLES)],
+    states: Object.keys(HOST_STATUS_TITLES),
   },
 });
 

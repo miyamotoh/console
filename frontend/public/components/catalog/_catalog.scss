@@ -17,12 +17,18 @@ $co-modal-ignore-warning-icon-width: 30px;
 }
 
 .co-catalog {
-  background: $color-pf-black-150;
   display: flex;
   flex-direction: column;
   min-height: 100%;
   min-width: 515px; // in order to accommodate filters and tiles at mobile
   padding: 0 0 ($grid-gutter-width / 2);
+}
+
+.co-catalog__body {
+  min-width: 575px; // Minimum shrinkable width of .co-catalog child elements => 15 + ((220 + 15) + (30 + 250 + 30)) + 15
+  @media (min-width: $screen-sm-min) {
+    min-width: 590px; // Left margin 30 instead of 15
+  }
 }
 
 .co-catalog-item-details {
@@ -91,6 +97,9 @@ $co-modal-ignore-warning-icon-width: 30px;
   flex:1;
   margin: 0 ($grid-gutter-width / 2);
   padding: ($grid-gutter-width / 2) 0 0;
+  @media (min-width: $screen-sm-min) {
+    margin: 0 ($grid-gutter-width / 2) 0 $grid-gutter-width;
+  }
 
   &__content {
     flex: 1 1 auto;
@@ -114,24 +123,41 @@ $co-modal-ignore-warning-icon-width: 30px;
     margin-top: 5px;
   }
 
+  &__grid {
+    background-color: $color-pf-black-150;
+    padding: 30px;
+  }
+
   &__header {
-    border-bottom: 1px solid $color-pf-black-200;
-    margin: 0 ($grid-gutter-width / 2) $grid-gutter-width 0;
+    margin: 0 $grid-gutter-width 0 0;
   }
 
   &__heading {
     font-size: 16px;
-    margin: 0 0 20px;
+    margin: 0 0 20px 30px;
   }
 
   &__input {
-    margin: 0 0 20px;
+    margin: 0 10px 20px 30px;
     width: auto !important;
+  }
+
+  &__btn-group__group-by {
+    display: inline;
+    margin-left: var(--pf-global--spacer--xl);
   }
 
   &__num-items {
     font-weight: var(--pf-global--FontWeight--bold);
     padding: 0 0 20px;
+  }
+
+  &__group-title {
+    margin-bottom: var(--pf-global--spacer--sm);
+  }
+
+  &__grouped-items {
+    margin-bottom: var(--pf-global--spacer--md);
   }
 
   // Enable scrolling on the modal

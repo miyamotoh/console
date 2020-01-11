@@ -1,14 +1,30 @@
 import * as _ from 'lodash';
-import { getPodStatus, podStatus } from '@console/shared';
+import * as k8s from '@console/internal/module/k8s';
+import { getPodStatus, podStatus, getImageForCSVIcon } from '@console/shared';
 import {
   getKnativeServingRevisions,
   getKnativeServingConfigurations,
   getKnativeServingRoutes,
 } from '@console/knative-plugin/src/utils/get-knative-resources';
+import { getImageForIconClass } from '@console/internal/components/catalog/catalog-item-icon';
 import { WorkloadData, TopologyDataResources } from '../topology-types';
-import { transformTopologyData, getEditURL } from '../topology-utils';
-import { resources, topologyData, MockResources } from './topology-test-data';
+import {
+  transformTopologyData,
+  getEditURL,
+  topologyModelFromDataModel,
+  getTopologyResourceObject,
+  createTopologyResourceConnection,
+} from '../topology-utils';
+import {
+  resources,
+  topologyData,
+  MockResources,
+  topologyDataModel,
+  dataModel,
+  sampleDeployments,
+} from './topology-test-data';
 import { MockKnativeResources } from './topology-knative-test-data';
+import { serviceBindingRequest } from './service-binding-test-data';
 
 export function getTranformedTopologyData(
   mockData: TopologyDataResources,
@@ -30,22 +46,22 @@ describe('TopologyUtils ', () => {
     expect(transformTopologyData(resources, ['deployments'])).toBeTruthy();
   });
 
-  it('should throw an error, if the invalid target deployment string is provided', () => {
-    const invalidTargetDeployment = ['dconfig']; // valid values are 'deployments' or 'deploymentConfigs'
-    expect(() => {
-      transformTopologyData(resources, invalidTargetDeployment);
-    }).toThrowError(`Invalid target deployment resource: (${invalidTargetDeployment})`);
-  });
-
-  it('should not throw an error, if the valid target deployment string is provided', () => {
-    const validTargetDeployment = ['deployments']; // valid values are 'deployments' or 'deploymentConfigs'
-    expect(() => {
-      transformTopologyData(resources, validTargetDeployment);
-    }).not.toThrowError(`Invalid target deployment resource: (${validTargetDeployment})`);
-  });
   it('should return graph and topology data', () => {
     expect(transformTopologyData(resources, ['deployments'])).toEqual(topologyData);
   });
+
+  it('should return topology model data', () => {
+    const newModel = topologyModelFromDataModel(topologyDataModel);
+    expect(newModel).toEqual(dataModel);
+  });
+
+  it('should return topology resource object', () => {
+    const topologyResourceObject = getTopologyResourceObject(
+      topologyDataModel.topology['e187afa2-53b1-406d-a619-cf9ff1468031'],
+    );
+    expect(topologyResourceObject).toEqual(sampleDeployments.data[0]);
+  });
+
   it('should return graph and topology data only for the deployment kind', () => {
     const { graphData, keys } = getTranformedTopologyData(MockResources, ['deployments']);
     expect(graphData.nodes).toHaveLength(MockResources.deployments.data.length); // should contain only two deployment
@@ -232,5 +248,45 @@ describe('TopologyUtils ', () => {
       'deploymentConfigs',
     ]);
     expect((topologyTransformedData[keys[0]].data as WorkloadData).editUrl).toBe(mockGitURL);
+  });
+
+  it('should return builder image icon for nodejs', () => {
+    const nodejsIcon = getImageForIconClass('icon-nodejs');
+    const { topologyTransformedData, keys } = getTranformedTopologyData(MockResources, [
+      'deploymentConfigs',
+    ]);
+    expect((topologyTransformedData[keys[0]].data as WorkloadData).builderImage).toBe(nodejsIcon);
+  });
+
+  it('should return csv icon for operator backed service', () => {
+    const icon = _.get(MockResources.clusterServiceVersions.data[0], 'spec.icon.0');
+    const csvIcon = getImageForCSVIcon(icon);
+    const { topologyTransformedData, keys } = getTranformedTopologyData(MockResources, [
+      'deployments',
+    ]);
+    expect((topologyTransformedData[keys[2]].data as WorkloadData).builderImage).toBe(csvIcon);
+  });
+});
+
+describe('Topology Utils', () => {
+  beforeAll(() => {
+    jest.spyOn(k8s, 'k8sCreate').mockImplementation((data) => Promise.resolve({ data }));
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('should create topology resource service binding', (done) => {
+    const source = topologyDataModel.topology['e187afa2-53b1-406d-a619-cf9ff1468031'];
+    const target = topologyDataModel.topology['e187afa2-53b1-406d-a619-cf9ff1468032'];
+    createTopologyResourceConnection(source, target, null, true)
+      .then((resp) => {
+        expect(resp.data).toEqual(serviceBindingRequest.data);
+        done();
+      })
+      .catch(() => {
+        done();
+      });
   });
 });

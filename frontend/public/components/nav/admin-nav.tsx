@@ -28,10 +28,12 @@ import { NavSection } from './section';
 import { formatNamespacedRouteForResource } from '../../actions/ui';
 
 type SeparatorProps = {
+  name: string;
   required?: string;
 };
+
 // Wrap `NavItemSeparator` so we can use `required` without prop type errors.
-const Separator: React.FC<SeparatorProps> = () => <NavItemSeparator />;
+const Separator: React.FC<SeparatorProps> = ({ name }) => <NavItemSeparator name={name} />;
 
 const searchStartsWith = ['search'];
 const provisionedServicesStartsWith = ['serviceinstances', 'servicebindings'];
@@ -74,7 +76,13 @@ const MonitoringNavSection_ = ({ grafanaURL, canAccess, kibanaURL }) => {
           startsWith={monitoringAlertsStartsWith}
         />
       )}
-      {showAlerts && <HrefLink href="/monitoring/query-browser?query0=" name="Metrics" />}
+      {showAlerts && (
+        <HrefLink
+          href="/monitoring/query-browser?query0="
+          name="Metrics"
+          startsWith={['monitoring/query-browser']}
+        />
+      )}
       {showGrafana && <ExternalLink href={grafanaURL} name="Dashboards" />}
       {kibanaURL && <ExternalLink href={kibanaURL} name="Logging" />}
     </NavSection>
@@ -110,7 +118,7 @@ const AdminNav = () => (
       <ResourceNSLink resource="statefulsets" name="Stateful Sets" />
       <ResourceNSLink resource="secrets" name="Secrets" />
       <ResourceNSLink resource="configmaps" name="Config Maps" />
-      <Separator />
+      <Separator name="WorkloadsSeparator" />
       <ResourceNSLink resource="cronjobs" name="Cron Jobs" />
       <ResourceNSLink resource="jobs" name="Jobs" />
       <ResourceNSLink resource="daemonsets" name="Daemon Sets" />
@@ -205,7 +213,7 @@ const AdminNav = () => (
         name="Machine Health Checks"
         required={FLAGS.MACHINE_HEALTH_CHECK}
       />
-      <Separator required={FLAGS.MACHINE_CONFIG} />
+      <Separator required={FLAGS.MACHINE_CONFIG} name="ComputeSeparator" />
       <ResourceClusterLink
         resource={referenceForModel(MachineConfigModel)}
         name="Machine Configs"

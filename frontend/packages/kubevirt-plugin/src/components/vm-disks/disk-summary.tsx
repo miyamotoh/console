@@ -9,56 +9,46 @@ import { WINTOOLS_CONTAINER_NAMES } from '../modals/cdrom-vm-modal/constants';
 import { VMKind } from '../../types';
 import { V1Disk } from '../../types/vm/disk/V1Disk';
 
-const DiskSummaryRow: React.FC<DiskSummaryRowProps> = ({ title, value }) => (
-  <div className="kubevirt-disk-summary__disk">
-    <div id={`kubevirt-disk-summary-disk-title-${title}`}>{title}</div>
-    <div id={`kubevirt-disk-summary-disk-value-${value}`}>{value}</div>
-  </div>
-);
+import './disk-summary.scss';
 
 export const DiskSummary: React.FC<DiskSummaryProps> = ({ disks, vm }) => (
-  <div className="kubevirt-disk-summary">
-    {disks.map(({ name }, i) => {
+  <dl className="kubevirt-disk-summary">
+    {disks.map(({ name }) => {
       const container = getContainerImageByDisk(vm, name);
       const pvc = getPVCSourceByDisk(vm, name);
       const url = getURLSourceByDisk(vm, name);
+      const nameKey = `kubevirt-disk-summary-disk-title-${name}`;
+      let value = '';
 
       if (_.includes(WINTOOLS_CONTAINER_NAMES, container)) {
-        return (
-          <DiskSummaryRow
-            key={`disk-summary-${name}`}
-            title={`Drive ${i + 1}: Windows Tools`}
-            value={container}
-          />
-        );
+        value = `Windows Tools: ${container}`;
+      } else if (container) {
+        value = `Container: ${container}`;
+      } else if (url) {
+        value = `URL: ${url}`;
+      } else if (pvc) {
+        value = `PVC: ${pvc}`;
       }
-      if (container) {
-        return (
-          <DiskSummaryRow
-            key={`disk-summary-${name}`}
-            title={`Drive ${i + 1}: Container`}
-            value={container}
-          />
-        );
-      }
-      if (url) {
-        return (
-          <DiskSummaryRow key={`disk-summary-${name}`} title={`Drive ${i + 1}: URL`} value={url} />
-        );
-      }
+
       return (
-        <DiskSummaryRow key={`disk-summary-${name}`} title={`Drive ${i + 1}: PVC`} value={pvc} />
+        <React.Fragment key={nameKey}>
+          <dt id={nameKey} key={nameKey} className="kubevirt-disk-summary__datalist-dt">
+            {name}
+          </dt>
+          <dd
+            id={`${nameKey}-info`}
+            key={`${nameKey}-info`}
+            className="kubevirt-disk-summary__datalist-dd"
+          >
+            {value}
+          </dd>
+        </React.Fragment>
       );
     })}
-  </div>
+  </dl>
 );
 
 type DiskSummaryProps = {
   vm: VMKind;
   disks: V1Disk[];
-};
-
-type DiskSummaryRowProps = {
-  title: string;
-  value: string;
 };

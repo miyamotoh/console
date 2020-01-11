@@ -1,7 +1,8 @@
 import * as React from 'react';
 import * as classNames from 'classnames';
 import { NativeTypes } from 'react-dnd-html5-backend';
-import { DropTarget, ConnectDropTarget, DropTargetMonitor } from 'react-dnd';
+import { DropTarget } from 'react-dnd';
+import { ConnectDropTarget, DropTargetMonitor } from 'react-dnd/lib/interfaces';
 
 import withDragDropContext from './drag-drop-context';
 
@@ -88,6 +89,9 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             </p>
             {!hideContents && (
               <textarea
+                data-test-id={
+                  this.props['data-test-id'] ? this.props['data-test-id'] : 'file-input-textarea'
+                }
                 className="pf-c-form-control co-file-dropzone__textarea"
                 onChange={this.onDataChange}
                 value={this.props.inputFileData}
@@ -149,7 +153,7 @@ export const DroppableFileInput = withDragDropContext(
       }
       const reader = new FileReader();
       reader.onload = () => {
-        const input = reader.result;
+        const input = reader.result as string; // Note(Yaacov): we use reader.readAsText
         this.setState(
           {
             inputFileName: file.name,
@@ -199,7 +203,7 @@ export type DroppableFileInputProps = {
 };
 
 export type DroppableFileInputState = {
-  inputFileData: string | ArrayBuffer;
+  inputFileData: string;
   inputFileName: string;
   errorMessage?: any;
 };

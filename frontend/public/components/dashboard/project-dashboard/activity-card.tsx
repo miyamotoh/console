@@ -98,7 +98,7 @@ const OngoingActivity = connect(mapStateToProps)(
             .filter((r) => (a.properties.isActivity ? a.properties.isActivity(r) : true))
             .map((r) => ({
               resource: r,
-              timestamp: a.properties.getTimestamp(r),
+              timestamp: a.properties.getTimestamp ? a.properties.getTimestamp(r) : null,
               loader: a.properties.loader,
             }));
         }),
@@ -121,7 +121,7 @@ export const ActivityCard: React.FC = () => {
   const { obj } = React.useContext(ProjectDashboardContext);
   const projectName = getName(obj);
   return (
-    <DashboardCard>
+    <DashboardCard gradient>
       <DashboardCardHeader>
         <DashboardCardTitle>Activity</DashboardCardTitle>
         <DashboardCardLink to={`/k8s/ns/${projectName}/events`}>View events</DashboardCardLink>

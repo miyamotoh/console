@@ -1,19 +1,35 @@
 import { K8sResourceKind, ContainerPort } from '@console/internal/module/k8s';
 import { LazyLoader } from '@console/plugin-sdk';
-import { NameValuePair, NameValueFromPair } from '../formik-fields/field-types';
+import { NameValuePair, NameValueFromPair } from '@console/shared';
 import { NormalizedBuilderImages } from '../../utils/imagestream-utils';
 
 export interface DeployImageFormProps {
   builderImages?: NormalizedBuilderImages;
   projects?: FirehoseList;
-  imageStreams?: FirehoseList;
 }
+export type ImageStreamPayload = boolean | K8sResourceKind;
 
-export interface ImageStreamProps {
-  projects?: K8sResourceKind[];
-  imageStreams: K8sResourceKind[];
+export type ImageStreamState = {
+  hasAccessToPullImage: ImageStreamPayload;
+  accessLoading: ImageStreamPayload;
+  loading: ImageStreamPayload;
+  hasCreateAccess: ImageStreamPayload;
+  selectedImageStream: ImageStreamPayload;
+};
+export enum ImageStreamActions {
+  setAccessLoading = 'setAccessLoading',
+  setLoading = 'setLoading',
+  setSelectedImageStream = 'setSelectedImageStream',
+  setHasAccessToPullImage = 'setHasAccessToPullImage',
+  setHasCreateAccess = 'setHasCreateAccess',
 }
-
+export type ImageStreamAction = { type: ImageStreamActions; value: ImageStreamPayload };
+export interface ImageStreamContextProps {
+  state: ImageStreamState;
+  dispatch: React.Dispatch<ImageStreamAction>;
+  hasImageStreams: boolean;
+  setHasImageStreams: (value: boolean) => void;
+}
 export interface SourceToImageFormProps {
   builderImages?: NormalizedBuilderImages;
   projects?: {
@@ -45,6 +61,7 @@ export interface DeployImageFormData {
     image: string;
     tag: string;
     namespace: string;
+    grantAccess?: boolean;
   };
   isi: ImageStreamImageData;
   image: ImageStreamImageData;
@@ -61,6 +78,7 @@ export interface DeployImageFormData {
 }
 
 export interface GitImportFormData {
+  formType?: string;
   name: string;
   project: ProjectData;
   application: ApplicationData;
@@ -124,6 +142,7 @@ export interface DockerData {
 }
 
 export interface RouteData {
+  show?: boolean;
   create: boolean;
   targetPort: string;
   unknownTargetPort?: string;
@@ -237,8 +256,10 @@ export interface LimitsData {
 export interface ResourceType {
   request: number | string;
   requestUnit: string;
+  defaultRequestUnit: string;
   limit: number | string;
   limitUnit: string;
+  defaultLimitUnit: string;
 }
 
 export enum CPUUnits {

@@ -15,6 +15,7 @@ import {
   OverviewCRD,
   YAMLTemplate,
   OverviewTabSection,
+  ReduxReducer,
 } from '@console/plugin-sdk';
 import { NamespaceRedirect } from '@console/internal/components/utils/namespace-redirect';
 import { CodeIcon } from '@patternfly/react-icons';
@@ -27,7 +28,14 @@ import {
   getPipelinesAndPipelineRunsForResource,
 } from './utils/pipeline-plugin-utils';
 import { FLAG_OPENSHIFT_PIPELINE, ALLOW_SERVICE_BINDING } from './const';
-import { newPipelineTemplate } from './templates';
+import {
+  newPipelineTemplate,
+  newTaskTemplate,
+  newTaskRunTemplate,
+  newPipelineResourceTemplate,
+  newClusterTaskTemplate,
+} from './templates';
+import reducer from './utils/reducer';
 
 const {
   ClusterTaskModel,
@@ -48,6 +56,7 @@ type ConsumedExtensions =
   | ResourceDetailsPage
   | Perspective
   | RoutePage
+  | ReduxReducer
   | KebabActions
   | OverviewCRD
   | YAMLTemplate
@@ -118,6 +127,18 @@ const plugin: Plugin<ConsumedExtensions> = [
         resource: referenceForModel(PipelineModel),
         required: FLAG_OPENSHIFT_PIPELINE,
         testID: 'pipeline-header',
+      },
+    },
+  },
+  {
+    type: 'NavItem/Href',
+    properties: {
+      perspective: 'dev',
+      componentProps: {
+        name: 'Monitoring',
+        href: '/dev-monitoring',
+        required: FLAGS.OPENSHIFT,
+        testID: 'monitoring-header',
       },
     },
   },
@@ -274,16 +295,6 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Page/Resource/List',
-    properties: {
-      model: PipelineModel,
-      loader: async () =>
-        (await import(
-          './components/pipelines/PipelinesPage' /* webpackChunkName: "pipeline-list" */
-        )).default,
-    },
-  },
-  {
     type: 'Page/Resource/Details',
     properties: {
       model: PipelineModel,
@@ -294,22 +305,42 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Page/Resource/List',
-    properties: {
-      model: PipelineRunModel,
-      loader: async () =>
-        (await import(
-          './components/pipelineruns/PipelineRunResourceList' /* webpackChunkName: "pipelinerun-list" */
-        )).default,
-    },
-  },
-  {
     type: 'Page/Resource/Details',
     properties: {
       model: PipelineRunModel,
       loader: async () =>
         (await import(
           './components/pipelineruns/PipelineRunDetailsPage' /* webpackChunkName: "pipelinerun-details" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/Details',
+    properties: {
+      model: TaskRunModel,
+      loader: async () =>
+        (await import(
+          './components/taskruns/TaskRunDetailsPage' /* webpackChunkName: "taskrun-details" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: PipelineModel,
+      loader: async () =>
+        (await import(
+          './components/pipelines/PipelinesResourceList' /* webpackChunkName: "pipeline-resource-list" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: PipelineRunModel,
+      loader: async () =>
+        (await import(
+          './components/pipelineruns/PipelineRunsResourceList' /* webpackChunkName: "pipelinerun-resource-list" */
         )).default,
     },
   },
@@ -332,10 +363,10 @@ const plugin: Plugin<ConsumedExtensions> = [
         '/add',
         '/import',
         '/topology',
-        '/topology1',
         '/deploy-image',
         '/metrics',
         '/project-access',
+        '/dev-monitoring',
       ],
       component: NamespaceRedirect,
     },
@@ -361,23 +392,7 @@ const plugin: Plugin<ConsumedExtensions> = [
       ],
       loader: async () =>
         (await import(
-          './components/topology2/TopologyPage' /* webpackChunkName: "dev-console-topology" */
-        )).default,
-    },
-  },
-  {
-    type: 'Page/Route',
-    properties: {
-      exact: true,
-      path: [
-        '/topology1/all-namespaces',
-        '/topology1/ns/:name',
-        '/topology1/all-namespaces/list',
-        '/topology1/ns/:name/list',
-      ],
-      loader: async () =>
-        (await import(
-          './components/topology/TopologyPage' /* webpackChunkName: "dev-console-topology1" */
+          './components/topology/TopologyPage' /* webpackChunkName: "dev-console-topology" */
         )).default,
     },
   },
@@ -412,6 +427,36 @@ const plugin: Plugin<ConsumedExtensions> = [
       loader: async () =>
         (await import(
           './components/BuildConfigPage' /* webpackChunkName: "dev-console-buildconfigs" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      perspective: 'dev',
+      exact: true,
+      path: [
+        `/k8s/all-namespaces/${referenceForModel(PipelineModel)}`,
+        `/k8s/ns/:ns/${referenceForModel(PipelineModel)}`,
+      ],
+      loader: async () =>
+        (await import(
+          './components/pipelines/PipelinesPage' /* webpackChunkName: "pipeline-page" */
+        )).PipelinesPage,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      perspective: 'dev',
+      exact: true,
+      path: [
+        `/k8s/all-namespaces/${referenceForModel(PipelineRunModel)}`,
+        `/k8s/ns/:ns/${referenceForModel(PipelineRunModel)}`,
+      ],
+      loader: async () =>
+        (await import(
+          './components/pipelineruns/PipelineRunsPage' /* webpackChunkName: "pipelinerun-page" */
         )).default,
     },
   },
@@ -471,6 +516,25 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
+    type: 'Page/Route',
+    properties: {
+      perspective: 'dev',
+      exact: false,
+      path: ['/dev-monitoring/all-namespaces', '/dev-monitoring/ns/:ns'],
+      loader: async () =>
+        (await import(
+          './components/monitoring/MonitoringPage' /* webpackChunkName: "dev-console-monitoring" */
+        )).default,
+    },
+  },
+  {
+    type: 'ReduxReducer',
+    properties: {
+      namespace: 'devconsole',
+      reducer,
+    },
+  },
+  {
     type: 'KebabActions',
     properties: {
       getKebabActionsForKind,
@@ -481,6 +545,34 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: PipelineModel,
       template: newPipelineTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: TaskModel,
+      template: newTaskTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: TaskRunModel,
+      template: newTaskRunTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: PipelineResourceModel,
+      template: newPipelineResourceTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: ClusterTaskModel,
+      template: newClusterTaskTemplate,
     },
   },
 ];

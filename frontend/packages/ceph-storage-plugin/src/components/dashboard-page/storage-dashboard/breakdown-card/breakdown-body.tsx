@@ -16,6 +16,7 @@ export const BreakdownCardBody: React.FC<BreakdownBodyProps> = ({
   humanize,
   isLoading,
   hasLoadError,
+  ocsVersion = '',
 }) => {
   if (isLoading && !hasLoadError) {
     return <BreakdownChartLoading />;
@@ -55,9 +56,10 @@ export const BreakdownCardBody: React.FC<BreakdownBodyProps> = ({
 
   const legends = chartData.map((d: StackDataPoint) => ({
     name: [d.name, d.label],
-    symbol: { size: 3, padding: 0 }, // To be removed
-    labels: { fill: d.color, padding: 0 },
+    labels: { fill: d.color },
+    symbol: { fill: d.fill },
     link: d.link,
+    ns: d.ns,
   }));
 
   // Removes Legend for available
@@ -80,7 +82,12 @@ export const BreakdownCardBody: React.FC<BreakdownBodyProps> = ({
         )}
       </GridItem>
       <GridItem span={12}>
-        <BreakdownChart data={chartData} legends={legends} metricModel={metricModel} />
+        <BreakdownChart
+          data={chartData}
+          legends={legends}
+          metricModel={metricModel}
+          ocsVersion={ocsVersion}
+        />
       </GridItem>
     </Grid>
   );
@@ -95,4 +102,5 @@ type BreakdownBodyProps = {
   capacityTotal?: string;
   metricModel: K8sKind;
   humanize: Humanize;
+  ocsVersion?: string;
 };

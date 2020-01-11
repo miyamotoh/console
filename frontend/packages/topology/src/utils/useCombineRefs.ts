@@ -1,21 +1,4 @@
-import * as React from 'react';
-
-const useCombineRefs = <RefType extends any>(
-  ...refs: (React.Ref<RefType> | undefined)[]
-): ((instance: RefType | null) => void) =>
-  React.useCallback(
-    (element: RefType): void =>
-      refs.forEach((ref) => {
-        if (ref) {
-          if (typeof ref === 'function') {
-            ref(element);
-          } else {
-            (ref as React.MutableRefObject<any>).current = element;
-          }
-        }
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    refs,
-  );
+// FIXME fully qualified due to the effect of long build times on storybook
+import { useCombineRefs } from '@console/shared/src/utils/useCombineRefs';
 
 export default useCombineRefs;

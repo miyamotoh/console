@@ -3,7 +3,7 @@ import * as _ from 'lodash';
 import { ChartDonut } from '@patternfly/react-charts';
 import { SecurityIcon } from '@patternfly/react-icons';
 import { URLHealthHandler } from '@console/plugin-sdk';
-import { HealthState } from '@console/shared/src/components/dashboard/health-card/states';
+import { HealthState } from '@console/shared/src/components/dashboard/status-card/states';
 import { FirehoseResult } from '@console/internal/components/utils/types';
 import { Link } from 'react-router-dom';
 import { referenceForModel } from '@console/internal/module/k8s';
@@ -46,7 +46,8 @@ export const SecurityBreakdownPopup: React.FC<SecurityBreakdownPopupProps> = (pr
   return (
     <>
       <div className="co-overview-status__control-plane-description">
-        Quay analyzes container images to identify vulnerabilities.
+        Container images from Quay are analyzed to identify vulnerabilities. Images from other
+        registries are not scanned.
       </div>
       {!_.isEmpty(props.k8sResult.data) ? (
         <div>

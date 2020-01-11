@@ -27,6 +27,8 @@ import { getVMStatus } from '../../statuses/vm/vm';
 import { vmStatusFilter } from './table-filters';
 import { menuActions } from './menu-actions';
 
+import './vm.scss';
+
 const tableColumnClasses = [
   classNames('col-lg-4', 'col-md-4', 'col-sm-6', 'col-xs-6'),
   classNames('col-lg-4', 'col-md-4', 'hidden-sm', 'hidden-xs'),
@@ -107,22 +109,24 @@ const VMRow: React.FC<VMRowProps> = ({
 const VMList: React.FC<React.ComponentProps<typeof Table> & VMListProps> = (props) => {
   const { resources } = props;
   return (
-    <Table
-      {...props}
-      aria-label={VirtualMachineModel.labelPlural}
-      Header={VMHeader}
-      Row={VMRow}
-      virtualize
-      customData={{
-        pods: getLoadedData(resources.pods, []),
-        migrations: getLoadedData(resources.migrations, []),
-        vmiLookup: createLookup(resources.vmis, getBasicID),
-        migrationLookup: createLookup(
-          resources.migrations,
-          (m) => isMigrating(m) && `${getNamespace(m)}-${getMigrationVMIName(m)}`,
-        ),
-      }}
-    />
+    <div className="kubevirt-vm-list">
+      <Table
+        {...props}
+        aria-label={VirtualMachineModel.labelPlural}
+        Header={VMHeader}
+        Row={VMRow}
+        virtualize
+        customData={{
+          pods: getLoadedData(resources.pods, []),
+          migrations: getLoadedData(resources.migrations, []),
+          vmiLookup: createLookup(resources.vmis, getBasicID),
+          migrationLookup: createLookup(
+            resources.migrations,
+            (m) => isMigrating(m) && `${getNamespace(m)}-${getMigrationVMIName(m)}`,
+          ),
+        }}
+      />
+    </div>
   );
 };
 
@@ -154,7 +158,7 @@ const getCreateProps = ({ namespace }: { namespace: string }) => {
 };
 
 export const VirtualMachinesPage: React.FC<VirtualMachinesPageProps> = (props) => {
-  const { namespace } = props;
+  const { namespace, skipAccessReview } = props;
 
   const resources = [
     getResource(VirtualMachineModel, { namespace, prop: 'vms' }),
@@ -168,10 +172,12 @@ export const VirtualMachinesPage: React.FC<VirtualMachinesPageProps> = (props) =
   ];
 
   const flatten = ({ vms }) => getLoadedData(vms, []);
+  const createAccessReview = skipAccessReview ? null : { model: VirtualMachineModel, namespace };
 
   return (
     <MultiListPage
       {...props}
+      createAccessReview={createAccessReview}
       createButtonText="Create Virtual Machine"
       canCreate
       title={VirtualMachineModel.labelPlural}
@@ -211,4 +217,5 @@ type VirtualMachinesPageProps = {
   namespace: string;
   obj: VMKind;
   hasCreateVMWizardsSupport: boolean;
+  skipAccessReview?: boolean;
 };

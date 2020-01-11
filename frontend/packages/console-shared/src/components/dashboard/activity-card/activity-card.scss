@@ -40,8 +40,8 @@
     padding-right: var(--pf-c-card--child--PaddingRight);
   }
 
-  .co-recent-item--error {
-    border-left-color: var(--pf-global--danger-color--100);
+  .co-recent-item--warning {
+    border-left-color: var(--pf-global--warning-color--100);
   }
 
   .pf-c-accordion__toggle {
@@ -62,6 +62,8 @@
 .co-activity-card__recent-title {
   border-top: solid 1px $pf-color-black-300;
   border-bottom: solid 1px $pf-color-black-300;
+  display: flex;
+  justify-content: space-between;
   padding: 0.2rem var(--pf-c-card--child--PaddingRight) 0.2rem var(--pf-c-card--child--PaddingLeft);
 }
 
@@ -97,12 +99,15 @@
 .co-recent-item__content-resourcelink {
   display: block;
   flex: 2 0 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+
+  .co-resource-item__resource-name {
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
 }
 
-.co-recent-item__icon--error {
+.co-recent-item__icon--warning {
   align-items: center;
   display: flex;
   margin-right: 0.3rem;
@@ -132,17 +137,34 @@
   text-align: left;
 }
 
-.skeleton-activity {
+.skeleton-activity__dashboard {
   animation: $skeleton-animation;
-  background: $skeleton-color;
-  height: 30px;
+  height: $skeleton-bone-height-1line;
+  margin-bottom: 1em;
   opacity: 0;
-  margin: 1rem var(--pf-c-card--child--PaddingRight) 1rem var(--pf-c-card--child--PaddingLeft);
+  width: 100%;
   &::after {
     background-repeat: no-repeat;
-    content: "";
-    display: block;
+    content:"";
+    display:block;
     height: 100%;
     width: 100%;
   }
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.skeleton-activity__dashboard::after {
+  background-image:
+    $skeleton-activity-bone,
+    $skeleton-activity-icon;
+
+  background-position:
+    $skeleton-activity-position,
+    $skeleton-activity-icon-position;
+
+  background-size:
+    $skeleton-activity-size,
+    $skeleton-activity-icon-size;
 }

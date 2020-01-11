@@ -5,7 +5,7 @@ import { Helmet } from 'react-helmet';
 import { safeDump } from 'js-yaml';
 import * as _ from 'lodash';
 import * as classNames from 'classnames';
-import { Alert, ActionGroup, Button, Switch } from '@patternfly/react-core';
+import { Alert, ActionGroup, Button, Switch, Accordion, Checkbox } from '@patternfly/react-core';
 import { JSONSchema6TypeName } from 'json-schema';
 import {
   apiVersionForModel,
@@ -43,6 +43,7 @@ import { RootState } from '@console/internal/redux';
 import { CreateYAML } from '@console/internal/components/create-yaml';
 import { RadioGroup } from '@console/internal/components/radio';
 import { ConfigureUpdateStrategy } from '@console/internal/components/modals/configure-update-strategy-modal';
+import { ExpandCollapse } from '@console/internal/components/utils/expand-collapse';
 import { ClusterServiceVersionModel } from '../models';
 import { ClusterServiceVersionKind, CRDDescription, APIServiceDefinition } from '../types';
 import { SpecCapability, StatusCapability, Descriptor } from './descriptors/types';
@@ -53,6 +54,7 @@ import {
   defaultNodeAffinity,
   defaultPodAffinity,
 } from './descriptors/spec/affinity';
+import { FieldGroup } from './descriptors/spec/field-group';
 import { referenceForProvidedAPI, ClusterServiceVersionLogo, providedAPIsFor } from './index';
 
 const annotationKey = 'alm-examples';
@@ -142,7 +144,7 @@ const fieldsForOpenAPI = (openAPI: SwaggerDefinition): OperandField[] => {
                 validation: null,
                 capabilities: [
                   SpecCapability.fieldGroup.concat(key) as SpecCapability.fieldGroup,
-                  ...capabilitiesFor(nestedVal.type),
+                  ...capabilitiesFor(nestedVal),
                 ],
               }),
             );
@@ -165,7 +167,7 @@ const fieldsForOpenAPI = (openAPI: SwaggerDefinition): OperandField[] => {
                 validation: null,
                 capabilities: [
                   SpecCapability.arrayFieldGroup.concat(key) as SpecCapability.fieldGroup,
-                  ...capabilitiesFor(itemVal.type),
+                  ...capabilitiesFor(itemVal),
                 ],
               }),
             );
@@ -206,7 +208,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
       const schemaPath = field.path.split('.').join('.properties.');
       const required = (_.get(
         props.openAPI,
-        _.dropRight(['spec', ...field.path.split('.')])
+        _.dropRight(['properties', 'spec', ...field.path.split('.')])
           .join('.properties.')
           .concat('.required'),
         [],
@@ -263,10 +265,10 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
       return null;
     }
     if (field.capabilities.includes(SpecCapability.checkbox)) {
-      return false;
+      return null;
     }
     if (field.capabilities.includes(SpecCapability.booleanSwitch)) {
-      return false;
+      return null;
     }
     if (field.capabilities.includes(SpecCapability.updateStrategy)) {
       return null;
@@ -386,6 +388,30 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
 
   // TODO(alecmerdler): Move this into a single `<SpecDescriptorInput>` entry component in the `descriptors/` directory
   const inputFor = (field: OperandField) => {
+    if (field.capabilities.find((c) => c.startsWith(SpecCapability.fieldDependency))) {
+      const controlFieldInfoList = field.capabilities.filter((c) =>
+        c.startsWith(SpecCapability.fieldDependency),
+      );
+      const controlFieldPathList = _.uniq(
+        controlFieldInfoList
+          .map((c) => c.split(SpecCapability.fieldDependency)[1])
+          .reduce((infoList, info) => [info.split(':')[0], ...infoList], []),
+      );
+      const controlFieldPath =
+        _.isArray(controlFieldPathList) && controlFieldPathList.length === 1
+          ? controlFieldPathList[0]
+          : null;
+      const currentControlFieldValue = !_.isNil(formValues[controlFieldPath])
+        ? formValues[controlFieldPath].toString()
+        : null;
+      const expectedControlFieldValueList = controlFieldInfoList
+        .map((c) => c.split(SpecCapability.fieldDependency)[1])
+        .reduce((infoList, info) => [info.split(':')[1], ...infoList], []);
+
+      if (!expectedControlFieldValueList.includes(currentControlFieldValue)) {
+        return null;
+      }
+    }
     if (field.capabilities.includes(SpecCapability.podCount)) {
       return (
         <NumberSpinner
@@ -453,16 +479,18 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
     }
     if (field.capabilities.includes(SpecCapability.password)) {
       return (
-        <input
-          className="pf-c-form-control"
-          id={field.path}
-          type="password"
-          {...field.validation}
-          onChange={({ currentTarget }) =>
-            setFormValues((values) => ({ ...values, [field.path]: currentTarget.value }))
-          }
-          value={formValues[field.path]}
-        />
+        <div>
+          <input
+            className="pf-c-form-control"
+            id={field.path}
+            type="password"
+            {...field.validation}
+            onChange={({ currentTarget }) =>
+              setFormValues((values) => ({ ...values, [field.path]: currentTarget.value }))
+            }
+            value={formValues[field.path]}
+          />
+        </div>
       );
     }
     if (field.capabilities.some((c) => c.startsWith(SpecCapability.k8sResourcePrefix))) {
@@ -473,7 +501,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
       const model = modelFor(groupVersionKind);
 
       return (
-        <div style={{ width: '50%' }}>
+        <div>
           {!_.isUndefined(model) ? (
             <ListDropdown
               resources={[
@@ -491,15 +519,13 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
     }
     if (field.capabilities.includes(SpecCapability.checkbox)) {
       return (
-        <input
-          type="checkbox"
+        <Checkbox
           id={field.path}
           style={{ marginLeft: '10px' }}
-          checked={formValues[field.path] as boolean}
+          isChecked={!_.isNil(formValues[field.path]) ? (formValues[field.path] as boolean) : false}
+          label={field.displayName}
           required={field.required}
-          onChange={({ currentTarget }) =>
-            setFormValues((values) => ({ ...values, [field.path]: currentTarget.checked }))
-          }
+          onChange={(val) => setFormValues((values) => ({ ...values, [field.path]: val }))}
         />
       );
     }
@@ -553,7 +579,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
     }
     if (field.capabilities.includes(SpecCapability.text)) {
       return (
-        <div style={{ width: '50%' }}>
+        <div>
           <input
             className="pf-c-form-control"
             id={field.path}
@@ -568,7 +594,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
     }
     if (field.capabilities.includes(SpecCapability.number)) {
       return (
-        <div style={{ width: '50%' }}>
+        <div>
           <input
             className="pf-c-form-control"
             id={field.path}
@@ -615,7 +641,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
       return (
         <div style={{}}>
           <Dropdown
-            title=""
+            title={`Select ${field.displayName}`}
             selectedKey={formValues[field.path]}
             items={field.capabilities
               .filter((c) => c.startsWith(SpecCapability.select))
@@ -629,6 +655,13 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
       );
     }
     return null;
+  };
+
+  const getGroupName = (group, groupType) => {
+    if (!_.isString(group) || !_.isString(groupType)) {
+      return null;
+    }
+    return _.startCase(group.split(groupType)[1]);
   };
 
   const fieldGroups = fields.reduce(
@@ -663,28 +696,139 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
 
   useScrollToTopOnMount();
 
-  type FieldGroupProps = {
-    defaultExpand: boolean;
-    group: SpecCapability.fieldGroup;
-  };
+  return (
+    <div className="co-m-pane__body">
+      <div className="row">
+        <form className="col-md-8 col-lg-7" onSubmit={submit}>
+          <Accordion asDefinitionList={false} className="co-create-operand__accordion">
+            <div className="form-group">
+              <label className="control-label co-required" htmlFor="name">
+                Name
+              </label>
+              <input
+                className="pf-c-form-control"
+                type="text"
+                onChange={({ target }) =>
+                  setFormValues((values) => ({ ...values, 'metadata.name': target.value }))
+                }
+                value={formValues['metadata.name']}
+                id="metadata.name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="control-label" htmlFor="tags-input">
+                Labels
+              </label>
+              <SelectorInput
+                onChange={(labels) =>
+                  setFormValues((values) => ({ ...values, 'metadata.labels': labels }))
+                }
+                tags={formValues['metadata.labels']}
+              />
+            </div>
+            {[...arrayFieldGroups].map((group) => {
+              const groupName = getGroupName(group, SpecCapability.arrayFieldGroup);
+              const fieldList = fields
+                .filter((f) => f.capabilities.includes(group))
+                .filter((f) => !_.isNil(inputFor(f)));
 
-  const FieldGroup: React.FC<FieldGroupProps> = ({ group, defaultExpand }) => {
-    const [expand, setExpand] = React.useState<boolean>(defaultExpand);
+              return (
+                !_.isEmpty(fieldList) && (
+                  <div id={group} key={group}>
+                    <FieldGroup
+                      defaultExpand={
+                        !_.some(
+                          fieldList,
+                          (f) => f.capabilities.includes(SpecCapability.advanced) && !f.required,
+                        )
+                      }
+                      groupName={groupName}
+                    >
+                      {fieldList.map((field) => (
+                        <div key={field.path}>
+                          <div className="form-group co-create-operand__form-group">
+                            <label
+                              className={classNames('form-label', {
+                                'co-required': field.required,
+                              })}
+                              htmlFor={field.path}
+                            >
+                              {field.displayName}
+                            </label>
+                            {inputFor(field)}
+                            {field.description && (
+                              <span id={`${field.path}__description`} className="help-block">
+                                {field.description}
+                              </span>
+                            )}
+                            {formErrors[field.path] && (
+                              <span className="co-error">{formErrors[field.path]}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </FieldGroup>
+                  </div>
+                )
+              );
+            })}
+            {[...fieldGroups].map((group) => {
+              const groupName = getGroupName(group, SpecCapability.fieldGroup);
+              const fieldList = fields
+                .filter((f) => f.capabilities.includes(group))
+                .filter((f) => !_.isNil(inputFor(f)));
 
-    return (
-      <div key={group} id={group}>
-        <div className="co-operand-field-group-title">
-          <label className="form-label">
-            {_.startCase(group.split(SpecCapability.fieldGroup)[1])}
-          </label>
-          <Button type="button" onClick={() => setExpand(!expand)} variant="link">
-            {expand ? 'Collapse' : 'Expand'}
-          </Button>
-        </div>
-        <div className="co-operand-field-group">
-          {expand &&
-            fields
-              .filter((f) => f.capabilities.includes(group))
+              return (
+                !_.isEmpty(fieldList) && (
+                  <div id={group} key={group}>
+                    <FieldGroup
+                      defaultExpand={
+                        !_.some(
+                          fieldList,
+                          (f) => f.capabilities.includes(SpecCapability.advanced) && !f.required,
+                        )
+                      }
+                      groupName={groupName}
+                    >
+                      {fieldList.map((field) => (
+                        <div key={field.path}>
+                          <div className="form-group co-create-operand__form-group">
+                            <label
+                              className={classNames('form-label', {
+                                'co-required': field.required,
+                              })}
+                              htmlFor={field.path}
+                            >
+                              {field.displayName}
+                            </label>
+                            {inputFor(field)}
+                            {field.description && (
+                              <span id={`${field.path}__description`} className="help-block">
+                                {field.description}
+                              </span>
+                            )}
+                            {formErrors[field.path] && (
+                              <span className="co-error">{formErrors[field.path]}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </FieldGroup>
+                  </div>
+                )
+              );
+            })}
+            {fields
+              .filter(
+                (f) =>
+                  !f.capabilities.some(
+                    (c) =>
+                      c.startsWith(SpecCapability.fieldGroup) ||
+                      c.startsWith(SpecCapability.arrayFieldGroup),
+                  ),
+              )
+              .filter((f) => !f.capabilities.includes(SpecCapability.advanced))
               .filter((f) => !_.isNil(inputFor(f)))
               .map((field) => (
                 <div key={field.path}>
@@ -697,7 +841,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
                     </label>
                     {inputFor(field)}
                     {field.description && (
-                      <span id={`${field.path}__description`} className="help-block text-muted">
+                      <span id={`${field.path}__description`} className="help-block">
                         {field.description}
                       </span>
                     )}
@@ -707,150 +851,39 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
                   </div>
                 </div>
               ))}
-        </div>
-      </div>
-    );
-  };
-  FieldGroup.displayName = 'FieldGroup';
-
-  return (
-    <div className="co-m-pane__body">
-      <div className="row">
-        <form className="col-md-6" onSubmit={submit}>
-          <div className="form-group">
-            <label className="control-label co-required" htmlFor="name">
-              Name
-            </label>
-            <input
-              className="pf-c-form-control"
-              type="text"
-              onChange={({ target }) =>
-                setFormValues((values) => ({ ...values, 'metadata.name': target.value }))
-              }
-              value={formValues['metadata.name']}
-              id="metadata.name"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label className="control-label" htmlFor="tags-input">
-              Labels
-            </label>
-            <SelectorInput
-              onChange={(labels) =>
-                setFormValues((values) => ({ ...values, 'metadata.labels': labels }))
-              }
-              tags={formValues['metadata.labels']}
-            />
-          </div>
-          {[...arrayFieldGroups].map((group) => (
-            <div key={group}>
-              <label className="form-label">
-                {_.startCase(group.split(SpecCapability.arrayFieldGroup)[1])}
-              </label>
-              <div className="co-operand-field-group">
-                {fields
-                  .filter((f) => f.capabilities.includes(group))
-                  .filter((f) => !_.isNil(inputFor(f)))
-                  .map((field) => (
-                    <div key={field.path}>
-                      <div className="form-group co-create-operand__form-group">
-                        <label
-                          className={classNames('form-label', { 'co-required': field.required })}
-                          htmlFor={field.path}
-                        >
-                          {field.displayName}
-                        </label>
-                        {inputFor(field)}
-                        {field.description && (
-                          <span id={`${field.path}__description`} className="help-block text-muted">
-                            {field.description}
-                          </span>
-                        )}
-                        {formErrors[field.path] && (
-                          <span className="co-error">{formErrors[field.path]}</span>
-                        )}
+            {advancedFields.length > 0 && (
+              <div>
+                <ExpandCollapse
+                  textExpanded="Advanced Configuration"
+                  textCollapsed="Advanced Configuration"
+                >
+                  {advancedFields
+                    .filter((f) => !_.isNil(inputFor(f)))
+                    .map((field) => (
+                      <div key={field.path}>
+                        <div className="form-group co-create-operand__form-group">
+                          <label
+                            className={classNames('form-label', { 'co-required': field.required })}
+                            htmlFor={field.path}
+                          >
+                            {field.displayName}
+                          </label>
+                          {inputFor(field)}
+                          {field.description && (
+                            <span id={`${field.path}__description`} className="help-block">
+                              {field.description}
+                            </span>
+                          )}
+                          {formErrors[field.path] && (
+                            <span className="co-error">{formErrors[field.path]}</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                </ExpandCollapse>
               </div>
-            </div>
-          ))}
-          {[...fieldGroups].map((group) => (
-            <div key={group} id={group}>
-              <FieldGroup
-                group={group}
-                defaultExpand={_.every(
-                  fields.filter((f) =>
-                    f.capabilities.includes(SpecCapability.fieldGroup.concat(
-                      group,
-                    ) as SpecCapability.fieldGroup),
-                  ),
-                  (f) => f.capabilities.includes(SpecCapability.advanced) && !f.required,
-                )}
-              />
-            </div>
-          ))}
-          {fields
-            .filter(
-              (f) =>
-                !f.capabilities.some(
-                  (c) =>
-                    c.startsWith(SpecCapability.fieldGroup) ||
-                    c.startsWith(SpecCapability.arrayFieldGroup),
-                ),
-            )
-            .filter((f) => !f.capabilities.includes(SpecCapability.advanced))
-            .filter((f) => !_.isNil(inputFor(f)))
-            .map((field) => (
-              <div key={field.path}>
-                <div className="form-group co-create-operand__form-group">
-                  <label
-                    className={classNames('form-label', { 'co-required': field.required })}
-                    htmlFor={field.path}
-                  >
-                    {field.displayName}
-                  </label>
-                  {inputFor(field)}
-                  {field.description && (
-                    <span id={`${field.path}__description`} className="help-block text-muted">
-                      {field.description}
-                    </span>
-                  )}
-                  {formErrors[field.path] && (
-                    <span className="co-error">{formErrors[field.path]}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          {advancedFields.length > 0 && (
-            <div>
-              <h3>Advanced Configuration</h3>
-              {advancedFields
-                .filter((f) => !_.isNil(inputFor(f)))
-                .map((field) => (
-                  <div key={field.path}>
-                    <div className="form-group co-create-operand__form-group">
-                      <label
-                        className={classNames('form-label', { 'co-required': field.required })}
-                        htmlFor={field.path}
-                      >
-                        {field.displayName}
-                      </label>
-                      {inputFor(field)}
-                      {field.description && (
-                        <span id={`${field.path}__description`} className="help-block text-muted">
-                          {field.description}
-                        </span>
-                      )}
-                      {formErrors[field.path] && (
-                        <span className="co-error">{formErrors[field.path]}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
+            )}
+          </Accordion>
           {(!_.isEmpty(error) || !_.isEmpty(_.compact(_.values(formErrors)))) && (
             <Alert
               isInline
@@ -872,7 +905,7 @@ export const CreateOperandForm: React.FC<CreateOperandFormProps> = (props) => {
             </ActionGroup>
           </div>
         </form>
-        <div className="col-md-6">
+        <div className="col-md-4 col-lg-5">
           {props.clusterServiceVersion && props.providedAPI && (
             <div style={{ marginBottom: '30px' }}>
               <ClusterServiceVersionLogo

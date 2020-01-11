@@ -1,3 +1,4 @@
+import * as classNames from 'classnames';
 import * as React from 'react';
 import * as _ from 'lodash';
 import {
@@ -19,27 +20,32 @@ import {
   HandlePromiseProps,
   NsDropdown,
   RequestSizeInput,
-  resourceObjPath,
   withHandlePromise,
 } from '@console/internal/components/utils';
 import {
   apiVersionForModel,
   k8sCreate,
+  referenceForModel,
   K8sResourceKind,
-  referenceFor,
 } from '@console/internal/module/k8s';
 import { ModalComponentProps } from '@console/internal/components/factory';
-import ResourceDropdown from '@console/dev-console/src/components/dropdown/ResourceDropdown';
+import { ResourceDropdown, getAPIVersion, getName } from '@console/shared';
 import { SecretModel } from '@console/internal/models';
 import { DashboardCardPopupLink } from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardLink';
 import { SecretType } from '@console/internal/components/secrets/create-secret';
-import { getAPIVersion, getName } from '@console/shared';
 import { history } from '@console/internal/components/utils/router';
 import { StorageClassDropdown } from '@console/internal/components/utils/storage-class-dropdown';
 import { NooBaaBackingStoreModel } from '../../models';
 import './create-bs.scss';
+import {
+  BC_PROVIDERS,
+  AWS_REGIONS,
+  NOOBAA_TYPE_MAP,
+  PROVIDERS_NOOBAA_MAP,
+  BUCKET_LABEL_NOOBAA_MAP,
+} from '../../constants';
 
-const providers = {
+const PROVIDERS = {
   'AWS S3': 'AWS S3',
   'Azure Blob': 'Azure Blob',
   'Google cloud storage': 'Google cloud storage',
@@ -47,43 +53,8 @@ const providers = {
   PVC: 'PVC',
 };
 
-const providerNoobaaMap = {
-  'AWS S3': 'awsS3',
-  'S3 Compatible': 's3Compatible',
-  'Azure Blob': 'azureBlob',
-  'Google cloud storage': 'googleCloudStorage',
-  PVC: 'pvPool',
-};
-
-const bucketNoobaaMap = {
-  'AWS S3': 'targetBucket',
-  'S3 Compatible': 'targetBucket',
-  'Azure Blob': 'targetBlobContainer',
-};
-
-const awsRegions = [
-  'us-east-1',
-  'us-east-2',
-  'us-west-1',
-  'us-west-2',
-  'ca-central-1',
-  'eu-central-1',
-  'eu-west-1',
-  'eu-west-2',
-  'eu-west-3',
-  'eu-north-1',
-  'ap-east-1',
-  'ap-northeast-1',
-  'ap-northeast-2',
-  'ap-northeast-3',
-  'ap-southeast-1',
-  'ap-southeast-2',
-  'ap-south-1',
-  'me-south-1',
-  'sa-east-1',
-];
-
-const awsRegionItems = _.zipObject(awsRegions, awsRegions);
+const awsRegionItems = _.zipObject(AWS_REGIONS, AWS_REGIONS);
+const externalProviders = [BC_PROVIDERS.AWS, BC_PROVIDERS.AZURE, BC_PROVIDERS.S3, BC_PROVIDERS.GCP];
 
 /**
  * aws-s3, s3 compatible share the same form
@@ -92,9 +63,9 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
   const [showSecret, setShowSecret] = React.useState(true);
   const { provider, namespace, state, dispatch } = props;
 
-  const targetLabel = provider === 'Azure Blob' ? 'Target Container' : 'Target Bucket';
-  const credentialField1Label = provider === 'Azure Blob' ? 'Account Name' : 'Access Key';
-  const credentialField2Label = provider === 'Azure Blob' ? 'Account Key' : 'Secret Key';
+  const targetLabel = provider === BC_PROVIDERS.AZURE ? 'Target Blob Container' : 'Target Bucket';
+  const credentialField1Label = provider === BC_PROVIDERS.AZURE ? 'Account Name' : 'Access Key';
+  const credentialField2Label = provider === BC_PROVIDERS.AZURE ? 'Account Key' : 'Secret Key';
   const resources = [
     {
       isList: true,
@@ -104,18 +75,30 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
     },
   ];
 
+  const switchToSecret = () => {
+    setShowSecret(true);
+    dispatch({ type: 'setAccessKey', value: '' });
+    dispatch({ type: 'setSecretKey', value: '' });
+  };
+
+  const switchToCredentials = () => {
+    setShowSecret(false);
+    dispatch({ type: 'setSecretName', value: '' });
+  };
+
   return (
     <>
       {provider === 'AWS S3' && (
         <FormGroup label="Region" fieldId="region" className="nb-bs-form-entry" isRequired>
           <Dropdown
             className="nb-bs-form-entry__dropdown"
+            menuClassName="nb-bs-form-entry__dropdown--short"
             buttonClassName="nb-bs-form-entry__dropdown"
             onChange={(e) => {
               dispatch({ type: 'setRegion', value: e });
             }}
             items={awsRegionItems}
-            selectedKey={provider}
+            selectedKey={AWS_REGIONS[0]}
           />
         </FormGroup>
       )}
@@ -135,11 +118,12 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
           label="Secret"
           fieldId="secret-dropdown"
           className="nb-bs-form-entry nb-bs-form-entry--full-width"
+          isRequired
         >
           <InputGroup>
             <Firehose resources={resources}>
               <ResourceDropdown
-                selectedKey=""
+                selectedKey={state.secretName}
                 placeholder="Select Secret"
                 className="nb-bs-form-entry__dropdown nb-bs-form-entry__dropdown--full-width"
                 buttonClassName="nb-bs-form-entry__dropdown"
@@ -147,7 +131,7 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
                 onChange={(e) => dispatch({ type: 'setSecretName', value: e })}
               />
             </Firehose>
-            <Button variant="plain" onClick={() => setShowSecret(false)}>
+            <Button variant="plain" onClick={switchToCredentials}>
               Switch to Credentials
             </Button>
           </InputGroup>
@@ -163,8 +147,8 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
                 }}
                 aria-label="Access Key Field"
               />
-              <Button variant="plain" onClick={() => setShowSecret(true)}>
-                Swithc to Secret
+              <Button variant="plain" onClick={switchToSecret}>
+                Switch to Secret
               </Button>
             </InputGroup>
           </FormGroup>
@@ -179,6 +163,7 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
                 dispatch({ type: 'setSecretKey', value: e });
               }}
               aria-label="Secret Key Field"
+              type="password"
             />
           </FormGroup>
         </>
@@ -200,24 +185,29 @@ const S3EndPointType: React.FC<S3EndpointTypeProps> = (props) => {
 };
 
 const PVCType: React.FC<PVCTypeProps> = ({ state, dispatch }) => {
+  const [size, setSize] = React.useState('50');
+  const [, updateState] = React.useState();
   const units = {
     GiB: 'GiB',
     TiB: 'TiB',
   };
 
+  // Fix for updating the storage class by force rerender
+  const forceUpdate = React.useCallback(() => updateState({}), []);
+
+  React.useEffect(() => {
+    forceUpdate();
+  }, [forceUpdate, state.storageClass]);
+
   const onChange = (event) => {
     const { value, unit } = event;
-    const size = `${value} ${unit}`;
-    dispatch({ type: 'setVolumeSize', value: size });
-  };
-
-  const scChange = (sc: K8sResourceKind) => {
-    const name = getName(sc);
-    dispatch({ type: 'setStorageClass', value: name });
+    const input = `${value} ${unit}`;
+    setSize(value);
+    dispatch({ type: 'setVolumeSize', value: input });
   };
 
   const substract = () => {
-    if (state.numVolumes > 0) {
+    if (state.numVolumes > 1) {
       dispatch({ type: 'setVolumes', value: state.numVolumes - 1 });
     }
   };
@@ -234,13 +224,7 @@ const PVCType: React.FC<PVCTypeProps> = ({ state, dispatch }) => {
           <InputGroupText>
             <MinusIcon onClick={substract} />{' '}
           </InputGroupText>
-          <TextInput
-            onChange={(e) => {
-              dispatch({ type: 'setVolumes', value: Number(e) });
-            }}
-            value={state.numVolumes}
-            aria-label="Number of Volumes"
-          />
+          <TextInput value={state.numVolumes} aria-label="Number of Volumes" />
           <InputGroupText>
             <PlusIcon
               onClick={() => dispatch({ type: 'setVolumes', value: state.numVolumes + 1 })}
@@ -259,17 +243,22 @@ const PVCType: React.FC<PVCTypeProps> = ({ state, dispatch }) => {
           onChange={onChange}
           dropdownUnits={units}
           defaultRequestSizeUnit="GiB"
-          defaultRequestSizeValue="50"
+          defaultRequestSizeValue={size}
         />
       </FormGroup>
       <FormGroup fieldId="storage-class" className="nb-bs-form-entry" isRequired>
-        <StorageClassDropdown onChange={scChange} defaultClass="ceph-rbd" />
+        <StorageClassDropdown
+          onChange={(sc) => dispatch({ type: 'setStorageClass', value: getName(sc) })}
+          defaultClass="ocs-storagecluster-ceph-rbd"
+          id="sc-dropdown"
+          required
+        />
       </FormGroup>
     </>
   );
 };
 
-const gcpHelpText = () => (
+const gcpHelpText = (
   <DashboardCardPopupLink
     linkTitle={
       <>
@@ -292,7 +281,7 @@ const gcpHelpText = () => (
 const GCPEndpointType: React.FC<GCPEndPointTypeProps> = (props) => {
   const [fileData, setFileData] = React.useState('');
   const [inputData, setInputData] = React.useState('');
-  const { dispatch } = props;
+  const { state, dispatch } = props;
 
   const onUpload = (event) => {
     event.preventDefault();
@@ -314,6 +303,7 @@ const GCPEndpointType: React.FC<GCPEndPointTypeProps> = (props) => {
         helperText="Upload a .json file with the service account keys provided by google cloud storage."
         label="Secret Key"
         fieldId="secret-key"
+        isRequired
       >
         <InputGroup>
           <TextInput
@@ -348,6 +338,20 @@ const GCPEndpointType: React.FC<GCPEndPointTypeProps> = (props) => {
           value={fileData}
         />
       </FormGroup>
+      <FormGroup
+        className="nb-bs-form-entry"
+        label="Target Bucket"
+        fieldId="target-bucket"
+        isRequired
+      >
+        <TextInput
+          value={state.target}
+          onChange={(e) => {
+            dispatch({ type: 'setTarget', value: e });
+          }}
+          aria-label="Target Bucket"
+        />
+      </FormGroup>
     </>
   );
 };
@@ -377,15 +381,29 @@ type Action =
   | { type: 'setVolumeSize'; value: string }
   | { type: 'setStorageClass'; value: string };
 
+type BSPayload = {
+  apiVersion: string;
+  kind: string;
+  metadata: {
+    namespace: string;
+    name: string;
+  };
+  spec: {
+    type: string;
+    ssl: boolean;
+    [key: string]: any;
+  };
+};
+
 const initialState: ProviderDataState = {
   secretName: '',
   secretKey: '',
   accessKey: '',
-  region: '',
+  region: AWS_REGIONS[0],
   gcpJSON: '',
   target: '',
   endpoint: '',
-  numVolumes: 0,
+  numVolumes: 1,
   volumeSize: '',
   storageClass: '',
 };
@@ -437,13 +455,13 @@ const secretPayloadCreator = (
   };
 
   switch (provider) {
-    case 'Azure Blob':
+    case BC_PROVIDERS.AZURE:
       payload.stringData = {
         AccountName: field1,
         AccountKey: field2,
       };
       break;
-    case 'Google cloud storage':
+    case BC_PROVIDERS.GCP:
       payload.stringData = {
         GoogleServiceAccountPrivateKeyJson: field1,
       };
@@ -463,20 +481,20 @@ const CreateBackingStoreForm: React.FC<CreateBackingStoreFormProps> = withHandle
 >((props) => {
   const [namespace, setNamespace] = React.useState(props.namespace);
   const [bsName, setBsName] = React.useState('');
-  const [provider, setProvider] = React.useState(providers['AWS S3']);
+  const [provider, setProvider] = React.useState(BC_PROVIDERS.AWS);
   const [providerDataState, providerDataDispatch] = React.useReducer(
     providerDataReducer,
     initialState,
   );
 
-  const { cancel, close, inProgress, errorMessage, handlePromise, isPage } = props;
+  const { cancel, className, close, inProgress, errorMessage, handlePromise, isPage, csv } = props;
 
   const onSubmit = (event) => {
     event.preventDefault();
     /** Create a secret if secret ==='' */
     let { secretName } = providerDataState;
     const promises = [];
-    if (!secretName) {
+    if (!secretName && provider !== BC_PROVIDERS.PVC) {
       secretName = bsName.concat('-secret');
       const { secretKey, accessKey, gcpJSON } = providerDataState;
       const secretPayload = secretPayloadCreator(
@@ -486,10 +504,11 @@ const CreateBackingStoreForm: React.FC<CreateBackingStoreFormProps> = withHandle
         accessKey || gcpJSON,
         secretKey,
       );
+      providerDataDispatch({ type: 'setSecretName', value: secretName });
       promises.push(k8sCreate(SecretModel, secretPayload));
     }
     /** Payload for bs */
-    const bsPayload = {
+    const bsPayload: BSPayload = {
       apiVersion: apiVersionForModel(NooBaaBackingStoreModel),
       kind: NooBaaBackingStoreModel.kind,
       metadata: {
@@ -497,36 +516,56 @@ const CreateBackingStoreForm: React.FC<CreateBackingStoreFormProps> = withHandle
         name: bsName,
       },
       spec: {
-        type: provider,
-        [providerNoobaaMap[provider]]: {
-          [bucketNoobaaMap[provider]]: providerDataState.target,
-          secret: {
-            name: secretName,
-            namespace,
-          },
-        },
+        type: NOOBAA_TYPE_MAP[provider],
         ssl: false,
       },
     };
-    if (provider === 'AWS S3') {
+    if (provider === BC_PROVIDERS.PVC) {
       // eslint-disable-next-line
-      bsPayload.spec['region'] = providerDataState.region;
+      bsPayload.spec['pvPool'] = {
+        numVolumes: providerDataState.numVolumes,
+        storageClass: providerDataState.storageClass,
+      };
+    } else if (externalProviders.includes(provider)) {
+      bsPayload.spec = {
+        ...bsPayload.spec,
+        [PROVIDERS_NOOBAA_MAP[provider]]: {
+          [BUCKET_LABEL_NOOBAA_MAP[provider]]: providerDataState.target,
+          secret: {
+            name: providerDataState.secretName,
+            namespace,
+          },
+        },
+      };
     }
+    if (provider === BC_PROVIDERS.S3) {
+      // eslint-disable-next-line
+      bsPayload.spec['s3Compatible'] = {
+        // eslint-disable-next-line
+        ...bsPayload.spec['s3Compatible'],
+        endpoint: providerDataState.endpoint,
+      };
+    }
+    // Add region in the end
+    if (provider === BC_PROVIDERS.AWS) {
+      bsPayload.spec.awsS3 = { ...bsPayload.spec.awsS3, region: providerDataState.region };
+    }
+
     promises.push(k8sCreate(NooBaaBackingStoreModel, bsPayload));
-    handlePromise(Promise.all(promises))
-      .then((resource) => {
-        const lastIndex = resource.length - 1;
-        if (isPage)
-          history.push(resourceObjPath(resource[lastIndex], referenceFor(resource[lastIndex])));
-        else close();
-      })
-      .catch(() => {
-        close();
-      });
+    return handlePromise(Promise.all(promises)).then((resource) => {
+      const lastIndex = resource.length - 1;
+      if (isPage)
+        history.push(
+          `/k8s/ns/${namespace}/clusterserviceversions/${getName(csv)}/${referenceForModel(
+            NooBaaBackingStoreModel,
+          )}/${getName(resource[lastIndex])}`,
+        );
+      else close();
+    });
   };
 
   return (
-    <Form className="nb-bs-form" onSubmit={onSubmit}>
+    <Form className={classNames('nb-bs-form', className)} onSubmit={onSubmit}>
       <FormGroup label="Namespace" fieldId="namespace" className="nb-bs-form-entry" isRequired>
         <NsDropdown
           onChange={setNamespace}
@@ -536,35 +575,35 @@ const CreateBackingStoreForm: React.FC<CreateBackingStoreFormProps> = withHandle
       </FormGroup>
 
       <FormGroup
-        label="BackingStore Name"
+        label="Backing Store Name"
         fieldId="backingstore-name"
         className="nb-bs-form-entry"
-        helperText="A unique name for the backingStore within the project."
+        helperText="A unqiue name for the Backing Store within the project"
+        isRequired
       >
         <TextInput
           onChange={setBsName}
           value={bsName}
           placeholder="my-backingstore"
-          aria-label="BackingStore Name"
+          aria-label="Backing Store Name"
         />
       </FormGroup>
 
-      <FormGroup
-        label="Provider"
-        fieldId="backingstore-name"
-        className="nb-bs-form-entry"
-        isRequired
-      >
+      <FormGroup label="Provider" fieldId="provider-name" className="nb-bs-form-entry" isRequired>
         <Dropdown
           className="nb-bs-form-entry__dropdown"
           buttonClassName="nb-bs-form-entry__dropdown"
           onChange={setProvider}
-          items={providers}
+          items={PROVIDERS}
           selectedKey={provider}
         />
       </FormGroup>
-      {provider === 'Google cloud storage' && <GCPEndpointType dispatch={providerDataDispatch} />}
-      {(provider === 'AWS S3' || provider === 'S3 Compatible' || provider === 'Azure Blob') && (
+      {provider === BC_PROVIDERS.GCP && (
+        <GCPEndpointType state={providerDataState} dispatch={providerDataDispatch} />
+      )}
+      {(provider === BC_PROVIDERS.AWS ||
+        provider === BC_PROVIDERS.S3 ||
+        provider === BC_PROVIDERS.AZURE) && (
         <S3EndPointType
           provider={provider}
           namespace="openshift-storage"
@@ -572,11 +611,13 @@ const CreateBackingStoreForm: React.FC<CreateBackingStoreFormProps> = withHandle
           dispatch={providerDataDispatch}
         />
       )}
-      {provider === 'PVC' && <PVCType state={providerDataState} dispatch={providerDataDispatch} />}
+      {provider === BC_PROVIDERS.PVC && (
+        <PVCType state={providerDataState} dispatch={providerDataDispatch} />
+      )}
       <ButtonBar errorMessage={errorMessage} inProgress={inProgress}>
         <ActionGroup>
           <Button type="submit" variant="primary">
-            Create BackingStore
+            Create Backing Store
           </Button>
           <Button onClick={cancel} variant="secondary">
             Cancel
@@ -591,7 +632,9 @@ export default CreateBackingStoreForm;
 
 type CreateBackingStoreFormProps = ModalComponentProps & {
   isPage?: boolean;
-  namespace: string;
+  namespace?: string;
+  className?: string;
+  csv?: K8sResourceKind;
 };
 
 type S3EndpointTypeProps = {
@@ -607,5 +650,6 @@ type PVCTypeProps = {
 };
 
 type GCPEndPointTypeProps = {
+  state: ProviderDataState;
   dispatch: React.Dispatch<Action>;
 };

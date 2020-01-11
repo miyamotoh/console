@@ -1,12 +1,13 @@
 import * as _ from 'lodash';
 import { history, resourcePathFromModel, KebabAction } from '@console/internal/components/utils';
-import { k8sCreate, K8sKind, k8sUpdate } from '@console/internal/module/k8s';
+import { k8sCreate, K8sKind, k8sPatch } from '@console/internal/module/k8s';
 import { errorModal } from '@console/internal/components/modals';
 import { PipelineRunModel } from '../models';
 import startPipelineModal from '../components/pipelines/pipeline-form/StartPipelineModal';
 import { getRandomChars } from '../components/pipelines/pipeline-resource/pipelineResource-utils';
 import { Pipeline, PipelineRun } from './pipeline-augment';
 import { pipelineRunFilterReducer } from './pipeline-filter-reducer';
+import { getPipelineRunParams } from './pipeline-utils';
 
 export const handlePipelineRunSubmit = (pipelineRun: PipelineRun) => {
   history.push(
@@ -17,6 +18,32 @@ export const handlePipelineRunSubmit = (pipelineRun: PipelineRun) => {
     ),
   );
 };
+
+/**
+ * Migrates a PipelineRun from one version to another to support auto-upgrades with old (and invalid) PipelineRuns.
+ *
+ * Note: Each check within this method should be driven by the apiVersion number if the API is properly up-versioned
+ * for these breaking changes. (should be done moving from 0.10.x forward)
+ */
+export const migratePipelineRun = (pipelineRun: PipelineRun): PipelineRun => {
+  let newPipelineRun = pipelineRun;
+
+  const serviceAccountPath = 'spec.serviceAccount';
+  if (_.has(newPipelineRun, serviceAccountPath)) {
+    // .spec.serviceAccount was removed for .spec.serviceAccountName in 0.9.x
+    // Note: apiVersion was not updated for this change and thus we cannot gate this change behind a version number
+    const serviceAccountName = _.get(newPipelineRun, serviceAccountPath);
+    newPipelineRun = _.omit(newPipelineRun, [serviceAccountPath]);
+    newPipelineRun = _.merge(newPipelineRun, {
+      spec: {
+        serviceAccountName,
+      },
+    });
+  }
+
+  return newPipelineRun;
+};
+
 export const getPipelineRunData = (
   pipeline: Pipeline = null,
   latestRun?: PipelineRun,
@@ -37,8 +64,13 @@ export const getPipelineRunData = (
 
   const pipelineName = pipeline ? pipeline.metadata.name : latestRun.spec.pipelineRef.name;
 
-  return {
-    apiVersion: `${PipelineRunModel.apiGroup}/${PipelineRunModel.apiVersion}`,
+  const latestRunParams = _.get(latestRun, 'spec.params');
+  const pipelineParams = _.get(pipeline, 'spec.params');
+
+  const params = latestRunParams || getPipelineRunParams(pipelineParams);
+
+  const newPipelineRun = {
+    apiVersion: pipeline ? pipeline.apiVersion : latestRun.apiVersion,
     kind: PipelineRunModel.kind,
     metadata: {
       name: `${pipelineName}-${getRandomChars(6)}`,
@@ -51,19 +83,16 @@ export const getPipelineRunData = (
             },
     },
     spec: {
+      ..._.get(latestRun, 'spec', {}),
       pipelineRef: {
         name: pipelineName,
       },
       resources,
-      params:
-        latestRun && latestRun.spec && latestRun.spec.params
-          ? latestRun.spec.params
-          : pipeline && pipeline.spec && pipeline.spec.params
-          ? pipeline.spec.params
-          : null,
-      serviceAccount: latestRun && _.get(latestRun, ['spec', 'serviceAccount']),
+      ...(params && { params }),
     },
   };
+
+  return migratePipelineRun(newPipelineRun);
 };
 
 export const triggerPipeline = (
@@ -78,19 +107,13 @@ export const triggerPipeline = (
 export const reRunPipelineRun: KebabAction = (kind: K8sKind, pipelineRun: PipelineRun) => ({
   label: 'Rerun',
   callback: () => {
-    if (
-      !pipelineRun ||
-      !pipelineRun.metadata ||
-      !pipelineRun.metadata.namespace ||
-      !pipelineRun.spec ||
-      !pipelineRun.spec.pipelineRef ||
-      !pipelineRun.spec.pipelineRef.name
-    ) {
-      // eslint-disable-next-line no-console
-      console.error('Improper PipelineRun metadata');
-      return;
+    const namespace = _.get(pipelineRun, 'metadata.namespace');
+    const pipelineRef = _.get(pipelineRun, 'spec.pipelineRef.name');
+    if (namespace && pipelineRef) {
+      k8sCreate(PipelineRunModel, getPipelineRunData(null, pipelineRun));
+    } else {
+      errorModal({ error: 'Invalid Pipeline Run configuration, unable to start Pipeline.' });
     }
-    k8sCreate(PipelineRunModel, getPipelineRunData(null, pipelineRun));
   },
   accessReview: {
     group: kind.apiGroup,
@@ -133,16 +156,17 @@ export const startPipeline: KebabAction = (
 
 type RerunPipelineData = {
   onComplete?: (pipelineRun: PipelineRun) => void;
+  label?: string;
 };
 const rerunPipeline: KebabAction = (
   kind: K8sKind,
   pipelineRun: PipelineRun,
   resources: any,
-  customData: RerunPipelineData = {},
+  customData: RerunPipelineData = { label: 'Start Last Run' },
 ) => {
   const { onComplete } = customData;
 
-  const sharedProps = { label: 'Start Last Run', accessReview: {} };
+  const sharedProps = { label: customData.label, accessReview: {} };
 
   if (
     !pipelineRun ||
@@ -174,7 +198,20 @@ export const rerunPipelineAndStay: KebabAction = (kind: K8sKind, pipelineRun: Pi
 };
 
 export const rerunPipelineAndRedirect: KebabAction = (kind: K8sKind, pipelineRun: PipelineRun) => {
-  return rerunPipeline(kind, pipelineRun, null, { onComplete: handlePipelineRunSubmit });
+  return rerunPipeline(kind, pipelineRun, null, {
+    onComplete: handlePipelineRunSubmit,
+    label: 'Start Last Run',
+  });
+};
+
+export const rerunPipelineRunAndRedirect: KebabAction = (
+  kind: K8sKind,
+  pipelineRun: PipelineRun,
+) => {
+  return rerunPipeline(kind, pipelineRun, null, {
+    onComplete: handlePipelineRunSubmit,
+    label: 'Rerun',
+  });
 };
 
 export const stopPipelineRun: KebabAction = (kind: K8sKind, pipelineRun: PipelineRun) => {
@@ -182,10 +219,19 @@ export const stopPipelineRun: KebabAction = (kind: K8sKind, pipelineRun: Pipelin
   return {
     label: 'Stop',
     callback: () => {
-      k8sUpdate(PipelineRunModel, {
-        ...pipelineRun,
-        spec: { ...pipelineRun.spec, status: 'PipelineRunCancelled' },
-      });
+      k8sPatch(
+        PipelineRunModel,
+        {
+          metadata: { name: pipelineRun.metadata.name, namespace: pipelineRun.metadata.namespace },
+        },
+        [
+          {
+            op: 'replace',
+            path: `/spec/status`,
+            value: 'PipelineRunCancelled',
+          },
+        ],
+      );
     },
     hidden: !(pipelineRun && pipelineRunFilterReducer(pipelineRun) === 'Running'),
     accessReview: {

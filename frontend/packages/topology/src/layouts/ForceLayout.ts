@@ -1,8 +1,21 @@
 import * as d3 from 'd3';
 import * as _ from 'lodash';
-import { action, reaction, IReactionDisposer } from 'mobx';
-import { Edge, GraphElement, Graph, Layout, Node, GroupStyle, isGraph, isNode } from '../types';
-import { groupNodeElements, leafNodeElements } from '../utils/element-utils';
+import { action } from 'mobx';
+import {
+  Edge,
+  Graph,
+  Layout,
+  Node,
+  ADD_CHILD_EVENT,
+  REMOVE_CHILD_EVENT,
+  ElementChildEventListener,
+} from '../types';
+import {
+  getElementPadding,
+  getGroupPadding,
+  groupNodeElements,
+  leafNodeElements,
+} from '../utils/element-utils';
 import BaseEdge from '../elements/BaseEdge';
 import {
   DRAG_NODE_START_EVENT,
@@ -11,20 +24,6 @@ import {
   DRAG_MOVE_OPERATION,
   DragEvent,
 } from '../behavior';
-
-function getGroupPadding(element: GraphElement, padding = 0): number {
-  if (isGraph(element)) {
-    return padding;
-  }
-  let newPadding = padding;
-  if (isNode(element) && element.isGroup()) {
-    newPadding += +(element.getStyle<GroupStyle>().padding as number);
-  }
-  if (element.getParent()) {
-    return getGroupPadding(element.getParent(), newPadding);
-  }
-  return newPadding;
-}
 
 class D3Node implements d3.SimulationNodeDatum {
   private node: Node;
@@ -103,7 +102,7 @@ class D3Node implements d3.SimulationNodeDatum {
 
   getRadius(): number {
     const { width, height } = this.node.getBounds();
-    return Math.max(width, height) / 2;
+    return Math.max(width, height) / 2 + getElementPadding(this.element);
   }
 }
 
@@ -114,32 +113,31 @@ class D3Link implements d3.SimulationLinkDatum<D3Node> {
 
   private d3Target: D3Node;
 
-  constructor(edge: Edge) {
+  public falseEdge: boolean;
+
+  constructor(edge: Edge, falseEdge: boolean = false) {
     this.edge = edge;
+    this.falseEdge = falseEdge;
   }
 
   get element(): Edge {
     return this.edge;
   }
 
-  get source(): D3Node | string {
-    return this.d3Source || this.edge.getSource().getId();
+  get source(): D3Node {
+    return this.d3Source;
   }
 
-  set source(node: D3Node | string) {
-    if (node instanceof D3Node) {
-      this.d3Source = node;
-    }
+  set source(node: D3Node) {
+    this.d3Source = node;
   }
 
-  get target(): D3Node | string {
-    return this.d3Target || this.edge.getTarget().getId();
+  get target(): D3Node {
+    return this.d3Target;
   }
 
-  set target(node: D3Node | string) {
-    if (node instanceof D3Node) {
-      this.d3Target = node;
-    }
+  set target(node: D3Node) {
+    this.d3Target = node;
   }
 
   get id(): string {
@@ -155,6 +153,14 @@ type ForceLayoutOptions = {
   layoutOnDrag: boolean;
 };
 
+const getD3Node = (nodes: D3Node[], node: Node): D3Node | undefined => {
+  let d3Node = _.find(nodes, { id: node.getId() });
+  if (!d3Node && _.size(node.getChildren())) {
+    d3Node = _.find(nodes, { id: node.getChildren()[0].getId() });
+  }
+  return d3Node;
+};
+
 export default class ForceLayout implements Layout {
   private graph: Graph;
 
@@ -164,7 +170,11 @@ export default class ForceLayout implements Layout {
 
   private options: ForceLayoutOptions;
 
-  private layoutReactionDisposers?: IReactionDisposer[];
+  private scheduleHandle?: number;
+
+  private scheduleRestart = false;
+
+  private nodesMap: { [id: string]: D3Node } = {};
 
   constructor(graph: Graph, options?: Partial<ForceLayoutOptions>) {
     this.graph = graph;
@@ -189,16 +199,13 @@ export default class ForceLayout implements Layout {
     this.forceLink = d3
       .forceLink<D3Node, D3Link>()
       .id((e) => e.id)
-      .distance((d) => {
-        let distance =
-          this.options.linkDistance +
-          (d.source as D3Node).getRadius() +
-          (d.target as D3Node).getRadius();
+      .distance((e) => {
+        let distance = this.options.linkDistance + e.source.getRadius() + e.target.getRadius();
 
-        if ((d.source as D3Node).element.getParent() !== (d.target as D3Node).element.getParent()) {
+        if (!e.falseEdge && e.source.element.getParent() !== e.target.element.getParent()) {
           // find the group padding
-          distance += getGroupPadding((d.source as D3Node).element.getParent());
-          distance += getGroupPadding((d.target as D3Node).element.getParent());
+          distance += getGroupPadding(e.source.element.getParent());
+          distance += getGroupPadding(e.target.element.getParent());
         }
 
         return distance;
@@ -308,74 +315,53 @@ export default class ForceLayout implements Layout {
   };
 
   private startListening(): void {
-    this.layoutReactionDisposers = [
-      reaction(() => leafNodeElements(this.graph.getNodes()), () => this.runLayout(false)),
-    ];
+    this.graph.getController().addEventListener(ADD_CHILD_EVENT, this.handleChildAdded);
+    this.graph.getController().addEventListener(REMOVE_CHILD_EVENT, this.scheduleLayout);
   }
 
   private stopListening(): void {
-    if (this.layoutReactionDisposers) {
-      this.layoutReactionDisposers.forEach((disposer) => disposer());
-      this.layoutReactionDisposers = undefined;
-    }
+    clearTimeout(this.scheduleHandle);
+    this.graph.getController().removeEventListener(ADD_CHILD_EVENT, this.handleChildAdded);
+    this.graph.getController().removeEventListener(REMOVE_CHILD_EVENT, this.scheduleLayout);
   }
 
-  @action
-  private runLayout(initialRun: boolean): void {
-    const leafNodes = leafNodeElements(this.graph.getNodes());
-
-    if (!initialRun) {
-      if (leafNodes.length === this.simulation.nodes().length) {
-        const sa = leafNodes.sort((a, b) => a.getId().localeCompare(b.getId()));
-        const sb = this.simulation.nodes().sort((a, b) => a.id.localeCompare(b.id));
-        let isDifferent = false;
-        for (let i = 0; i < sa.length; i++) {
-          if (sa[i] !== sb[i].element) {
-            isDifferent = true;
-            break;
-          }
-        }
-        // no change in nodes
-        if (!isDifferent) {
-          return;
-        }
-      }
-
-      // check for node additions
-      const diff = _.differenceWith(
-        leafNodes,
-        this.simulation.nodes(),
-        (node, d3Node) => node === d3Node.element,
-      );
-
-      if (diff.length > 0) {
-        // position new nodes at center
-        const cx = this.graph.getBounds().width / 2;
-        const cy = this.graph.getBounds().height / 2;
-        diff.forEach((node) =>
-          node.setBounds(
-            node
-              .getBounds()
-              .clone()
-              .setCenter(cx, cy),
-          ),
-        );
-      }
+  private handleChildAdded: ElementChildEventListener = ({ child }): void => {
+    if (!this.nodesMap[child.getId()]) {
+      this.scheduleRestart = true;
+      this.scheduleLayout();
     }
+  };
+
+  private scheduleLayout = (): void => {
+    if (!this.scheduleHandle) {
+      this.scheduleHandle = window.setTimeout(() => {
+        delete this.scheduleHandle;
+        this.runLayout(false, this.scheduleRestart);
+        this.scheduleRestart = false;
+      }, 0);
+    }
+  };
+
+  @action
+  private runLayout(initialRun: boolean, restart = true): void {
+    const leafNodes = leafNodeElements(this.graph.getNodes());
 
     // create datum
     const groups = groupNodeElements(this.graph.getNodes());
     const nodes = leafNodes.map((n) => new D3Node(n));
-    const edges = this.graph
-      .getEdges()
-      .filter(
-        (e) =>
-          nodes.find((n) => n.id === e.getSource().getId()) &&
-          nodes.find((n) => n.id === e.getTarget().getId()),
-      )
-      .map((e) => new D3Link(e));
+    const edges: D3Link[] = [];
+    this.graph.getEdges().forEach((e) => {
+      const link = new D3Link(e);
+      const source = getD3Node(nodes, e.getSource());
+      const target = getD3Node(nodes, e.getTarget());
+      if (source && target) {
+        link.source = source;
+        link.target = target;
+        edges.push(link);
+      }
+    });
 
-    // remove bendpoinits
+    // remove bend points
     edges.forEach((e) => {
       if (e.element.getBendpoints().length > 0) {
         e.element.setBendpoints([]);
@@ -384,39 +370,63 @@ export default class ForceLayout implements Layout {
 
     // Create faux edges for the grouped nodes to form group clusters
     groups.forEach((group: Node) => {
-      const groupNodes = group.getNodes().filter((node: Node) => !_.size(node.getNodes()));
+      const groupNodes = group.getNodes();
       for (let i = 0; i < groupNodes.length; i++) {
         for (let j = i + 1; j < groupNodes.length; j++) {
           const fauxEdge = new BaseEdge();
-          fauxEdge.setSource(groupNodes[i]);
-          fauxEdge.setTarget(groupNodes[j]);
-          fauxEdge.setController(groupNodes[i].getController());
-          edges.push(new D3Link(fauxEdge));
+          const source = getD3Node(nodes, groupNodes[i]);
+          const target = getD3Node(nodes, groupNodes[j]);
+          if (source && target) {
+            const link = new D3Link(fauxEdge, true);
+            fauxEdge.setSource(source.element);
+            fauxEdge.setTarget(target.element);
+            fauxEdge.setController(target.element.getController());
+            link.source = source;
+            link.target = target;
+            edges.push(link);
+          }
         }
       }
     });
 
     if (initialRun) {
-      // force center
+      // initialize all node positions
       const cx = this.graph.getBounds().width / 2;
       const cy = this.graph.getBounds().height / 2;
-
-      _.forEach(nodes, (node: D3Node) => {
+      nodes.forEach((node) => {
         node.setPosition(cx, cy);
       });
+
+      // force center
       this.simulation.force('center', d3.forceCenter(cx, cy));
       this.simulation.alpha(1);
-    } else if (this.simulation.alpha() < 0.2) {
-      this.simulation.alpha(0.2);
+    } else if (restart) {
+      // initialize new node positions
+      const cx = this.graph.getBounds().width / 2;
+      const cy = this.graph.getBounds().height / 2;
+      nodes.forEach((node) => {
+        if (!this.nodesMap[node.element.getId()]) {
+          node.setPosition(cx, cy);
+        }
+      });
+
+      if (this.simulation.alpha() < 0.2) {
+        this.simulation.alpha(0.2);
+      }
     }
+
+    // re-create the nodes map
+    this.nodesMap = nodes.reduce((acc, n) => (acc[n.element.getId()] = n && acc), {});
 
     // first remove the links so that the layout doesn't error
     this.forceLink.links([]);
     // next set the new nodes
     this.simulation.nodes(nodes);
-    // fonally set the new links
+    // finally set the new links
     this.forceLink.links(edges);
-    // start
-    this.simulation.restart();
+    if (initialRun || restart) {
+      // start
+      this.simulation.restart();
+    }
   }
 }

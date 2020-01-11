@@ -55,8 +55,8 @@ import { deleteCatalogSourceModal } from './modals/delete-catalog-source-modal';
 import { disableDefaultSourceModal } from './modals/disable-default-source-modal';
 import { OperatorHubKind } from './operator-hub';
 
-const catalogSourceModelReference = referenceForModel(CatalogSourceModel);
 const DEFAULT_SOURCE_NAMESPACE = 'openshift-marketplace';
+const catalogSourceModelReference = referenceForModel(CatalogSourceModel);
 
 const deleteModal = (kind: K8sKind, catalogSource: CatalogSourceKind): KebabOption => ({
   ...Kebab.factory.Delete(kind, catalogSource),
@@ -267,7 +267,7 @@ const CatalogSourceHeader = () => {
     },
     {
       title: 'Availability',
-      sortField: 'availability',
+      sortField: 'availabilitySort',
       transforms: [sortable],
       props: { className: tableColumnClasses[2] },
     },
@@ -424,6 +424,8 @@ const flatten = ({
         ) : (
           <DisabledPopover operatorHub={operatorHub} sourceName={defaultSource.name} />
         ),
+        // Add a string value for sorting by availability since React elements can't be sorted.
+        availabilitySort: catalogSourceExists ? 'Cluster wide' : 'Disabled',
         disabled: !catalogSourceExists,
         isDefault: true,
         name: defaultSource.name,

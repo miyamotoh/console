@@ -3,12 +3,7 @@ import { Link } from 'react-router-dom';
 import { RedExclamationCircleIcon, YellowExclamationTriangleIcon } from '@console/shared';
 import { Timestamp } from '@console/internal/components/utils/timestamp';
 import { alertURL, Alert } from '@console/internal/components/monitoring';
-import {
-  getAlertSeverity,
-  getAlertMessage,
-  getAlertDescription,
-  getAlertTime,
-} from '../health-card/utils';
+import { getAlertSeverity, getAlertMessage, getAlertDescription, getAlertTime } from './utils';
 
 const getSeverityIcon = (severity: string) => {
   switch (severity) {
@@ -28,7 +23,7 @@ export const StatusItem: React.FC<StatusItemProps> = ({
 }) => {
   return (
     <div className="co-status-card__alert-item">
-      <div className="co-dashboard-icon">
+      <div className="co-status-card__alert-item-icon co-dashboard-icon">
         <Icon />
       </div>
       <div className="co-status-card__alert-item-text">
@@ -36,7 +31,7 @@ export const StatusItem: React.FC<StatusItemProps> = ({
           <div className="co-health-card__alert-item-timestamp co-status-card__health-item-text text-secondary">
             {timestamp && <Timestamp simple timestamp={timestamp} />}
           </div>
-          <span className="co-status-card__health-item-text">{message}</span>
+          <span className="co-status-card__health-item-text co-break-word">{message}</span>
         </div>
         <div className="co-status-card__alert-item-more">
           <LinkComponent />

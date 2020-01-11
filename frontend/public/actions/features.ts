@@ -18,6 +18,7 @@ import { FLAGS } from '../const';
 
 export enum ActionType {
   SetFlag = 'setFlag',
+  ClearSSARFlags = 'clearSSARFlags',
 }
 
 export const defaults = _.mapValues(FLAGS, (flag) =>
@@ -25,10 +26,6 @@ export const defaults = _.mapValues(FLAGS, (flag) =>
 );
 
 export const setFlag = (flag: FLAGS, value: boolean) => action(ActionType.SetFlag, { flag, value });
-
-const featureActions = { setFlag };
-
-export type FeatureAction = Action<typeof featureActions | typeof receivedResources>;
 
 const retryFlagDetection = (dispatch, cb) => {
   setTimeout(() => cb(dispatch), 15000);
@@ -43,121 +40,6 @@ const handleError = (res, flag, dispatch, cb) => {
     retryFlagDetection(dispatch, cb);
   }
 };
-
-const openshiftPath = `${k8sBasePath}/apis/apps.openshift.io/v1`;
-const detectOpenShift = (dispatch) =>
-  coFetchJSON(openshiftPath).then(
-    (res) => dispatch(setFlag(FLAGS.OPENSHIFT, _.size(res.resources) > 0)),
-    (err) =>
-      _.get(err, 'response.status') === 404
-        ? dispatch(setFlag(FLAGS.OPENSHIFT, false))
-        : handleError(err, FLAGS.OPENSHIFT, dispatch, detectOpenShift),
-  );
-
-const detectBaremetalPlatform = (dispatch) =>
-  k8sGet(InfrastructureModel, 'cluster').then(
-    (infra: K8sResourceKind) =>
-      dispatch(setFlag(FLAGS.BAREMETAL, getInfrastructurePlatform(infra) === 'BareMetal')),
-    (err) => {
-      _.get(err, 'response.status') === 404
-        ? dispatch(setFlag(FLAGS.BAREMETAL, false))
-        : handleError(err, FLAGS.BAREMETAL, dispatch, detectBaremetalPlatform);
-    },
-  );
-
-const clusterVersionPath = `${k8sBasePath}/apis/config.openshift.io/v1/clusterversions/version`;
-const detectClusterVersion = (dispatch) =>
-  coFetchJSON(clusterVersionPath).then(
-    (clusterVersion: ClusterVersionKind) => {
-      const hasClusterVersion = !_.isEmpty(clusterVersion);
-      dispatch(setFlag(FLAGS.CLUSTER_VERSION, hasClusterVersion));
-      dispatch(setClusterID(clusterVersion.spec.clusterID));
-    },
-    (err) => {
-      if (_.includes([403, 404], _.get(err, 'response.status'))) {
-        dispatch(setFlag(FLAGS.CLUSTER_VERSION, false));
-      } else {
-        handleError(err, FLAGS.OPENSHIFT, dispatch, detectOpenShift);
-      }
-    },
-  );
-
-const projectRequestPath = `${k8sBasePath}/apis/project.openshift.io/v1/projectrequests`;
-const detectCanCreateProject = (dispatch) =>
-  coFetchJSON(projectRequestPath).then(
-    (res) => dispatch(setFlag(FLAGS.CAN_CREATE_PROJECT, res.status === 'Success')),
-    (err) => {
-      const status = _.get(err, 'response.status');
-      if (status === 403) {
-        dispatch(setFlag(FLAGS.CAN_CREATE_PROJECT, false));
-        dispatch(setCreateProjectMessage(err.message));
-      } else if (!_.includes([400, 404, 500], status)) {
-        retryFlagDetection(dispatch, detectCanCreateProject);
-      }
-    },
-  );
-
-const monitoringConfigMapPath = `${k8sBasePath}/api/v1/namespaces/openshift-monitoring/configmaps/sharing-config`;
-const detectMonitoringURLs = (dispatch) =>
-  coFetchJSON(monitoringConfigMapPath).then(
-    (res) => {
-      const { alertmanagerURL, grafanaURL, prometheusURL } = res.data;
-      if (!_.isEmpty(alertmanagerURL)) {
-        dispatch(setMonitoringURL(MonitoringRoutes.AlertManager, alertmanagerURL));
-      }
-      if (!_.isEmpty(grafanaURL)) {
-        dispatch(setMonitoringURL(MonitoringRoutes.Grafana, grafanaURL));
-      }
-      if (!_.isEmpty(prometheusURL)) {
-        dispatch(setMonitoringURL(MonitoringRoutes.Prometheus, prometheusURL));
-      }
-    },
-    (err) => {
-      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
-        setTimeout(() => detectMonitoringURLs(dispatch), 15000);
-      }
-    },
-  );
-
-const loggingConfigMapPath = `${k8sBasePath}/api/v1/namespaces/openshift-logging/configmaps/sharing-config`;
-const detectLoggingURL = (dispatch) =>
-  coFetchJSON(loggingConfigMapPath).then(
-    (res) => {
-      const { kibanaAppURL } = res.data;
-      if (!_.isEmpty(kibanaAppURL)) {
-        dispatch(setMonitoringURL(MonitoringRoutes.Kibana, kibanaAppURL));
-      }
-    },
-    (err) => {
-      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
-        setTimeout(() => detectLoggingURL(dispatch), 15000);
-      }
-    },
-  );
-
-const detectUser = (dispatch) =>
-  coFetchJSON('api/kubernetes/apis/user.openshift.io/v1/users/~').then(
-    (user) => {
-      dispatch(setUser(user));
-    },
-    (err) => {
-      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
-        setTimeout(() => detectUser(dispatch), 15000);
-      }
-    },
-  );
-
-const detectConsoleLinks = (dispatch) =>
-  coFetchJSON('api/kubernetes/apis/console.openshift.io/v1/consolelinks').then(
-    (consoleLinks) => {
-      dispatch(setConsoleLinks(_.get(consoleLinks, 'items')));
-    },
-    (err) => {
-      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
-        setTimeout(() => detectConsoleLinks(dispatch), 15000);
-      }
-    },
-  );
 
 const projectListPath = `${k8sBasePath}/apis/project.openshift.io/v1/projects?limit=1`;
 const detectShowOpenShiftStartGuide = (dispatch, canListNS: boolean = false) => {
@@ -242,6 +124,133 @@ const ssarChecks = [
     },
   },
 ];
+
+export const clearSSARFlags = () =>
+  action(ActionType.ClearSSARFlags, {
+    flags: ssarChecks.map((check) => check.flag),
+  });
+
+const featureActions = { setFlag };
+const clearFlags = { clearSSARFlags };
+
+export type FeatureAction = Action<
+  typeof featureActions | typeof receivedResources | typeof clearFlags
+>;
+
+const openshiftPath = `${k8sBasePath}/apis/apps.openshift.io/v1`;
+const detectOpenShift = (dispatch) =>
+  coFetchJSON(openshiftPath).then(
+    (res) => dispatch(setFlag(FLAGS.OPENSHIFT, _.size(res.resources) > 0)),
+    (err) =>
+      _.get(err, 'response.status') === 404
+        ? dispatch(setFlag(FLAGS.OPENSHIFT, false))
+        : handleError(err, FLAGS.OPENSHIFT, dispatch, detectOpenShift),
+  );
+
+const detectBaremetalPlatform = (dispatch) =>
+  k8sGet(InfrastructureModel, 'cluster').then(
+    (infra: K8sResourceKind) =>
+      dispatch(setFlag(FLAGS.BAREMETAL, getInfrastructurePlatform(infra) === 'BareMetal')),
+    (err) => {
+      _.get(err, 'response.status') === 404
+        ? dispatch(setFlag(FLAGS.BAREMETAL, false))
+        : handleError(err, FLAGS.BAREMETAL, dispatch, detectBaremetalPlatform);
+    },
+  );
+
+const clusterVersionPath = `${k8sBasePath}/apis/config.openshift.io/v1/clusterversions/version`;
+const detectClusterVersion = (dispatch) =>
+  coFetchJSON(clusterVersionPath).then(
+    (clusterVersion: ClusterVersionKind) => {
+      const hasClusterVersion = !_.isEmpty(clusterVersion);
+      dispatch(setFlag(FLAGS.CLUSTER_VERSION, hasClusterVersion));
+      dispatch(setClusterID(clusterVersion.spec.clusterID));
+    },
+    (err) => {
+      if (_.includes([403, 404], _.get(err, 'response.status'))) {
+        dispatch(setFlag(FLAGS.CLUSTER_VERSION, false));
+      } else {
+        handleError(err, FLAGS.OPENSHIFT, dispatch, detectOpenShift);
+      }
+    },
+  );
+
+const projectRequestPath = `${k8sBasePath}/apis/project.openshift.io/v1/projectrequests`;
+const detectCanCreateProject = (dispatch) =>
+  coFetchJSON(projectRequestPath).then(
+    (res) => dispatch(setFlag(FLAGS.CAN_CREATE_PROJECT, res.status === 'Success')),
+    (err) => {
+      const status = _.get(err, 'response.status');
+      if (status === 403) {
+        dispatch(setFlag(FLAGS.CAN_CREATE_PROJECT, false));
+        dispatch(setCreateProjectMessage(_.get(err, 'json.details.causes[0].message')));
+      } else if (!_.includes([400, 404, 500], status)) {
+        retryFlagDetection(dispatch, detectCanCreateProject);
+      }
+    },
+  );
+
+const monitoringConfigMapPath = `${k8sBasePath}/api/v1/namespaces/openshift-monitoring/configmaps/sharing-config`;
+const detectMonitoringURLs = (dispatch) =>
+  coFetchJSON(monitoringConfigMapPath).then(
+    (res) => {
+      const { alertmanagerURL, grafanaURL, prometheusURL } = res.data;
+      if (!_.isEmpty(alertmanagerURL)) {
+        dispatch(setMonitoringURL(MonitoringRoutes.AlertManager, alertmanagerURL));
+      }
+      if (!_.isEmpty(grafanaURL)) {
+        dispatch(setMonitoringURL(MonitoringRoutes.Grafana, grafanaURL));
+      }
+      if (!_.isEmpty(prometheusURL)) {
+        dispatch(setMonitoringURL(MonitoringRoutes.Prometheus, prometheusURL));
+      }
+    },
+    (err) => {
+      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
+        setTimeout(() => detectMonitoringURLs(dispatch), 15000);
+      }
+    },
+  );
+
+const loggingConfigMapPath = `${k8sBasePath}/api/v1/namespaces/openshift-logging/configmaps/sharing-config`;
+const detectLoggingURL = (dispatch) =>
+  coFetchJSON(loggingConfigMapPath).then(
+    (res) => {
+      const { kibanaAppURL } = res.data;
+      if (!_.isEmpty(kibanaAppURL)) {
+        dispatch(setMonitoringURL(MonitoringRoutes.Kibana, kibanaAppURL));
+      }
+    },
+    (err) => {
+      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
+        setTimeout(() => detectLoggingURL(dispatch), 15000);
+      }
+    },
+  );
+
+const detectUser = (dispatch) =>
+  coFetchJSON('api/kubernetes/apis/user.openshift.io/v1/users/~').then(
+    (user) => {
+      dispatch(setUser(user));
+    },
+    (err) => {
+      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
+        setTimeout(() => detectUser(dispatch), 15000);
+      }
+    },
+  );
+
+const detectConsoleLinks = (dispatch) =>
+  coFetchJSON('api/kubernetes/apis/console.openshift.io/v1/consolelinks').then(
+    (consoleLinks) => {
+      dispatch(setConsoleLinks(_.get(consoleLinks, 'items')));
+    },
+    (err) => {
+      if (!_.includes([401, 403, 404, 500], _.get(err, 'response.status'))) {
+        setTimeout(() => detectConsoleLinks(dispatch), 15000);
+      }
+    },
+  );
 
 const ssarCheckActions = ssarChecks.map(({ flag, resourceAttributes, after }) => {
   const req = {

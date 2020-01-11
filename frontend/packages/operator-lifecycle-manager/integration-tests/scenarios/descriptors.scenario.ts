@@ -1,21 +1,14 @@
 import { execSync } from 'child_process';
-import {
-  browser,
-  element,
-  by,
-  $,
-  $$,
-  ExpectedConditions as until,
-  ElementFinder,
-} from 'protractor';
+import { browser, element, by, $, $$, ExpectedConditions as until } from 'protractor';
 import { safeDump } from 'js-yaml';
 import { startCase, get, find, isUndefined } from 'lodash';
 import {
   appHost,
-  testName,
-  checkLogs,
   checkErrors,
+  checkLogs,
   create,
+  retry,
+  testName,
 } from '@console/internal-integration-tests/protractor.conf';
 import * as crudView from '@console/internal-integration-tests/views/crud.view';
 import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
@@ -82,7 +75,7 @@ const defaultValueFor = <C extends SpecCapability | StatusCapability>(capability
   }
 };
 
-const inputValueFor = (capability: SpecCapability) => async (el: ElementFinder) => {
+const inputValueFor = (capability: SpecCapability) => async (el: any) => {
   switch (capability) {
     case SpecCapability.podCount:
       return parseInt(await el.$('input').getAttribute('value'), 10);
@@ -112,7 +105,7 @@ const inputValueFor = (capability: SpecCapability) => async (el: ElementFinder) 
         },
       };
     case SpecCapability.booleanSwitch:
-      return (await el.$('.pf-c-switch__input').getAttribute('checked')) !== 'false';
+      return (await el.$$('.pf-c-switch__input').getAttribute('checked')) !== 'false';
     case SpecCapability.password:
       return el.$('input').getAttribute('value');
     case SpecCapability.checkbox:
@@ -402,17 +395,20 @@ describe('Using OLM descriptor components', () => {
     });
   });
 
-  testCSV.spec.customresourcedefinitions.owned[0].statusDescriptors.forEach((descriptor) => {
-    it(`displays status descriptor for ${descriptor.displayName}`, async () => {
-      const label = operatorView.descriptorLabel(descriptor);
-      expect(label.isDisplayed()).toBe(true);
+  testCSV.spec.customresourcedefinitions.owned[0].statusDescriptors
+    // exclude Conditions since they are included in their own section
+    .filter((descriptor) => descriptor.path !== 'conditions')
+    .forEach((descriptor) => {
+      it(`displays status descriptor for ${descriptor.displayName}`, async () => {
+        const label = operatorView.descriptorLabel(descriptor);
+        expect(label.isDisplayed()).toBe(true);
+      });
     });
-  });
 
   it('displays form for creating operand', async () => {
     await $$('[data-test-id=breadcrumb-link-1]').click();
     await browser.wait(until.visibilityOf(element(by.buttonText('Create App'))));
-    await element(by.buttonText('Create App')).click();
+    await retry(() => element(by.buttonText('Create App')).click());
     await yamlView.isLoaded();
     await element(by.buttonText('Edit Form')).click();
     await browser.wait(until.presenceOf($('#metadata\\.name')));
@@ -421,6 +417,12 @@ describe('Using OLM descriptor components', () => {
   });
 
   it('pre-populates form values using sample operand from ClusterServiceVersion', async () => {
+    $$('.pf-c-accordion__toggle').each(async (toggleBtn) => {
+      const toggleBtnClasses = await toggleBtn.getAttribute('class');
+      if (!toggleBtnClasses.includes('pf-m-expanded')) {
+        toggleBtn.click();
+      }
+    });
     $$('.co-create-operand__form-group').each(async (input) => {
       await browser
         .actions()

@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useField } from 'formik';
 import { TextInputTypes } from '@patternfly/react-core';
-import { InputField, TextAreaField } from '../../formik-fields';
+import { InputField, TextAreaField } from '@console/shared';
 import { ProjectData } from '../import-types';
 import FormSection from '../section/FormSection';
 import ApplicationSelector from './ApplicationSelector';
@@ -13,6 +13,7 @@ export interface AppSectionProps {
 
 const AppSection: React.FC<AppSectionProps> = ({ project, noProjectsAvailable }) => {
   const [initialApplication] = useField('application.initial');
+  const [formType] = useField('formType');
   return (
     <FormSection title="General">
       {noProjectsAvailable && (
@@ -47,7 +48,8 @@ const AppSection: React.FC<AppSectionProps> = ({ project, noProjectsAvailable })
         name="name"
         label="Name"
         helpText="A unique name given to the component that will be used to name associated resources."
-        required
+        isDisabled={formType.value && formType.value === 'edit'}
+        required={!(formType.value && formType.value === 'edit')}
       />
     </FormSection>
   );

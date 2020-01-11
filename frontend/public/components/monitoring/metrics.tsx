@@ -180,11 +180,13 @@ const headerPrometheusLinkStateToProps = ({ UI }: RootState, { urls }) => {
   };
 };
 
-const HeaderPrometheusLink_ = ({ url }) => (
-  <span className="monitoring-header-link">
-    <ExternalLink href={url} text="Prometheus UI" />
-  </span>
-);
+const HeaderPrometheusLink_ = ({ url }) => {
+  return url ? (
+    <span className="monitoring-header-link">
+      <ExternalLink href={url} text="Prometheus UI" />
+    </span>
+  ) : null;
+};
 const HeaderPrometheusLink = connectToURLs(MonitoringRoutes.Prometheus)(
   connect(headerPrometheusLinkStateToProps)(HeaderPrometheusLink_),
 );
@@ -632,7 +634,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
     setData(undefined);
     setError(undefined);
     setPage(1);
-  }, [query]);
+  }, [namespace, query]);
 
   if (!isEnabled || !isExpanded || !query) {
     return null;
@@ -751,9 +753,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
 
   const onSort = (e, i, direction) => setSortBy({ index: i, direction });
 
-  const tableRows = rows
-    .slice((page - 1) * perPage, page * perPage - 1)
-    .map((cells) => ({ cells }));
+  const tableRows = rows.slice((page - 1) * perPage, page * perPage).map((cells) => ({ cells }));
 
   return (
     <>
@@ -811,6 +811,7 @@ const Query_: React.FC<QueryProps> = ({
   patchQuery,
   toggleIsEnabled,
 }) => {
+  const switchKey = `${id}-${isEnabled}`;
   const switchLabel = `${isEnabled ? 'Disable' : 'Enable'} query`;
 
   const toggleIsExpanded = () => patchQuery({ isExpanded: !isExpanded });
@@ -827,8 +828,9 @@ const Query_: React.FC<QueryProps> = ({
         <div title={switchLabel}>
           <Switch
             aria-label={switchLabel}
-            id={id}
+            id={switchKey}
             isChecked={isEnabled}
+            key={switchKey}
             onChange={toggleIsEnabled}
           />
         </div>
@@ -949,17 +951,15 @@ const RunQueriesButton = connect(
   { runQueries: UIActions.queryBrowserRunQueries },
 )(RunQueriesButton_);
 
-const QueriesList_ = ({ ids, namespace }) => (
+const QueriesList_ = ({ count, namespace }) => (
   <>
-    {_.map(ids, (id, i) => (
-      <Query index={i} key={id} namespace={namespace} />
+    {_.range(count).map((i) => (
+      <Query index={i} key={i} namespace={namespace} />
     ))}
   </>
 );
 const QueriesList = connect(({ UI }: RootState) => ({
-  ids: UI.getIn(['queryBrowser', 'queries'])
-    .map((q) => q.get('id'))
-    .toArray(),
+  count: UI.getIn(['queryBrowser', 'queries']).size,
 }))(QueriesList_);
 
 const TechPreview = () => (

@@ -23,6 +23,7 @@
 }
 
 .nb-create-bc-step-page-form__element--light-text {
+    margin-top:var(--pf-global--spacer--sm);
     color:var(--pf-global--Color--400);
 }
 
@@ -50,4 +51,28 @@
 
 .nb-create-bc-step-page-review__item-tier1 {
     margin-bottom: var(--pf-global--spacer--lg);
+}
+
+.nb-create-bc-step-page__info {
+    margin-bottom: var(--pf-global--spacer--lg);
+}
+
+.nb-bc-step-page-form__title {
+    margin-bottom: var(--pf-global--spacer--md);
+} 
+
+.nb-create-bc-header-title__main {
+    margin-bottom: var(--pf-global--spacer--sm);
+}
+
+.nb-create-bc-header-title__info {
+    color: var(--pf-global--disabled-color--100);
+}
+
+.nb-create-bc-header {
+    padding: var(--pf-global--spacer--lg) 0 var(--pf-global--spacer--md) var(--pf-global--spacer--md);
+}
+
+.nb-create-bc-wizard {
+    overflow-y:auto;
 }

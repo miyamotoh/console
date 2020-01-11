@@ -70,7 +70,7 @@ const EventsCard: React.FC<EventsCardProps> = ({
   const hostStatus = getBareMetalHostStatus(obj);
 
   return (
-    <DashboardCard>
+    <DashboardCard gradient>
       <DashboardCardHeader>
         <DashboardCardTitle>Activity</DashboardCardTitle>
       </DashboardCardHeader>
@@ -80,7 +80,8 @@ const EventsCard: React.FC<EventsCardProps> = ({
           <div className="co-activity-card__ongoing-body">
             {inProgress ? (
               <Activity timestamp={null}>
-                <ActivityItem title={hostStatus.title}>
+                <ActivityItem>
+                  {hostStatus.title}
                   <ResourceLink
                     kind={BareMetalHostModel.kind}
                     name={getName(obj)}

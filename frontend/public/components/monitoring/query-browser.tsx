@@ -47,6 +47,12 @@ import { GraphEmpty } from '../graphs/graph-empty';
 import { getPrometheusURL, PrometheusEndpoint } from '../graphs/helpers';
 import { queryBrowserTheme } from '../graphs/themes';
 
+// Prometheus internal labels start with "__"
+const isInternalLabel = (key: string): boolean => _.startsWith(key, '__');
+
+// External labels added by Prometheus (included in Thanos Querier responses)
+const isExternalLabel = (key: string): boolean => key === 'prometheus';
+
 const spans = ['5m', '15m', '30m', '1h', '2h', '6h', '12h', '1d', '2d', '1w', '2w'];
 const dropdownItems = _.zipObject(spans, spans);
 const chartTheme = getCustomTheme(
@@ -203,7 +209,8 @@ const Tooltip_: React.FC<TooltipProps> = ({ datum, x, y }) =>
   ) : null;
 const Tooltip = withFallback(Tooltip_);
 
-const graphLabelComponent = <ChartTooltip flyoutComponent={<Tooltip />} />;
+// The `center` prop is required by ChartTooltip, but is actually overridden by our custom tooltip
+const graphLabelComponent = <ChartTooltip center={{ x: 0, y: 0 }} flyoutComponent={<Tooltip />} />;
 
 // Set activateData to false to work around VictoryVoronoiContainer crash (see
 // https://github.com/FormidableLabs/victory/issues/1314)
@@ -240,7 +247,9 @@ const Graph: React.FC<GraphProps> = React.memo(({ allSeries, disabledSeries, spa
     maxY = 0;
   }
 
-  const tickFormat =
+  const xTickFormat = span < 5 * 60 * 1000 ? twentyFourHourTimeWithSeconds : twentyFourHourTime;
+
+  const yTickFormat =
     Math.abs(maxY - minY) < 0.005 ? (v) => (v === 0 ? '0' : v.toExponential(1)) : formatValue;
 
   return (
@@ -255,8 +264,8 @@ const Graph: React.FC<GraphProps> = React.memo(({ allSeries, disabledSeries, spa
           theme={chartTheme}
           width={width}
         >
-          <ChartAxis tickCount={5} tickFormat={twentyFourHourTime} />
-          <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={tickFormat} />
+          <ChartAxis tickCount={5} tickFormat={xTickFormat} />
+          <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={yTickFormat} />
           <ChartGroup>
             {_.map(data, (values, i) => (
               <ChartLine key={i} data={values} />
@@ -383,13 +392,16 @@ const ZoomableGraph: React.FC<ZoomableGraphProps> = ({
 };
 
 const QueryBrowser_: React.FC<QueryBrowserProps> = ({
+  defaultSamples,
   defaultTimespan,
   disabledSeries = [],
   filterLabels,
   GraphLink,
+  hideControls,
   hideGraphs,
   namespace,
   patchQuery,
+  pollInterval,
   queries,
 }) => {
   // For the default time span, use the first of the suggested span options that is at least as long as defaultTimespan
@@ -398,7 +410,8 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
   const [span, setSpan] = React.useState(parsePrometheusDuration(defaultSpanText));
 
   // Limit the number of samples so that the step size doesn't fall below minStep
-  const maxSamplesForSpan = _.clamp(Math.round(span / minStep), minSamples, maxSamples);
+  const maxSamplesForSpan =
+    defaultSamples || _.clamp(Math.round(span / minStep), minSamples, maxSamples);
 
   const [xDomain, setXDomain] = React.useState();
   const [error, setError] = React.useState();
@@ -460,14 +473,16 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
               const newGraphData = _.map(newResults, (result) => {
                 return _.map(result, ({ metric, values }) => {
                   // If filterLabels is specified, ignore all series that don't match
-                  // Ignore internal labels (start with "__")
                   return filterLabels &&
-                    _.some(metric, (v, k) => filterLabels[k] !== v && !_.startsWith(k, '__'))
+                    _.some(
+                      metric,
+                      (v, k) => filterLabels[k] !== v && !isInternalLabel(k) && !isExternalLabel(k),
+                    )
                     ? []
                     : [metric, formatSeriesValues(values, samples, span)];
                 });
               });
-              setGraphData(_.reject(newGraphData, _.isEmpty));
+              setGraphData(newGraphData);
 
               _.each(newResults, (r, i) =>
                 patchQuery(i, {
@@ -487,12 +502,14 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
 
   // Don't poll if an end time was set (because the latest data is not displayed) or if the graph is hidden. Otherwise
   // use a polling interval relative to the graph's timespan.
-  const delay = endTime || hideGraphs ? null : Math.max(span / 120, minPollInterval);
+  const tickInterval =
+    pollInterval === undefined ? Math.max(span / 120, minPollInterval) : pollInterval;
+  const delay = endTime || hideGraphs ? null : tickInterval;
 
   const queriesKey = _.reject(queries, _.isEmpty).join();
   usePoll(tick, delay, endTime, filterLabels, namespace, queriesKey, samples, span);
 
-  React.useEffect(() => setUpdating(true), [endTime, namespace, queriesKey, samples, span]);
+  React.useLayoutEffect(() => setUpdating(true), [endTime, namespace, queriesKey, samples, span]);
 
   const onSpanChange = React.useCallback((newSpan: number) => {
     setXDomain(undefined);
@@ -537,7 +554,9 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
     >
       <div className="query-browser__controls">
         <div className="query-browser__controls--left">
-          <SpanControls defaultSpanText={defaultSpanText} onChange={onSpanChange} span={span} />
+          {!hideControls && (
+            <SpanControls defaultSpanText={defaultSpanText} onChange={onSpanChange} span={span} />
+          )}
           {updating && (
             <div className="query-browser__loading">
               <LoadingInline />
@@ -554,7 +573,7 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
       {_.isEmpty(graphData) && !updating && <GraphEmpty />}
       {!_.isEmpty(graphData) && (
         <>
-          {samples < maxSamplesForSpan && (
+          {samples < maxSamplesForSpan && !updating && (
             <Alert
               isInline
               className="co-alert"
@@ -621,13 +640,16 @@ type ZoomableGraphProps = {
 };
 
 type QueryBrowserProps = {
+  defaultSamples?: number;
   defaultTimespan: number;
   disabledSeries?: Labels[][];
   filterLabels?: Labels;
   GraphLink?: React.ComponentType<{}>;
+  hideControls?: boolean;
   hideGraphs: boolean;
   namespace?: string;
   patchQuery: (index: number, patch: QueryObj) => any;
+  pollInterval?: number;
   queries: string[];
 };
 

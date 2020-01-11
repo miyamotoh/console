@@ -12,6 +12,7 @@ import {
   ErrorStatus,
   getName,
   ProgressStatus,
+  Status,
   SuccessStatus,
   WarningStatus,
   getNamespace,
@@ -24,6 +25,7 @@ import {
   TableData,
   MultiListPage,
 } from '@console/internal/components/factory';
+import { ALL_NAMESPACES_KEY } from '@console/internal/const';
 import { withFallback } from '@console/internal/components/utils/error-boundary';
 import {
   modelFor,
@@ -103,11 +105,11 @@ const subscriptionForCSV = (
 const isSubscription = (obj) => referenceFor(obj) === referenceForModel(SubscriptionModel);
 const isCSV = (obj) => referenceFor(obj) === referenceForModel(ClusterServiceVersionModel);
 const tableColumnClasses = [
-  classNames('col-lg-3', 'col-md-4', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'col-md-2', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'hidden-md', 'hidden-sm', 'hidden-xs'),
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'hidden-xs'),
-  classNames('col-lg-3', 'col-md-3', 'hidden-sm', 'hidden-xs'),
+  '',
+  '',
+  classNames('pf-m-hidden', 'pf-m-visible-on-sm'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-xl'),
   Kebab.columnClass,
 ];
 
@@ -124,11 +126,11 @@ export const ClusterServiceVersionTableHeader = () => {
       props: { className: tableColumnClasses[1] },
     },
     {
-      title: 'Deployment',
+      title: 'Status',
       props: { className: tableColumnClasses[2] },
     },
     {
-      title: 'Status',
+      title: 'Deployment',
       props: { className: tableColumnClasses[3] },
     },
     {
@@ -251,7 +253,11 @@ export const ClusterServiceVersionTableRow = withFallback<ClusterServiceVersionT
       <TableRow id={uid} trKey={key} {...rest}>
         {/* Name */}
         <TableData className={tableColumnClasses[0]}>
-          <Link to={route} className="co-clusterserviceversion-link">
+          <Link
+            to={route}
+            className="co-clusterserviceversion-link"
+            data-test-operator-row={displayName}
+          >
             <ClusterServiceVersionLogo
               icon={icon}
               displayName={displayName}
@@ -266,18 +272,8 @@ export const ClusterServiceVersionTableRow = withFallback<ClusterServiceVersionT
           <ResourceLink kind="Namespace" title={namespace} name={namespace} />
         </TableData>
 
-        {/* Deployment */}
-        <TableData className={tableColumnClasses[2]}>
-          <ResourceLink
-            kind="Deployment"
-            name={deploymentName}
-            namespace={operatorNamespaceFor(obj)}
-            title={deploymentName}
-          />
-        </TableData>
-
         {/* Status */}
-        <TableData className={tableColumnClasses[3]}>
+        <TableData className={tableColumnClasses[2]}>
           <div className="co-clusterserviceversion-row__status">
             <ClusterServiceVersionStatus
               catalogSource={catalogSource}
@@ -285,6 +281,16 @@ export const ClusterServiceVersionTableRow = withFallback<ClusterServiceVersionT
               subscription={subscription}
             />
           </div>
+        </TableData>
+
+        {/* Deployment */}
+        <TableData className={tableColumnClasses[3]}>
+          <ResourceLink
+            kind="Deployment"
+            name={deploymentName}
+            namespace={operatorNamespaceFor(obj)}
+            title={deploymentName}
+          />
         </TableData>
 
         {/* Provided APIs */}
@@ -427,26 +433,32 @@ const InstalledOperatorTableRow: React.FC<InstalledOperatorTableRowProps> = ({
 
 const NoOperatorsMatchFilterMsg = () => <MsgBox title="No Operators Found" />;
 
-const noDataDetail = (
-  <>
-    <div>
-      No Operators are available for project{' '}
-      <span className="co-clusterserviceversion-empty__state__namespace">
-        {UIActions.getActiveNamespace()}
-      </span>
-    </div>
-    <div>
-      Discover and install Operators from the <a href="/operatorhub">OperatorHub</a>.
-    </div>
-  </>
-);
-const NoDataEmptyMsg = () => <MsgBox title="No Operators Found" detail={noDataDetail} />;
-
 export const ClusterServiceVersionList: React.SFC<ClusterServiceVersionListProps> = ({
   subscriptions,
   catalogSources,
   ...rest
 }) => {
+  const ns = UIActions.getActiveNamespace();
+  const noDataDetail = (
+    <>
+      <div>
+        No Operators are available
+        {ns !== ALL_NAMESPACES_KEY && (
+          <>
+            {' '}
+            for project{' '}
+            <span className="co-clusterserviceversion-empty__state__namespace">{ns}</span>
+          </>
+        )}
+        .
+      </div>
+      <div>
+        Discover and install Operators from the <a href="/operatorhub">OperatorHub</a>.
+      </div>
+    </>
+  );
+  const NoDataEmptyMsg = () => <MsgBox title="No Operators Found" detail={noDataDetail} />;
+
   return (
     <Table
       {...rest}
@@ -698,7 +710,9 @@ export const ClusterServiceVersionDetails: React.SFC<ClusterServiceVersionDetail
             </div>
             <div className="col-sm-6">
               <dt>Status</dt>
-              <dd>{status ? status.phase : 'Unknown'}</dd>
+              <dd>
+                <Status status={status ? status.phase : 'Unknown'} />
+              </dd>
               <dt>Status Reason</dt>
               <dd>{status ? status.message : 'Unknown'}</dd>
               <dt>Operator Deployments</dt>

@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { Firehose } from '@console/internal/components/utils';
-import ResourceDropdown from './ResourceDropdown';
+import { referenceForModel } from '@console/internal/module/k8s';
+import { ServiceModel } from '@console/knative-plugin';
+import { ResourceDropdown } from '@console/shared';
 
 interface ApplicationDropdownProps {
   id?: string;
@@ -53,6 +55,13 @@ const ApplicationDropdown: React.FC<ApplicationDropdownProps> = ({ namespace, ..
       kind: 'DaemonSet',
       namespace,
       prop: 'daemonSets',
+    },
+    {
+      isList: true,
+      kind: referenceForModel(ServiceModel),
+      namespace,
+      prop: 'knativeService',
+      optional: true,
     },
   ];
   return (

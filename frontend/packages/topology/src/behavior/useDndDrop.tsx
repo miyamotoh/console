@@ -14,6 +14,7 @@ import {
   DropTargetMonitor,
   Identifier,
   DragEvent,
+  DropTarget,
 } from './dnd-types';
 import { useDndManager } from './useDndManager';
 
@@ -86,9 +87,16 @@ export const useDndDrop = <
   elementRef.current = element;
 
   React.useEffect(() => {
-    const [targetId, unregister] = dndManager.registerTarget({
+    const dropTarget: DropTarget = {
       type: spec.accept,
-      hitTest: (x: number, y: number): boolean => {
+      dropHint: () => {
+        return typeof specRef.current.dropHint === 'string'
+          ? specRef.current.dropHint
+          : typeof specRef.current.dropHint === 'function'
+          ? specRef.current.dropHint(monitor.getItem(), monitor, propsRef.current)
+          : elementRef.current.getType();
+      },
+      hitTest: (x: number, y: number) => {
         if (specRef.current.hitTest) {
           return specRef.current.hitTest(x, y, propsRef.current);
         }
@@ -102,9 +110,11 @@ export const useDndDrop = <
             return false;
           }
 
-          // translate to this element's coordinates
-          // assumes the node is not within an svg element containing another transform
-          const point = Point.singleUse(x, y);
+          // Rounding the coordinates due to an issue with `point-in-svg-path` returning false
+          // when the coordinates clearly are within the path.
+          const point = Point.singleUse(Math.round(x), Math.round(y));
+          // Translate to this element's coordinates.
+          // Assumes the node is not within an svg element containing another transform.
           elementRef.current.translateFromAbsolute(point);
 
           if (nodeRef.current instanceof SVGPathElement) {
@@ -144,10 +154,11 @@ export const useDndDrop = <
         }
         return false;
       },
-      hover: (): void =>
+      hover: () => {
         specRef.current.hover &&
-        specRef.current.hover(monitor.getItem(), monitor, propsRef.current),
-      canDrop: (): boolean =>
+          specRef.current.hover(monitor.getItem(), monitor, propsRef.current);
+      },
+      canDrop: () =>
         typeof specRef.current.canDrop === 'boolean'
           ? specRef.current.canDrop
           : typeof specRef.current.canDrop === 'function'
@@ -159,7 +170,8 @@ export const useDndDrop = <
           : !monitor.didDrop()
           ? elementRef.current
           : undefined,
-    });
+    };
+    const [targetId, unregister] = dndManager.registerTarget(dropTarget);
     monitor.receiveHandlerId(targetId);
     return unregister;
   }, [spec.accept, dndManager, monitor]);

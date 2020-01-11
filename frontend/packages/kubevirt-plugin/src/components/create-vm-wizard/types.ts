@@ -19,6 +19,7 @@ export enum VMWizardTab { // order important
   VM_SETTINGS = 'VM_SETTINGS',
   NETWORKING = 'NETWORKING',
   ADVANCED_CLOUD_INIT = 'ADVANCED_CLOUD_INIT',
+  ADVANCED_VIRTUAL_HARDWARE = 'ADVANCED_VIRTUAL_HARDWARE',
   STORAGE = 'STORAGE',
   REVIEW = 'REVIEW',
   RESULT = 'RESULT',
@@ -32,12 +33,14 @@ export enum VMWizardProps {
   virtualMachines = 'virtualMachines',
   userTemplates = 'userTemplates',
   commonTemplates = 'commonTemplates',
+  dataVolumes = 'dataVolumes',
 }
 
 export const ALL_VM_WIZARD_TABS = getStringEnumValues<VMWizardTab>(VMWizardTab);
 
 export enum VMSettingsField { // TODO refactor to NAME = 'NAME' format for easier debugging once kubevirt-web-ui-components is deprecated
   NAME = 'name',
+  HOSTNAME = 'hostname',
   DESCRIPTION = 'description',
   PROVISION_SOURCE_TYPE = 'provisionSourceType',
   CONTAINER_IMAGE = 'containerImage',
@@ -114,6 +117,7 @@ export type ChangedCommonDataProp =
   | VMWizardProps.virtualMachines
   | VMWizardProps.userTemplates
   | VMWizardProps.commonTemplates
+  | VMWizardProps.dataVolumes
   | VMWareProviderProps.deployment
   | VMWareProviderProps.deploymentPods
   | VMWareProviderProps.v2vvmware
@@ -133,6 +137,7 @@ export const DetectCommonDataChanges = new Set<ChangedCommonDataProp>([
   VMWizardProps.virtualMachines,
   VMWizardProps.userTemplates,
   VMWizardProps.commonTemplates,
+  VMWizardProps.dataVolumes,
   VMWareProviderProps.deployment,
   VMWareProviderProps.deploymentPods,
   VMWareProviderProps.v2vvmware,
@@ -193,13 +198,15 @@ export enum VMWizardStorageType {
   UI_INPUT = 'UI_INPUT',
   V2V_VMWARE_IMPORT = 'V2V_VMWARE_IMPORT',
   V2V_VMWARE_IMPORT_TEMP = 'V2V_VMWARE_IMPORT_TEMP',
+  WINDOWS_GUEST_TOOLS = 'WINDOWS_GUEST_TOOLS',
+  WINDOWS_GUEST_TOOLS_TEMPLATE = 'WINDOWS_GUEST_TOOLS_TEMPLATE',
 }
 
 export type VMWizardStorage = {
   id?: string;
   type: VMWizardStorageType;
-  disk: V1Disk;
-  volume: V1Volume;
+  disk?: V1Disk;
+  volume?: V1Volume;
   dataVolume?: V1alpha1DataVolume;
   validation?: UIDiskValidation;
   persistentVolumeClaim?: V1PersistentVolumeClaim;
@@ -210,8 +217,8 @@ export type VMWizardStorage = {
 };
 
 export type VMWizardStorageWithWrappers = VMWizardStorage & {
-  diskWrapper: DiskWrapper;
-  volumeWrapper: VolumeWrapper;
+  diskWrapper?: DiskWrapper;
+  volumeWrapper?: VolumeWrapper;
   dataVolumeWrapper?: DataVolumeWrapper;
   persistentVolumeClaimWrapper?: PersistentVolumeClaimWrapper;
 };

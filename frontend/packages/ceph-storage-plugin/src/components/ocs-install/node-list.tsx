@@ -46,8 +46,8 @@ import {
   ocsRequestData,
   ocsTaint,
 } from '../../constants/ocs-install';
-
 import './ocs-install.scss';
+import { hasLabel } from '../../../../console-shared/src/selectors/common';
 
 const ocsLabel = 'cluster.ocs.openshift.io/openshift-storage';
 
@@ -266,16 +266,22 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
   };
 
   const makeLabelNodesRequest = (selectedNodes: NodeKind[]): Promise<NodeKind>[] => {
-    return selectedNodes.map((node: NodeKind) => {
-      const patch = [
-        {
-          op: 'add',
-          path: '/metadata/labels/cluster.ocs.openshift.io~1openshift-storage',
-          value: '',
-        },
-      ];
-      return k8sPatch(NodeModel, node, patch);
-    });
+    const patch = [
+      {
+        op: 'add',
+        path: '/metadata/labels/cluster.ocs.openshift.io~1openshift-storage',
+        value: '',
+      },
+    ];
+    return _.reduce(
+      selectedNodes,
+      (accumulator, node) => {
+        return hasLabel(node, ocsLabel)
+          ? accumulator
+          : [...accumulator, k8sPatch(NodeModel, node, patch)];
+      },
+      [],
+    );
   };
 
   // tainting the selected nodes
@@ -303,17 +309,17 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
 
   const makeOCSRequest = () => {
     const selectedData: NodeKind[] = _.filter(nodes, 'selected');
-    const promises = [];
-
-    promises.push(...makeLabelNodesRequest(selectedData));
+    const promises = makeLabelNodesRequest(selectedData);
     // intentionally keeping the taint logic as its required in 4.3 and will be handled with checkbox selection
     // promises.push(...makeTaintNodesRequest(selectedData));
 
     const ocsObj = _.cloneDeep(ocsRequestData);
     ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = storageClass;
-    promises.push(k8sCreate(OCSServiceModel, ocsObj));
 
     Promise.all(promises)
+      .then(() => {
+        return k8sCreate(OCSServiceModel, ocsObj);
+      })
       .then(() => {
         history.push(
           `/k8s/ns/${ocsProps.namespace}/clusterserviceversions/${
@@ -343,12 +349,16 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
       .then((storageClasses: StorageClassResourceKind[]) => {
         // find all storageclass with the given provisioner
         const scList = _.filter(storageClasses, (sc) => sc.provisioner === provisioner);
-        // take the default storageclass
+        // take the provisioner based storageclass
         _.forEach(scList, (sc) => {
           if (isDefaultClass(sc)) {
             storageClass = sc.metadata.name;
           }
         });
+        // take the first storageclass if default not set
+        if (!storageClass && storageClass.length > 0) {
+          storageClass = getName(_.get(scList, '0'));
+        }
         makeOCSRequest();
       })
       .catch((err) => {

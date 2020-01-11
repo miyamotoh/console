@@ -2,9 +2,11 @@ import * as React from 'react';
 import * as _ from 'lodash-es';
 import { mount, ReactWrapper } from 'enzyme';
 
-import { CatalogTile } from '../../node_modules/patternfly-react-extensions/dist/js/components/CatalogTile';
-import { VerticalTabsTab } from '../../node_modules/patternfly-react-extensions/dist/js/components/VerticalTabs';
-import { FilterSidePanel } from '../../node_modules/patternfly-react-extensions/dist/js/components/FilterSidePanel';
+import {
+  CatalogTile,
+  FilterSidePanelCategoryItem,
+  VerticalTabsTab,
+} from '@patternfly/react-catalog-view-extension';
 
 import {
   CatalogListPage,
@@ -14,12 +16,14 @@ import {
 import {
   CatalogTileViewPage,
   catalogCategories as initCatalogCategories,
+  groupItems,
 } from '../../public/components/catalog/catalog-items';
 import {
   catalogListPageProps,
   catalogItems,
   catalogCategories,
 } from '../../__mocks__/catalogItemsMocks';
+import { developerCatalogItems, groupedByType } from './catalog-data';
 import { categorizeItems } from '../../public/components/utils/tile-view-page';
 
 describe(CatalogTileViewPage.displayName, () => {
@@ -37,7 +41,7 @@ describe(CatalogTileViewPage.displayName, () => {
   });
 
   it('renders category filter controls', () => {
-    const filterItems = wrapper.find<any>(FilterSidePanel.CategoryItem);
+    const filterItems = wrapper.find<any>(FilterSidePanelCategoryItem);
 
     expect(filterItems.exists()).toBe(true);
     expect(filterItems.length).toEqual(4); // Filter by Types
@@ -104,5 +108,15 @@ describe(CatalogTileViewPage.displayName, () => {
         expect(subcategory.numItems).toEqual(catalogCategories[key].subcategories[subKey].numItems);
       });
     });
+  });
+
+  it('should group catalog items by Operator', () => {
+    const groupedByTypeResult = groupItems(developerCatalogItems, 'Operator');
+    expect(groupedByTypeResult).toEqual(groupedByType);
+  });
+
+  it('should not group the items when None is selected in the Group By Dropdown', () => {
+    const groupedByTypeResult = groupItems(developerCatalogItems, 'None');
+    expect(groupedByTypeResult).toEqual(developerCatalogItems);
   });
 });

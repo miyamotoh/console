@@ -18,7 +18,7 @@ const ReviewPage: React.FC<ReviewPageProps> = ({ state }) => {
   return (
     <div className="nb-create-bc-step-page">
       <Title size="xl" headingLevel="h2">
-        Review and confirm BucketClass settings
+        Review and confirm Bucket Class settings
       </Title>
       <div className="nb-create-bc-step-page-review__item">
         <Title size="lg" headingLevel="h4" className="nb-create-bc-step-page-review__item-header">
@@ -28,7 +28,7 @@ const ReviewPage: React.FC<ReviewPageProps> = ({ state }) => {
       </div>
       <div className="nb-create-bc-step-page-review__item">
         <Title size="lg" headingLevel="h4" className="nb-create-bc-step-page-review__item-header">
-          BucketClass name
+          Bucket Class name
         </Title>
         <p>{bucketClassName}</p>
       </div>
@@ -48,20 +48,20 @@ const ReviewPage: React.FC<ReviewPageProps> = ({ state }) => {
           <Title size="md" headingLevel="h5">
             Tier 1: {tier1Policy}
           </Title>
-          <p>Selected BackingStore: {tier1BackingStore}</p>
+          <p>Selected Backing Store: {tier1BackingStore.join(', ')}</p>
         </div>
         {tier2Policy && (
           <>
             <Title size="md" headingLevel="h5">
               Tier 2: {tier2Policy}
             </Title>
-            <p>Selected BackingStore: {tier2BackingStore}</p>
+            <p>Selected Backing Store: {tier2BackingStore.join(', ')}</p>
           </>
         )}
       </div>
       {isLoading && <LoadingInline />}
       {!!error && (
-        <Alert variant="danger" title="Error">
+        <Alert variant="danger" title="Error" isInline>
           {error}
         </Alert>
       )}

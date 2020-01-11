@@ -92,13 +92,7 @@ export default class Visualization extends Stateful implements Controller {
     // remove all stale elements
     _.forIn(this.elements, (element) => {
       if (!isGraph(element) && !validIds.includes(element.getId())) {
-        element.remove();
         this.removeElement(element);
-        // unparent all of the element's children such that they can be reparented
-        element
-          .getChildren()
-          .slice()
-          .forEach((child) => child.remove());
       }
     });
 
@@ -139,7 +133,16 @@ export default class Visualization extends Stateful implements Controller {
   }
 
   removeElement(element: GraphElement): void {
-    delete this.elements[element.getId()];
+    if (this.elements[element.getId()]) {
+      element.remove();
+      // unparent all of the element's children such that they can be reparented
+      element
+        .getChildren()
+        .slice()
+        .forEach((child) => child.remove());
+      element.setController(undefined);
+      delete this.elements[element.getId()];
+    }
   }
 
   getElementById(id: string): GraphElement | undefined {

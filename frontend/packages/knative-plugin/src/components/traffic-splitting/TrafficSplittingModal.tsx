@@ -6,11 +6,7 @@ import {
   ModalSubmitFooter,
 } from '@console/internal/components/factory/modal';
 import { TextInputTypes } from '@patternfly/react-core';
-import {
-  MultiColumnField,
-  InputField,
-  DropdownField,
-} from '@console/dev-console/src/components/formik-fields';
+import { MultiColumnField, InputField, DropdownField } from '@console/shared';
 
 export interface TrafficSplittingModalProps {
   revisionItems: any;
@@ -24,10 +20,11 @@ const TrafficSplittingModal: React.FC<Props> = ({
   handleReset,
   isSubmitting,
   status,
+  values,
 }) => {
   return (
     <form className="modal-content" onSubmit={handleSubmit}>
-      <ModalTitle>Set traffic distrubution</ModalTitle>
+      <ModalTitle>Set Traffic Distribution</ModalTitle>
       <ModalBody>
         <p>Set traffic distribution for the Revisions of the Knative Service</p>
         <MultiColumnField
@@ -35,6 +32,7 @@ const TrafficSplittingModal: React.FC<Props> = ({
           addLabel="Add Revision"
           headers={['Split', 'Tag', 'Revision']}
           emptyValues={{ percent: '', tag: '', revisionName: '' }}
+          disableDeleteRow={values.trafficSplitting.length === 1}
         >
           <InputField
             name="percent"

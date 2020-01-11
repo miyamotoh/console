@@ -11,7 +11,6 @@ import { NsDropdown, ExternalLink } from '@console/internal/components/utils';
 import { Action, State } from '../state';
 
 const GeneralPage: React.FC<GeneralPageProps> = ({ dispatch, state }) => {
-  const [description, setDescription] = React.useState(state.description);
   const [showHelp, setShowHelp] = React.useState(true);
 
   const onChange = (value: string, event: React.FormEvent<HTMLInputElement> | string) => {
@@ -29,11 +28,12 @@ const GeneralPage: React.FC<GeneralPageProps> = ({ dispatch, state }) => {
           isInline
           variant="info"
           title="What is a Bucket Class?"
+          className="nb-create-bc-step-page__info"
           action={<AlertActionCloseButton onClose={() => setShowHelp(false)} />}
         >
-          <p>An MCG Bucket&apos;s data location is determined by a policy called a bucketClass</p>
+          <p>An MCG Bucket&apos;s data location is determined by a policy called a Bucket Class</p>
           <ExternalLink
-            href="https://github.com/noobaa/noobaa-operator/blob/master/doc/backing-store-crd.md"
+            href="https://github.com/noobaa/noobaa-operator/blob/master/doc/bucket-class-crd.md"
             text="Learn More"
           />
         </Alert>
@@ -51,8 +51,8 @@ const GeneralPage: React.FC<GeneralPageProps> = ({ dispatch, state }) => {
           isRequired
           className="nb-create-bc-step-page-form__element"
           fieldId="bucketclassname-input"
-          label="BucketClass Name"
-          helperText="A unique name for the bucketClass within the project."
+          label="Bucket Class Name"
+          helperText="A unique name for the Bucket Class within the project."
         >
           <TextInput
             placeholder="my-multi-cloud-mirror"
@@ -68,8 +68,8 @@ const GeneralPage: React.FC<GeneralPageProps> = ({ dispatch, state }) => {
           label="Description(Optional)"
         >
           <TextArea
-            value={description}
-            onChange={setDescription}
+            value={state.description}
+            onChange={(data) => dispatch({ type: 'setDescription', value: data })}
             aria-label="Description of bucket class"
           />
         </FormGroup>
