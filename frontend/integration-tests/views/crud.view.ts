@@ -23,7 +23,7 @@ export const isLoaded = () =>
     .wait(until.and(untilNoLoadersPresent, untilLoadingBoxLoaded))
     .then(() => browser.sleep(1000));
 export const resourceRowsPresent = () =>
-  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 30000);
+  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 10000);
 export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
