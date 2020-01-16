@@ -36,6 +36,7 @@ import {
   formatBytesAsMiB,
   formatCores,
   humanizeBinaryBytes,
+  humanizeDecimalBytesPerSec,
   humanizeCpuCores,
   navFactory,
   pluralize,
@@ -321,6 +322,26 @@ const PodGraphs = requirePrometheus(({ pod }) => (
         />
       </div>
     </div>
+    <div className="row">
+      <div className="col-md-12 col-lg-4">
+        <Area
+          title="Network In"
+          humanize={humanizeDecimalBytesPerSec}
+          query={`sum(irate(container_network_receive_bytes_total{pod='${
+            pod.metadata.name
+          }', namespace='${pod.metadata.namespace}'}[5m])) by (pod, namespace)`}
+        />
+      </div>
+      <div className="col-md-12 col-lg-4">
+        <Area
+          title="Network Out"
+          humanize={humanizeDecimalBytesPerSec}
+          query={`sum(irate(container_network_transmit_bytes_total{pod='${
+            pod.metadata.name
+          }', namespace='${pod.metadata.namespace}'}[5m])) by (pod, namespace)`}
+        />
+      </div>
+    </div>
 
     <br />
   </>
@@ -516,6 +537,7 @@ export const PodsPage = connect<{}, PodPagePropsFromDispatch, PodPageProps>(
       kind="Pod"
       ListComponent={PodList}
       rowFilters={filters}
+      namespace={namespace}
     />
   );
 });

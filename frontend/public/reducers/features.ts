@@ -19,7 +19,7 @@ import { referenceForModel } from '../module/k8s';
 import { RootState } from '../redux';
 import { ActionType as K8sActionType } from '../actions/k8s';
 import { FeatureAction, ActionType } from '../actions/features';
-import { FLAGS } from '../const';
+import { FLAGS } from '@console/shared/src/constants';
 import * as plugins from '../plugins';
 
 export const defaults = _.mapValues(FLAGS, (flag) =>
@@ -42,15 +42,12 @@ export const baseCRDs = {
 
 const CRDs = { ...baseCRDs };
 
-plugins.registry
-  .getFeatureFlags()
-  .filter(plugins.isModelFeatureFlag)
-  .forEach((ff) => {
-    const modelRef = referenceForModel(ff.properties.model);
-    if (!CRDs[modelRef]) {
-      CRDs[modelRef] = ff.properties.flag as FLAGS;
-    }
-  });
+plugins.registry.getModelFeatureFlags().forEach((ff) => {
+  const modelRef = referenceForModel(ff.properties.model);
+  if (!CRDs[modelRef]) {
+    CRDs[modelRef] = ff.properties.flag as FLAGS;
+  }
+});
 
 export type FeatureState = ImmutableMap<string, boolean>;
 
