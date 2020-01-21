@@ -41,6 +41,14 @@
    `ns=[string]` - Namespace
    
    `name=[string]` - Helm Release Name
+=======
+
+   **Optional:**
+ 
+   `ns=[string]` - Namespace
+   
+   `release_name=[string]` - Helm Release Name
+>>>>>>> added endpoint for retrieving details for the given Helm chart.
 
 * **Success Response:**
   
@@ -252,6 +260,14 @@
   * **Code:** 404 NOT FOUND <br />
     **Content:** `{ error : "error message" }`
     
+=======
+ 
+* **Error Response:**
+
+  * **Code:** 403 BAD REQUEST <br />
+    **Content:** `{ error : "error message" }`
+
+>>>>>>> added endpoint for retrieving details for the given Helm chart.
 **Render Helm Template/Manifests**
 ----
 
