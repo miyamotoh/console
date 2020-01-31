@@ -21,12 +21,14 @@ import { PersistentVolumeClaimModel } from '../models';
 
 const { common, ExpandPVC } = Kebab.factory;
 const menuActions = [
-  ExpandPVC,
   ...Kebab.getExtensionsActionsForKind(PersistentVolumeClaimModel),
+  ExpandPVC,
   ...common,
 ];
 
-const PVCStatus = ({ pvc }) => <Status status={pvc.status.phase} />;
+const PVCStatus = ({ pvc }) => (
+  <Status status={pvc.metadata.deletionTimestamp ? 'Terminating' : pvc.status.phase} />
+);
 
 const tableColumnClasses = [
   classNames('col-lg-2', 'col-md-2', 'col-sm-4', 'col-xs-6'),
@@ -134,7 +136,7 @@ const Details_ = ({ flags, obj: pvc }) => {
   return (
     <>
       <div className="co-m-pane__body">
-        <SectionHeading text="PersistentVolumeClaim Overview" />
+        <SectionHeading text="PersistentVolumeClaim Details" />
         <div className="row">
           <div className="col-sm-6">
             <ResourceSummary resource={pvc}>

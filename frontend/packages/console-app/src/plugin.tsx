@@ -8,13 +8,8 @@ import {
   DashboardsOverviewHealthURLSubsystem,
   DashboardsOverviewHealthPrometheusSubsystem,
   DashboardsOverviewInventoryItem,
+  DashboardsOverviewHealthOperator,
 } from '@console/plugin-sdk';
-import { referenceForModel } from '@console/internal/module/k8s';
-import {
-  getNodeStatusGroups,
-  getPodStatusGroups,
-  getPVCStatusGroups,
-} from '@console/shared/src/components/dashboard/inventory-card/utils';
 import {
   ClusterVersionModel,
   NodeModel,
@@ -23,10 +18,19 @@ import {
   PersistentVolumeClaimModel,
   ClusterOperatorModel,
 } from '@console/internal/models';
+import { referenceForModel, ClusterOperator } from '@console/internal/module/k8s';
+import {
+  getNodeStatusGroups,
+  getPodStatusGroups,
+  getPVCStatusGroups,
+} from '@console/shared/src/components/dashboard/inventory-card/utils';
+import { OCSServiceModel } from '@console/ceph-storage-plugin/src/models';
+import { isClusterExpandActivity } from '@console/ceph-storage-plugin/src/components/dashboard-page/storage-dashboard/activity-card/cluster-expand-activity';
 import {
   fetchK8sHealth,
   getK8sHealthState,
   getControlPlaneHealth,
+  getClusterOperatorHealthStatus,
 } from './components/dashboards-page/status';
 import {
   API_SERVERS_UP,
@@ -35,8 +39,6 @@ import {
   SCHEDULERS_UP,
 } from './queries';
 import {
-  getClusterOperatorUpgradeTimestamp,
-  isClusterOperatorUpgradeActivity,
   getClusterUpdateTimestamp,
   isClusterUpdateActivity,
 } from './components/dashboards-page/activity';
@@ -46,7 +48,8 @@ type ConsumedExtensions =
   | DashboardsOverviewResourceActivity
   | DashboardsOverviewHealthURLSubsystem<any>
   | DashboardsOverviewHealthPrometheusSubsystem
-  | DashboardsOverviewInventoryItem;
+  | DashboardsOverviewInventoryItem
+  | DashboardsOverviewHealthOperator<ClusterOperator>;
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -55,10 +58,10 @@ const plugin: Plugin<ConsumedExtensions> = [
       id: 'admin',
       name: 'Administrator',
       icon: <CogsIcon />,
+      default: true,
       getLandingPageURL: (flags) =>
         flags[FLAGS.CAN_LIST_NS] ? '/dashboards' : '/k8s/cluster/projects',
       getK8sLandingPageURL: () => '/search',
-      default: true,
       getImportRedirectURL: (project) => `/k8s/cluster/projects/${project}/workloads`,
     },
   },
@@ -78,6 +81,23 @@ const plugin: Plugin<ConsumedExtensions> = [
           './components/dashboards-page/ClusterUpdateActivity' /* webpackChunkName: "console-app" */
         ).then((m) => m.default),
       required: FLAGS.CLUSTER_VERSION,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Activity/Resource',
+    properties: {
+      k8sResource: {
+        isList: true,
+        kind: referenceForModel(OCSServiceModel),
+        namespaced: false,
+        prop: 'storage-cluster',
+      },
+      isActivity: isClusterExpandActivity,
+      loader: () =>
+        import(
+          '@console/ceph-storage-plugin/src/components/dashboard-page/storage-dashboard/activity-card/cluster-expand-activity' /* webpackChunkName: "ceph-storage-plugin" */
+        ).then((m) => m.ClusterExpandActivity),
+      required: 'CEPH',
     },
   },
   {
@@ -139,21 +159,23 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Dashboards/Overview/Activity/Resource',
+    type: 'Dashboards/Overview/Health/Operator',
     properties: {
-      k8sResource: {
-        isList: true,
-        prop: 'clusterOperators',
-        kind: referenceForModel(ClusterOperatorModel),
-        namespaced: false,
-      },
-      isActivity: isClusterOperatorUpgradeActivity,
-      getTimestamp: getClusterOperatorUpgradeTimestamp,
-      loader: () =>
+      title: 'Cluster operators',
+      resources: [
+        {
+          kind: referenceForModel(ClusterOperatorModel),
+          isList: true,
+          namespaced: false,
+          prop: 'clusterOperators',
+        },
+      ],
+      getOperatorsWithStatuses: getClusterOperatorHealthStatus,
+      operatorRowLoader: () =>
         import(
-          './components/dashboards-page/ClusterOperatorUpgradeActivity' /* webpackChunkName: "console-app" */
-        ).then((m) => m.default),
-      required: FLAGS.CLUSTER_VERSION,
+          './components/dashboards-page/OperatorStatus' /* webpackChunkName: "console-app" */
+        ).then((c) => c.default),
+      viewAllLink: '/settings/cluster/clusteroperators',
     },
   },
 ];

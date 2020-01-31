@@ -1,37 +1,40 @@
 import * as _ from 'lodash';
-import { FlagsObject } from '@console/internal/reducers/features';
+
 import {
+  ActivePlugin,
   Extension,
   ExtensionTypeGuard,
-  ActivePlugin,
-  isModelDefinition,
-  isModelFeatureFlag,
-  isActionFeatureFlag,
-  isNavItem,
-  isResourceListPage,
-  isResourceDetailsPage,
-  isPerspective,
-  isYAMLTemplate,
-  isRoutePage,
-  isDashboardsOverviewHealthSubsystem,
-  isDashboardsCard,
-  isDashboardsTab,
-  isDashboardsOverviewInventoryItem,
-  isDashboardsInventoryItemGroup,
-  isDashboardsOverviewUtilizationItem,
-  isOverviewResourceTab,
-  isOverviewCRD,
-  isOverviewTabSection,
-  isGlobalConfig,
   isClusterServiceVersionAction,
-  isKebabActions,
-  isDevCatalogModel,
-  isDashboardsOverviewResourceActivity,
+  isDashboardsCard,
+  isDashboardsInventoryItemGroup,
+  isDashboardsOverviewHealthSubsystem,
+  isDashboardsOverviewInventoryItem,
+  isDashboardsOverviewInventoryItemReplacement,
   isDashboardsOverviewPrometheusActivity,
+  isDashboardsOverviewResourceActivity,
+  isDashboardsOverviewUtilizationItem,
+  isDashboardsTab,
+  isDevCatalogModel,
+  isFeatureFlag,
+  isGlobalConfig,
+  isKebabActions,
+  isModelDefinition,
+  isOverviewCRD,
+  isOverviewResourceTab,
+  isOverviewTabSection,
+  isPerspective,
   isProjectDashboardInventoryItem,
   isReduxReducer,
-  isDashboardsOverviewInventoryItemReplacement,
+  isResourceDetailsPage,
+  isResourceListPage,
+  isResourceTabPage,
+  isRoutePage,
+  isYAMLTemplate,
 } from './typings';
+
+import { FlagsObject } from '@console/internal/reducers/features';
+
+// TODO(vojtech): legacy, remove
 
 /**
  * Registry used to query for Console extensions.
@@ -43,38 +46,33 @@ export class ExtensionRegistry {
     this.extensions = _.flatMap(plugins.map((p) => p.extensions));
   }
 
-  public get<E extends Extension>(typeGuard: ExtensionTypeGuard<E>): E[] {
-    return this.extensions.filter(typeGuard);
-  }
-
-  public getRequiredFlags(typeGuards: ExtensionTypeGuard<ExtensionWithFlags>[]) {
-    return _.flatMap(typeGuards.map((tg) => this.extensions.filter(tg)))
-      .filter((e) => e.properties.required)
-      .reduce(
-        (requiredFlags, e) => _.uniq([...requiredFlags, ..._.castArray(e.properties.required)]),
-        [] as string[],
-      );
+  public getGatingFlagNames(typeGuards: ExtensionTypeGuard<ExtensionWithFlags>[]) {
+    return _.flatMap(typeGuards.map((tg) => this.extensions.filter(tg))).reduce(
+      (gatingFlags, e) =>
+        _.uniq([
+          ...gatingFlags,
+          ..._.castArray(e.properties.required || []),
+          ..._.castArray(e.properties.disallowed || []),
+        ]),
+      [] as string[],
+    );
   }
 
   public isExtensionInUse(e: ExtensionWithFlags, flags: FlagsObject) {
-    const requiredFlags = e.properties.required ? _.castArray(e.properties.required) : [];
-    return _.every(requiredFlags, (f) => flags[f]);
+    const requiredFlags = _.castArray(e.properties.required || []);
+    const disallowedFlags = _.castArray(e.properties.disallowed || []);
+    return (
+      _.every(requiredFlags, (f) => flags[f] === true) &&
+      _.every(disallowedFlags, (f) => flags[f] === false)
+    );
   }
 
   public getModelDefinitions() {
     return this.extensions.filter(isModelDefinition);
   }
 
-  public getModelFeatureFlags() {
-    return this.extensions.filter(isModelFeatureFlag);
-  }
-
-  public getActionFeatureFlags() {
-    return this.extensions.filter(isActionFeatureFlag);
-  }
-
-  public getNavItems() {
-    return this.extensions.filter(isNavItem);
+  public getFeatureFlags() {
+    return this.extensions.filter(isFeatureFlag);
   }
 
   public getResourceListPages() {
@@ -87,6 +85,10 @@ export class ExtensionRegistry {
 
   public getRoutePages() {
     return this.extensions.filter(isRoutePage);
+  }
+
+  public getResourceTabPages() {
+    return this.extensions.filter(isResourceTabPage);
   }
 
   public getPerspectives() {
@@ -170,4 +172,7 @@ export class ExtensionRegistry {
   }
 }
 
-type ExtensionWithFlags = Extension<{ required?: string | string[] }>;
+type ExtensionWithFlags = Extension<{
+  required?: string | string[];
+  disallowed?: string | string[];
+}>;

@@ -15,6 +15,8 @@ import { K8sResourceKind, PodKind } from '../module/k8s';
 import { allModels } from '../module/k8s/k8s-models';
 import { detectFeatures, clearSSARFlags } from './features';
 import { OverviewSpecialGroup } from '../components/overview/constants';
+import { setClusterID, setCreateProjectMessage, setUser, setConsoleLinks } from './common';
+
 export enum ActionType {
   DismissOverviewDetails = 'dismissOverviewDetails',
   SelectOverviewDetailsTab = 'selectOverviewDetailsTab',
@@ -28,6 +30,8 @@ export enum ActionType {
   MonitoringDashboardsPatchVariable = 'monitoringDashboardsPatchVariable',
   SetMonitoringData = 'setMonitoringData',
   ToggleMonitoringGraphs = 'monitoringToggleGraphs',
+  NotificationDrawerToggleExpanded = 'notificationDrawerExpanded',
+  NotificationDrawerToggleRead = 'notificationDrawerRead',
   QueryBrowserAddQuery = 'queryBrowserAddQuery',
   QueryBrowserDeleteAllQueries = 'queryBrowserDeleteAllQueries',
   QueryBrowserDeleteQuery = 'queryBrowserDeleteQuery',
@@ -98,15 +102,6 @@ export const getNamespaceMetric = (ns: K8sResourceKind, metric: string): number 
 export const getPodMetric = (pod: PodKind, metric: string): number => {
   const metrics = store.getState().UI.getIn(['metrics', 'pod']);
   return _.get(metrics, [metric, pod.metadata.namespace, pod.metadata.name], 0);
-};
-
-export const formatNamespacedRouteForResource = (
-  resource,
-  activeNamespace = getActiveNamespace(),
-) => {
-  return activeNamespace === ALL_NAMESPACES_KEY
-    ? `/k8s/all-namespaces/${resource}`
-    : `/k8s/ns/${activeNamespace}/${resource}`;
 };
 
 export const formatNamespaceRoute = (activeNamespace, originalPath, location?) => {
@@ -251,10 +246,6 @@ export const sortList = (
 
   return action(ActionType.SortList, { listId, field, func, sortAsNumber, orderBy });
 };
-export const setCreateProjectMessage = (message: string) =>
-  action(ActionType.SetCreateProjectMessage, { message });
-export const setClusterID = (clusterID: string) => action(ActionType.SetClusterID, { clusterID });
-export const setUser = (user: any) => action(ActionType.SetUser, { user });
 export const selectOverviewItem = (uid: string) => action(ActionType.SelectOverviewItem, { uid });
 export const selectOverviewDetailsTab = (tab: string) =>
   action(ActionType.SelectOverviewDetailsTab, { tab });
@@ -275,16 +266,21 @@ export const monitoringDashboardsClearVariables = () =>
   action(ActionType.MonitoringDashboardsClearVariables);
 export const monitoringDashboardsPatchVariable = (key: string, patch: any) =>
   action(ActionType.MonitoringDashboardsPatchVariable, { key, patch });
-export const monitoringLoading = (key: 'alerts' | 'silences') =>
+export const monitoringLoading = (key: 'alerts' | 'silences' | 'notificationAlerts') =>
   action(ActionType.SetMonitoringData, {
     key,
     data: { loaded: false, loadError: null, data: null },
   });
-export const monitoringLoaded = (key: 'alerts' | 'silences', data: any) =>
+export const monitoringLoaded = (key: 'alerts' | 'silences' | 'notificationAlerts', data: any) =>
   action(ActionType.SetMonitoringData, { key, data: { loaded: true, loadError: null, data } });
-export const monitoringErrored = (key: 'alerts' | 'silences', loadError: any) =>
-  action(ActionType.SetMonitoringData, { key, data: { loaded: true, loadError, data: null } });
+export const monitoringErrored = (
+  key: 'alerts' | 'silences' | 'notificationAlerts',
+  loadError: any,
+) => action(ActionType.SetMonitoringData, { key, data: { loaded: true, loadError, data: null } });
 export const monitoringToggleGraphs = () => action(ActionType.ToggleMonitoringGraphs);
+export const notificationDrawerToggleExpanded = () =>
+  action(ActionType.NotificationDrawerToggleExpanded);
+export const notificationDrawerToggleRead = () => action(ActionType.NotificationDrawerToggleRead);
 export const queryBrowserAddQuery = () => action(ActionType.QueryBrowserAddQuery);
 export const queryBrowserDeleteAllQueries = () => action(ActionType.QueryBrowserDeleteAllQueries);
 export const queryBrowserDismissNamespaceAlert = () =>
@@ -313,8 +309,6 @@ export const queryBrowserToggleIsEnabled = (index: number) =>
 export const queryBrowserToggleSeries = (index: number, labels: { [key: string]: unknown }) => {
   return action(ActionType.QueryBrowserToggleSeries, { index, labels });
 };
-export const setConsoleLinks = (consoleLinks: string[]) =>
-  action(ActionType.SetConsoleLinks, { consoleLinks });
 export const setPodMetrics = (podMetrics: PodMetrics) =>
   action(ActionType.SetPodMetrics, { podMetrics });
 export const setNamespaceMetrics = (namespaceMetrics: NamespaceMetrics) =>
@@ -361,6 +355,8 @@ const uiActions = {
   setConsoleLinks,
   setPodMetrics,
   setNamespaceMetrics,
+  notificationDrawerToggleExpanded,
+  notificationDrawerToggleRead,
 };
 
 export type UIAction = Action<typeof uiActions>;

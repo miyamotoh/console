@@ -3,6 +3,7 @@ import * as _ from 'lodash-es';
 import { connect } from 'react-redux';
 import {
   ArrowCircleUpIcon,
+  BellIcon,
   CaretDownIcon,
   EllipsisVIcon,
   PlusCircleIcon,
@@ -14,15 +15,16 @@ import {
   ApplicationLauncherItem,
   ApplicationLauncherSeparator,
   Button,
+  NotificationBadge,
   Toolbar,
   ToolbarGroup,
   ToolbarItem,
 } from '@patternfly/react-core';
 import classNames from 'classnames';
-
 import { FLAGS, YellowExclamationTriangleIcon } from '@console/shared';
+import { formatNamespacedRouteForResource } from '@console/shared/src/utils';
 import * as UIActions from '../actions/ui';
-import { connectToFlags, flagPending } from '../reducers/features';
+import { connectToFlags, flagPending, featureReducerName } from '../reducers/features';
 import { authSvc } from '../module/auth';
 import { getOCMLink } from '../module/k8s';
 import { history, Firehose } from './utils';
@@ -172,10 +174,7 @@ class MastheadToolbarContents_ extends React.Component {
 
   _onImportYAML(e) {
     e.preventDefault();
-    const importYAMLPath = UIActions.formatNamespacedRouteForResource(
-      'import',
-      this.props.activeNamespace,
-    );
+    const importYAMLPath = formatNamespacedRouteForResource('import', this.props.activeNamespace);
     history.push(importYAMLPath);
   }
 
@@ -211,7 +210,10 @@ class MastheadToolbarContents_ extends React.Component {
   }
 
   _getAdditionalLinks(links, type) {
-    return _.sortBy(_.filter(links, (link) => link.spec.location === type), 'spec.text');
+    return _.sortBy(
+      _.filter(links, (link) => link.spec.location === type),
+      'spec.text',
+    );
   }
 
   _getSectionLauncherItems(launcherItems, sectionName) {
@@ -521,8 +523,9 @@ class MastheadToolbarContents_ extends React.Component {
       showAboutModal,
       statuspageData,
     } = this.state;
-    const { consoleLinks, cv } = this.props;
+    const { consoleLinks, cv, drawerToggle, notificationsRead, canAccessNS } = this.props;
     const launchActions = this._launchActions();
+    const alertAccess = canAccessNS && !!window.SERVER_FLAGS.prometheusBaseURL;
     return (
       <>
         <Toolbar>
@@ -552,6 +555,18 @@ class MastheadToolbarContents_ extends React.Component {
                 />
               </ToolbarItem>
             )}
+            {/* desktop -- (notification drawer button) */
+            alertAccess && (
+              <ToolbarItem>
+                <NotificationBadge
+                  aria-label="Notification Drawer"
+                  onClick={drawerToggle}
+                  isRead={notificationsRead}
+                >
+                  <BellIcon />
+                </NotificationBadge>
+              </ToolbarItem>
+            )}
             <ToolbarItem>
               <Button variant="plain" aria-label="Import YAML" onClick={this._onImportYAML}>
                 <PlusCircleIcon className="co-masthead-icon" />
@@ -577,6 +592,18 @@ class MastheadToolbarContents_ extends React.Component {
             </ToolbarItem>
           </ToolbarGroup>
           <ToolbarGroup>
+            {/* mobile -- (notification drawer button) */
+            alertAccess && !notificationsRead && (
+              <ToolbarItem className="visible-xs-block">
+                <NotificationBadge
+                  aria-label="Notification Drawer"
+                  onClick={drawerToggle}
+                  isRead={notificationsRead}
+                >
+                  <BellIcon />
+                </NotificationBadge>
+              </ToolbarItem>
+            )}
             {/* mobile -- (system status button) */}
             <SystemStatusButton statuspageData={statuspageData} className="visible-xs-block" />
             {/* mobile -- kebab dropdown [(application launcher |) import yaml | documentation, about (| logout)] */}
@@ -591,17 +618,23 @@ class MastheadToolbarContents_ extends React.Component {
   }
 }
 
-const mastheadToolbarStateToProps = ({ UI }) => ({
-  activeNamespace: UI.get('activeNamespace'),
-  clusterID: UI.get('clusterID'),
-  user: UI.get('user'),
-  consoleLinks: UI.get('consoleLinks'),
+const mastheadToolbarStateToProps = (state) => ({
+  activeNamespace: state.UI.get('activeNamespace'),
+  clusterID: state.UI.get('clusterID'),
+  user: state.UI.get('user'),
+  consoleLinks: state.UI.get('consoleLinks'),
+  notificationsRead: !!state.UI.getIn(['notifications', 'isRead']),
+  canAccessNS: !!state[featureReducerName].get(FLAGS.CAN_GET_NS),
 });
 
-const MastheadToolbarContents = connect(mastheadToolbarStateToProps)(
-  connectToFlags(FLAGS.AUTH_ENABLED, FLAGS.CONSOLE_CLI_DOWNLOAD, FLAGS.OPENSHIFT)(
-    MastheadToolbarContents_,
-  ),
+const MastheadToolbarContents = connect(mastheadToolbarStateToProps, {
+  drawerToggle: UIActions.notificationDrawerToggleExpanded,
+})(
+  connectToFlags(
+    FLAGS.AUTH_ENABLED,
+    FLAGS.CONSOLE_CLI_DOWNLOAD,
+    FLAGS.OPENSHIFT,
+  )(MastheadToolbarContents_),
 );
 
 export const MastheadToolbar = connectToFlags(FLAGS.CLUSTER_VERSION)(({ flags }) => {

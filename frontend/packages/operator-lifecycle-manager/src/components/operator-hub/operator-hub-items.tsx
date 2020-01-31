@@ -1,8 +1,12 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
 import * as _ from 'lodash';
 import LazyLoad from 'react-lazyload';
-import { Modal } from 'patternfly-react';
-import { CatalogTile } from '@patternfly/react-catalog-view-extension';
+import { CatalogItemHeader, CatalogTile } from '@patternfly/react-catalog-view-extension';
+import * as classNames from 'classnames';
+import { Button, Modal } from '@patternfly/react-core';
+import { ExternalLinkAltIcon } from '@patternfly/react-icons';
+
 import {
   COMMUNITY_PROVIDERS_WARNING_LOCAL_STORAGE_KEY,
   GreenCheckCircleIcon,
@@ -10,6 +14,7 @@ import {
 import { history } from '@console/internal/components/utils/router';
 import { TileViewPage } from '@console/internal/components/utils/tile-view-page';
 import * as operatorLogo from '@console/internal/imgs/operator.svg';
+import { SubscriptionModel } from '../../models';
 import { OperatorHubItemDetails } from './operator-hub-item-details';
 import { communityOperatorWarningModal } from './operator-hub-community-provider-modal';
 import { OperatorHubItem, InstalledState, ProviderType, CapabilityLevel } from './index';
@@ -34,6 +39,7 @@ const operatorHubFilterMap = {
 
 const COMMUNITY_PROVIDER_TYPE = 'Community';
 const CUSTOM_PROVIDER_TYPE = 'Custom';
+const MARKETPLACE_PROVIDER_TYPE = 'Marketplace';
 
 const ignoredProviderTails = [', Inc.', ', Inc', ' Inc.', ' Inc', ', LLC', ' LLC'];
 
@@ -94,6 +100,8 @@ const providerTypeSort = (provider) => {
       return 1;
     case ProviderType.Community:
       return 2;
+    case ProviderType.Marketplace:
+      return 3;
     case ProviderType.Custom:
       return 4;
     default:
@@ -275,7 +283,11 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
 
     const { uid, name, imgUrl, provider, description, installed } = item;
     const vendor = provider ? `provided by ${provider}` : null;
-    const badges = [COMMUNITY_PROVIDER_TYPE, CUSTOM_PROVIDER_TYPE].includes(item.providerType)
+    const badges = [
+      COMMUNITY_PROVIDER_TYPE,
+      CUSTOM_PROVIDER_TYPE,
+      MARKETPLACE_PROVIDER_TYPE,
+    ].includes(item.providerType)
       ? [badge(item.providerType)]
       : [];
     const icon = (
@@ -311,6 +323,14 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
     );
   };
 
+  const createLink =
+    detailsItem &&
+    `/operatorhub/subscribe?pkg=${detailsItem.obj.metadata.name}&catalog=${detailsItem.catalogSource}&catalogNamespace=${detailsItem.catalogSourceNamespace}&targetNamespace=${props.namespace}`;
+
+  const uninstallLink = () =>
+    detailsItem &&
+    `/k8s/ns/${detailsItem.subscription.metadata.namespace}/${SubscriptionModel.plural}/${detailsItem.subscription.metadata.name}?showDelete=true`;
+
   return (
     <>
       <TileViewPage
@@ -324,20 +344,58 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
         renderTile={renderTile}
         emptyStateInfo="No OperatorHub items are being shown due to the filters being applied."
       />
-      <Modal
-        show={!!detailsItem && showDetails}
-        onHide={closeOverlay}
-        bsSize="lg"
-        className="co-catalog-page__overlay right-side-modal-pf"
-      >
-        {detailsItem && (
-          <OperatorHubItemDetails
-            namespace={props.namespace}
-            item={detailsItem}
-            closeOverlay={closeOverlay}
-          />
-        )}
-      </Modal>
+      {detailsItem && (
+        <Modal
+          className="co-catalog-page__overlay co-catalog-page__overlay--right"
+          header={
+            <>
+              <CatalogItemHeader
+                iconClass={detailsItem.iconClass}
+                iconImg={detailsItem.imgUrl}
+                title={detailsItem.name}
+                vendor={`${detailsItem.version} provided by ${detailsItem.provider}`}
+              />
+              <div className="co-catalog-page__button">
+                {detailsItem.marketplaceRemoteWorkflow && (
+                  <Link
+                    className="pf-c-button pf-c-external pf-m-primary co-catalog-page__overlay-remo5e-workflow"
+                    to={detailsItem.marketplaceRemoteWorkflow}
+                  >
+                    {detailsItem.marketplaceActionText || 'View Details'} <ExternalLinkAltIcon />
+                  </Link>
+                )}
+                {!detailsItem.installed ? (
+                  <Link
+                    className={classNames(
+                      'pf-c-button',
+                      { 'pf-m-secondary': detailsItem.marketplaceRemoteWorkflow },
+                      { 'pf-m-primary': !detailsItem.marketplaceRemoteWorkflow },
+                      'co-catalog-page__overlay-create',
+                    )}
+                    to={createLink}
+                  >
+                    Install
+                  </Link>
+                ) : (
+                  <Button
+                    className="co-catalog-page__overlay-create"
+                    isDisabled={!detailsItem.installed}
+                    onClick={() => history.push(uninstallLink())}
+                    variant="secondary"
+                  >
+                    Uninstall
+                  </Button>
+                )}
+              </div>
+            </>
+          }
+          isOpen={!!detailsItem && showDetails}
+          onClose={closeOverlay}
+          title={detailsItem.name}
+        >
+          <OperatorHubItemDetails namespace={props.namespace} item={detailsItem} />
+        </Modal>
+      )}
     </>
   );
 };

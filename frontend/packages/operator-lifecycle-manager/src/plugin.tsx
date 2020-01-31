@@ -9,11 +9,16 @@ import {
   ResourceDetailsPage,
   RoutePage,
   DevCatalogModel,
+  DashboardsOverviewHealthOperator,
 } from '@console/plugin-sdk';
 import { referenceForModel } from '@console/internal/module/k8s';
+import { FLAGS } from '@console/shared/src/constants';
 import { normalizeClusterServiceVersions } from './dev-catalog';
 import * as models from './models';
 import { Flags } from './const';
+import { getClusterServiceVersionsWithStatuses } from './components/dashboard/utils';
+import { ClusterServiceVersionKind } from './types';
+
 import './style.scss';
 
 type ConsumedExtensions =
@@ -24,7 +29,8 @@ type ConsumedExtensions =
   | ResourceListPage
   | ResourceDetailsPage
   | RoutePage
-  | DevCatalogModel;
+  | DevCatalogModel
+  | DashboardsOverviewHealthOperator<ClusterServiceVersionKind>;
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -36,8 +42,8 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'FeatureFlag/Model',
     properties: {
-      model: models.PackageManifestModel,
-      flag: Flags.CAN_LIST_PACKAGE_MANIFEST,
+      model: models.ClusterServiceVersionModel,
+      flag: Flags.OPERATOR_LIFECYCLE_MANAGER,
     },
   },
   {
@@ -55,8 +61,10 @@ const plugin: Plugin<ConsumedExtensions> = [
       componentProps: {
         name: 'OperatorHub',
         href: '/operatorhub',
-        required: [Flags.CAN_LIST_PACKAGE_MANIFEST, Flags.CAN_LIST_OPERATOR_GROUP],
       },
+    },
+    flags: {
+      required: [FLAGS.CAN_LIST_PACKAGE_MANIFEST, FLAGS.CAN_LIST_OPERATOR_GROUP],
     },
   },
   {
@@ -127,9 +135,11 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: models.ClusterServiceVersionModel,
       loader: async () =>
-        (await import(
-          './components/clusterserviceversion' /* webpackChunkName: "clusterserviceversion" */
-        )).ClusterServiceVersionsPage,
+        (
+          await import(
+            './components/clusterserviceversion' /* webpackChunkName: "clusterserviceversion" */
+          )
+        ).ClusterServiceVersionsPage,
     },
   },
   {
@@ -137,9 +147,11 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: models.ClusterServiceVersionModel,
       loader: async () =>
-        (await import(
-          './components/clusterserviceversion' /* webpackChunkName: "clusterserviceversion" */
-        )).ClusterServiceVersionsDetailsPage,
+        (
+          await import(
+            './components/clusterserviceversion' /* webpackChunkName: "clusterserviceversion" */
+          )
+        ).ClusterServiceVersionsDetailsPage,
     },
   },
   {
@@ -148,9 +160,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: `/k8s/ns/:ns/${models.SubscriptionModel.plural}/~new`,
       loader: async () =>
-        (await import(
-          './components/catalog-source' /* webpackChunkName: "create-subscription-yaml" */
-        )).CreateSubscriptionYAML,
+        (
+          await import(
+            './components/catalog-source' /* webpackChunkName: "create-subscription-yaml" */
+          )
+        ).CreateSubscriptionYAML,
     },
   },
   {
@@ -169,9 +183,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: '/operatorhub/all-namespaces',
       loader: async () =>
-        (await import(
-          './components/operator-hub/operator-hub-page' /* webpackChunkName: "operator-hub" */
-        )).OperatorHubPage,
+        (
+          await import(
+            './components/operator-hub/operator-hub-page' /* webpackChunkName: "operator-hub" */
+          )
+        ).OperatorHubPage,
     },
   },
   {
@@ -180,9 +196,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: '/operatorhub/ns/:ns',
       loader: async () =>
-        (await import(
-          './components/operator-hub/operator-hub-page' /* webpackChunkName: "operator-hub" */
-        )).OperatorHubPage,
+        (
+          await import(
+            './components/operator-hub/operator-hub-page' /* webpackChunkName: "operator-hub" */
+          )
+        ).OperatorHubPage,
     },
   },
   {
@@ -191,9 +209,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: '/operatorhub/subscribe',
       loader: async () =>
-        (await import(
-          './components/operator-hub/operator-hub-subscribe' /* webpackChunkName: "operator-hub-subscribe" */
-        )).OperatorHubSubscribePage,
+        (
+          await import(
+            './components/operator-hub/operator-hub-subscribe' /* webpackChunkName: "operator-hub-subscribe" */
+          )
+        ).OperatorHubSubscribePage,
     },
   },
   {
@@ -202,9 +222,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       exact: true,
       path: `/k8s/ns/:ns/${models.SubscriptionModel.plural}/~new`,
       loader: async () =>
-        (await import(
-          './components/catalog-source' /* webpackChunkName: "create-subscription-yaml" */
-        )).CreateSubscriptionYAML,
+        (
+          await import(
+            './components/catalog-source' /* webpackChunkName: "create-subscription-yaml" */
+          )
+        ).CreateSubscriptionYAML,
     },
   },
   {
@@ -247,6 +269,31 @@ const plugin: Plugin<ConsumedExtensions> = [
       loader: async () =>
         (await import('./components/install-plan' /* webpackChunkName: "install-plan" */))
           .InstallPlansPage,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Health/Operator',
+    properties: {
+      title: 'Operators',
+      resources: [
+        {
+          kind: referenceForModel(models.ClusterServiceVersionModel),
+          isList: true,
+          prop: 'clusterServiceVersions',
+        },
+        {
+          kind: referenceForModel(models.SubscriptionModel),
+          prop: 'subscriptions',
+          isList: true,
+        },
+      ],
+      getOperatorsWithStatuses: getClusterServiceVersionsWithStatuses,
+      operatorRowLoader: async () =>
+        (
+          await import(
+            './components/dashboard/csv-status' /* webpackChunkName: "csv-dashboard-status" */
+          )
+        ).default,
     },
   },
 ];

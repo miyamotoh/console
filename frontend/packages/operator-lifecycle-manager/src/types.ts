@@ -53,6 +53,13 @@ export enum SubscriptionState {
   SubscriptionStateAtLatest = 'AtLatestKnown',
 }
 
+export enum ClusterServiceVersionStatus {
+  Failed = 'Failed',
+  OK = 'OK',
+  Pending = 'Pending',
+  Unknown = 'Unknown',
+}
+
 export type CRDDescription = {
   name: string;
   version: string;
@@ -214,6 +221,7 @@ export type PackageManifestKind = {
       name: string;
       currentCSV: string;
       currentCSVDesc: {
+        annotations?: any;
         description?: string;
         displayName: string;
         icon: { mediatype: string; base64data: string }[];

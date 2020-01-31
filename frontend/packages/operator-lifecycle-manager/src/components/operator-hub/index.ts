@@ -6,6 +6,7 @@ export enum ProviderType {
   Certified = 'Certified',
   Community = 'Community',
   Custom = 'Custom',
+  Marketplace = 'Marketplace',
 }
 
 export enum InstalledState {
@@ -49,6 +50,8 @@ export type OperatorHubCSVAnnotations = {
   description?: string;
   categories?: string;
   capabilities?: CapabilityLevel;
+  'marketplace.openshift.io/action-text'?: string;
+  'marketplace.openshift.io/remote-workflow'?: string;
 };
 
 type OperatorHubSpec = {

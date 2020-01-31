@@ -2,8 +2,9 @@ import * as React from 'react';
 import { connect } from 'react-redux';
 import { NavItemSeparator } from '@patternfly/react-core';
 
-import { featureReducerName } from '../../reducers/features';
 import { FLAGS } from '@console/shared';
+import { formatNamespacedRouteForResource } from '@console/shared/src/utils';
+import { featureReducerName } from '../../reducers/features';
 import { monitoringReducerName, MonitoringRoutes } from '../../reducers/monitoring';
 
 import {
@@ -25,7 +26,6 @@ import {
 import { referenceForModel } from '../../module/k8s';
 import { ExternalLink, HrefLink, ResourceNSLink, ResourceClusterLink } from './items';
 import { NavSection } from './section';
-import { formatNamespacedRouteForResource } from '../../actions/ui';
 
 type SeparatorProps = {
   name: string;
@@ -96,7 +96,7 @@ const AdminNav = () => (
       <HrefLink
         href="/dashboards"
         activePath="/dashboards/"
-        name="Dashboards"
+        name="Overview"
         required={[FLAGS.CAN_LIST_NS, FLAGS.OPENSHIFT]}
       />
       <ResourceClusterLink resource="projects" name="Projects" required={FLAGS.OPENSHIFT} />
