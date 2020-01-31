@@ -13,8 +13,9 @@ import * as namespaceView from '../views/namespace.view';
 import * as createRoleBindingView from '../views/create-role-binding.view';
 
 const K8S_CREATION_TIMEOUT = 30000; //orig 15000;
-const YAML_EDITOR_TIMEOUT = 40000; //HMtest
-const K8S_DELETION_TIMEOUT = 180000; //HMtest
+const YAML_EDITOR_TIMEOUT = K8S_CREATION_TIMEOUT;
+const K8S_EDIT_TIMEOUT = K8S_CREATION_TIMEOUT * 2;
+const K8S_DELETION_TIMEOUT = K8S_CREATION_TIMEOUT * 6;
 
 describe('Kubernetes resource CRUD operations', () => {
   const testLabel = 'automatedTestName';
@@ -161,7 +162,7 @@ describe('Kubernetes resource CRUD operations', () => {
           await crudView.resourceRowsPresent();
           await crudView.editRow(kind)(name);
         }
-      });
+      }, K8S_EDIT_TIMEOUT);
 
       it('deletes the resource instance', async () => {
         await browser.get(
@@ -327,6 +328,10 @@ describe('Kubernetes resource CRUD operations', () => {
       await crudView.deleteRow('CustomResourceDefinition')(crd.spec.names.kind);
       leakedResources.delete(JSON.stringify({ name, plural: 'customresourcedefinitions' }));
     }, K8S_DELETION_TIMEOUT);
+
+    afterAll(async () => {
+      await crudView.isLoaded();
+    });
   });
 
   describe('Editing labels', () => {
@@ -336,7 +341,9 @@ describe('Kubernetes resource CRUD operations', () => {
     const labelValue = 'appblah';
 
     beforeAll(async () => {
-      await browser.get(`${appHost}/k8s/ns/${testName}/${plural}/~new`);
+      await browser.get(`${appHost}/k8s/ns/${testName}/${plural}`);
+      await crudView.isLoaded();
+      await crudView.createYAMLButton.click();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -381,6 +388,7 @@ describe('Kubernetes resource CRUD operations', () => {
     afterAll(async () => {
       await crudView.deleteResource(plural, kind, name);
       leakedResources.delete(JSON.stringify({ name, plural, namespace: testName }));
+      await crudView.isLoaded();
     });
   });
 

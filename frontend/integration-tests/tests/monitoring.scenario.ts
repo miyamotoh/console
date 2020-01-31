@@ -1,6 +1,6 @@
 import { browser, ExpectedConditions as until } from 'protractor';
 
-import { checkLogs, checkErrors, firstElementByTestID } from '../protractor.conf';
+import { appHost, checkLogs, checkErrors, firstElementByTestID } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as yamlView from '../views/yaml.view';
 import * as monitoringView from '../views/monitoring.view';
@@ -37,6 +37,7 @@ describe('Monitoring: Alerts', () => {
   it('filters Alerts by name', async () => {
     await monitoringView.wait(until.elementToBeClickable(crudView.nameFilter));
     await crudView.nameFilter.sendKeys(testAlertName);
+    await browser.wait(until.presenceOf(firstElementByTestID('alert-resource-link')));
     expect(firstElementByTestID('alert-resource-link').getText()).toContain(testAlertName);
   });
 
@@ -45,6 +46,7 @@ describe('Monitoring: Alerts', () => {
       until.elementToBeClickable(firstElementByTestID('alert-resource-link')),
     );
     expect(firstElementByTestID('alert-resource-link').getText()).toContain(testAlertName);
+    await browser.wait(until.elementToBeClickable(firstElementByTestID('alert-resource-link')));
     await firstElementByTestID('alert-resource-link').click();
     await monitoringView.wait(until.presenceOf(monitoringView.detailsHeadingAlertIcon));
     testDetailsPage('Alert Overview', testAlertName);
@@ -191,6 +193,7 @@ describe('Alertmanager: YAML', () => {
   });
 
   it('displays the Alermanager YAML page', async () => {
+    await browser.get(`${appHost}/`);
     await sidenavView.clickNavLink(['Administration', 'Cluster Settings']);
     await crudView.isLoaded();
     await horizontalnavView.clickHorizontalTab('Global Configuration');
@@ -219,6 +222,7 @@ describe('Alertmanager: Configuration', () => {
   });
 
   it('displays the Alermanager Configuration Overview page', async () => {
+    await browser.get(`${appHost}/`);
     await sidenavView.clickNavLink(['Administration', 'Cluster Settings']);
     await crudView.isLoaded();
     await horizontalnavView.clickHorizontalTab('Global Configuration');

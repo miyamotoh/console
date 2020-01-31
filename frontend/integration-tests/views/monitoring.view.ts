@@ -1,7 +1,7 @@
 import { $, $$, browser, by, element, ExpectedConditions as until } from 'protractor';
 import * as crudView from '../views/crud.view';
 
-export const wait = async (condition) => await browser.wait(condition, 15000);
+export const wait = async (condition) => await browser.wait(condition, 30000);
 
 // List pages
 export const listPageHeading = $('.co-m-pane__heading');

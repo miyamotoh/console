@@ -36,7 +36,7 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       await yamlView.setEditorContent(safeDump(crdObj));
       expect(yamlView.getEditorContent()).toContain(`kind: ${crd}`);
@@ -104,7 +104,7 @@ describe('CRD extensions', () => {
           await crudView.isLoaded();
           await crudView.clickKebabAction(crd, 'View Instances');
           await crudView.isLoaded();
-          await crudView.createYAMLButton.click();
+          await crudView.clickCreateWithYAML();
           await yamlView.isLoaded();
           const content = await yamlView.getEditorContent();
           const newContent = _.defaultsDeep(
@@ -169,7 +169,7 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -241,7 +241,7 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -267,7 +267,7 @@ describe('CRD extensions', () => {
     it(`creates a new test pod to display the ${crd} instance`, async () => {
       await browser.get(`${appHost}/k8s/ns/${testName}/pods`);
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(

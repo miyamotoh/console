@@ -129,7 +129,7 @@ export const config = {
   skipSourceMapSupport: true,
   jasmineNodeOpts: {
     print: () => null,
-    defaultTimeoutInterval: 60000,
+    defaultTimeoutInterval: 30000,
   },
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
@@ -162,13 +162,13 @@ export const config = {
     },
     'moz:firefoxOptions': {
       binary: '/usr/bin/firefox',
-      args: ['--headless',
-        '--disable-gpu',
-        '--no-sandbox',
-        '--window-size=1920,1200',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-raf-throttling',
+      args: [
+        ...(process.env.NO_HEADLESS ? [] : ['--headless']),
+        '--safe-mode',
+        '--width=1920',
+        '--height=1200',
+        '--MOZ_LOG=timestamp,nsHttp:2,sync',
+        `--MOZ_LOG_FILE=${screenshotsDir}/browser`,
       ],
       log: {level: 'trace'},
     },
@@ -224,13 +224,13 @@ export const config = {
 };
 
 export const checkLogs = async () =>
-  (await browser
-    .manage()
-    .logs()
-    .get('browser')).map((log) => {
-    browserLogs.push(log);
-    return log;
-  });
+  {
+    if (config.capabilities.browserName=='chrome') {
+      browser.manage().logs().get('browser').then(function(logs) {
+        logs.forEach(function(log) { browserLogs.push(log.message); })
+      });
+    }
+  }
 
 function hasError() {
   return window.windowError;

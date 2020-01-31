@@ -23,7 +23,7 @@ export const isLoaded = () =>
     .wait(until.and(untilNoLoadersPresent, untilLoadingBoxLoaded))
     .then(() => browser.sleep(1000));
 export const resourceRowsPresent = () =>
-  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 10000);
+  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 30000); //HMorg  10000
 export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
@@ -76,8 +76,14 @@ const actionOnKind = (action: string, kind: string) => {
 export const editHumanizedKind = (kind: string) => actionOnKind(actions.edit, kind);
 export const deleteHumanizedKind = (kind: string) => actionOnKind(actions.delete, kind);
 
-export const clickKebabAction = (resourceName: string, actionLabel: string) => {
-  return rowForName(resourceName)
+export const clickCreateWithYAML = () => { //HM
+  browser.wait(until.elementToBeClickable(createYAMLButton))
+    .then(() => createYAMLButton.click());
+}
+
+export const clickKebabAction = async (resourceName: string, actionLabel: string) => {
+  await browser.wait(until.elementToBeClickable($('[data-test-id="kebab-button"]')));
+  return await rowForName(resourceName)
     .$('[data-test-id="kebab-button"]')
     .click()
     .then(() => browser.wait(until.elementToBeClickable(actionForLabel(actionLabel))))
@@ -148,9 +154,10 @@ export const visitResource = async (resource: string, name: string) => {
 };
 
 export const clickDetailsPageAction = async (actionID: string) => {
-  const action = actionForLabel(actionID);
   await browser.wait(until.presenceOf(actionsButton));
   await actionsButton.click();
+  await browser.wait(until.presenceOf(actionsDropdownMenu));
+  const action = actionForLabel(actionID);
   await browser.wait(until.elementToBeClickable(action));
   await action.click();
 };
@@ -167,7 +174,9 @@ export const deleteResource = async (resource: string, kind: string, name: strin
 // then navigates back to the original url.
 export const createNamespacedTestResource = async (kindModel, name) => {
   const next = await browser.getCurrentUrl();
-  await browser.get(`${appHost}/k8s/ns/${testName}/${kindModel.plural}/~new`);
+  await browser.get(`${appHost}/k8s/ns/${testName}/${kindModel.plural}`);
+  await isLoaded();
+  await clickCreateWithYAML();
   await yamlView.isLoaded();
   const content = await yamlView.getEditorContent();
   const newContent = _.defaultsDeep(
