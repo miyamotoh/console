@@ -138,10 +138,69 @@ const ImageSearch: React.FC = () => {
 
   const helpTextInvalid = validated === ValidatedOptions.error && (
     <span>{values.searchTerm === '' ? 'Required' : values.isi.status?.message}</span>
+=======
+    k8sCreate(ImageStreamImportsModel, importImage)
+      .then((imageStreamImport) => {
+        const status = _.get(imageStreamImport, 'status.images[0].status');
+        if (status.status === 'Success') {
+          const name = _.get(imageStreamImport, 'spec.images[0].from.name');
+          const image = _.get(imageStreamImport, 'status.images[0].image');
+          const tag = _.get(imageStreamImport, 'status.images[0].tag');
+          const isi = { name, image, tag, status };
+          const ports = getPorts(isi);
+          setFieldValue('isSearchingForImage', false);
+          setFieldValue('isi.name', name);
+          setFieldValue('isi.image', image);
+          setFieldValue('isi.tag', tag);
+          setFieldValue('isi.status', status);
+          setFieldValue('isi.ports', ports);
+          setFieldValue('image.ports', ports);
+          setFieldValue('image.tag', tag);
+          !values.name && setFieldValue('name', getSuggestedName(name));
+          !values.application.name &&
+            setFieldValue('application.name', `${getSuggestedName(name)}-app`);
+          // set default port value
+          const targetPort = _.head(ports);
+          targetPort && setFieldValue('route.targetPort', makePortName(targetPort));
+          setValidated(ValidatedOptions.success);
+        } else {
+          setFieldValue('isSearchingForImage', false);
+          setFieldValue('isi', {});
+          setFieldValue('isi.status', status.message);
+          setFieldValue('route.targetPort', null);
+          setValidated(ValidatedOptions.error);
+        }
+      })
+      .catch((error) => {
+        setFieldValue('isi', {});
+        setFieldValue('isi.status', error.message);
+        setFieldValue('isSearchingForImage', false);
+        setValidated(ValidatedOptions.error);
+      });
+  }, [setFieldValue, values.application.name, values.name, values.project.name, values.searchTerm]);
+
+  const handleSave = (name: string) => {
+    setNewImageSecret(name);
+    values.searchTerm && handleSearch();
+  };
+
+  const getHelpText = () => {
+    if (values.isSearchingForImage) {
+      return 'Validating...';
+    }
+    if (!values.isSearchingForImage && validated === ValidatedOptions.success) {
+      return 'Validated';
+    }
+    return '';
+  };
+
+  const helpTextInvalid = validated === ValidatedOptions.error && (
+    <span>{values.searchTerm === '' ? 'Required' : values.isi.status}</span>
+>>>>>>> remove search button and search status/result for deploy image
   );
 
   React.useEffect(() => {
-    !dirty && values.searchTerm && handleSearch(values.searchTerm);
+    !dirty && values.searchTerm && handleSearch();
   }, [dirty, handleSearch, values.searchTerm]);
 
   React.useEffect(() => {
