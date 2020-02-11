@@ -207,7 +207,7 @@ const ClusterServiceVersionStatus: React.FC<ClusterServiceVersionStatusProps> = 
           {showSuccessIcon && <SuccessStatus title={statusString} />}
         </span>
       ) : (
-        <span className="co-error co-icon-and-text">
+        <span className="co-icon-and-text">
           <ErrorStatus title={statusString} />
         </span>
       )}
@@ -224,6 +224,7 @@ export const ClusterServiceVersionTableRow = withFallback<ClusterServiceVersionT
     const namespace = getNamespace(obj);
     const route = resourceObjPath(obj, referenceFor(obj));
     const uid = getUID(obj);
+    const internalObjects = getInternalObjects(obj);
     return (
       <TableRow id={uid} trKey={key} {...rest}>
         {/* Name */}
@@ -270,14 +271,18 @@ export const ClusterServiceVersionTableRow = withFallback<ClusterServiceVersionT
 
         {/* Provided APIs */}
         <TableData className={tableColumnClasses[4]}>
-          {_.take(providedAPIsFor(obj), 4).map((desc) => (
+          {_.take(
+            providedAPIsFor(obj).filter((desc) => !isInternalObject(internalObjects, desc.name)),
+            4,
+          ).map((desc) => (
             <div key={referenceForProvidedAPI(desc)}>
               <Link to={`${route}/${referenceForProvidedAPI(desc)}`} title={desc.name}>
                 {desc.displayName}
               </Link>
             </div>
           ))}
-          {providedAPIsFor(obj).length > 4 && (
+          {providedAPIsFor(obj).filter((desc) => !isInternalObject(internalObjects, desc.name))
+            .length > 4 && (
             <Link
               to={`${route}/instances`}
               title={`View ${providedAPIsFor(obj).length - 4} more...`}
@@ -323,7 +328,7 @@ export const FailedSubscriptionTableRow: React.FC<FailedSubscriptionTableRowProp
     }
     if (FAILED_SUBSCRIPTION_STATES.includes(subscriptionState)) {
       return (
-        <span className="co-icon-and-text co-error">
+        <span className="co-icon-and-text">
           <ErrorStatus title={subscriptionState} />
         </span>
       );
@@ -619,6 +624,9 @@ export const ClusterServiceVersionDetails: React.SFC<ClusterServiceVersionDetail
   props,
 ) => {
   const { spec, metadata, status } = props.obj;
+  const {
+    'marketplace.openshift.io/support-workflow': marketplaceSupportWorkflow,
+  } = metadata.annotations;
 
   return (
     <>
@@ -647,6 +655,14 @@ export const ClusterServiceVersionDetails: React.SFC<ClusterServiceVersionDetail
                 <dd>
                   {spec.provider && spec.provider.name ? spec.provider.name : 'Not available'}
                 </dd>
+                {marketplaceSupportWorkflow && (
+                  <>
+                    <dt>Support</dt>
+                    <dd>
+                      <ExternalLink href={marketplaceSupportWorkflow} text="Get support" />
+                    </dd>
+                  </>
+                )}
                 <dt>Created At</dt>
                 <dd>
                   <Timestamp timestamp={metadata.creationTimestamp} />
@@ -794,6 +810,7 @@ export const ClusterServiceVersionsDetailsPage: React.FC<ClusterServiceVersionsD
         (acc, desc: CRDDescription) =>
           !isInternalObject(internalObjects, desc.name)
             ? [
+                ...acc,
                 {
                   href: referenceForProvidedAPI(desc),
                   name: desc.displayName,
@@ -808,7 +825,6 @@ export const ClusterServiceVersionsDetailsPage: React.FC<ClusterServiceVersionsD
                     _.isEqual,
                   ),
                 },
-                ...acc,
               ]
             : acc,
         [],

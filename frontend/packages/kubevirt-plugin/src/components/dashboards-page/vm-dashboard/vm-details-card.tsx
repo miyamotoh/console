@@ -15,9 +15,9 @@ import {
   resourcePath,
 } from '@console/internal/components/utils';
 import { VMDashboardContext } from '../../vms/vm-dashboard-context';
-import { VirtualMachineModel } from '../../../models';
+import { VirtualMachineModel, VirtualMachineInstanceModel } from '../../../models';
 import { getVmiIpAddresses } from '../../../selectors/vmi/ip-address';
-import { VM_DETAIL_OVERVIEW_HREF } from '../../../constants';
+import { VM_DETAIL_DETAILS_HREF } from '../../../constants';
 import { findVMPod } from '../../../selectors/pod/selectors';
 
 export const VMDetailsCard: React.FC<VMDetailsCardProps> = () => {
@@ -34,10 +34,10 @@ export const VMDetailsCard: React.FC<VMDetailsCardProps> = () => {
   const namespace = getNamespace(vmiLike);
 
   const viewAllLink = `${resourcePath(
-    VirtualMachineModel.kind,
+    vm ? VirtualMachineModel.kind : VirtualMachineInstanceModel.kind,
     name,
     namespace,
-  )}/${VM_DETAIL_OVERVIEW_HREF}`;
+  )}/${VM_DETAIL_DETAILS_HREF}`;
 
   return (
     <DashboardCard>

@@ -124,59 +124,40 @@ class ComponentFactory {
             ),
           );
         case TYPE_OPERATOR_BACKED_SERVICE:
-          return OperatorBackedService;
+          return withSelection(false, true)(OperatorBackedService);
         case TYPE_OPERATOR_WORKLOAD:
           return withCreateConnector(createConnectorCallback(this.hasServiceBinding))(
             withEditReviewAccess('patch')(
-              withSelection(
-                false,
-                true,
-              )(
-                withContextMenu(
-                  workloadContextMenu,
-                  document.getElementById('modal-container'),
-                  'odc-topology-context-menu',
-                )(WorkloadNode),
+              withDndDrop<
+                any,
+                any,
+                { droppable?: boolean; hover?: boolean; canDrop?: boolean },
+                NodeProps
+              >(nodeDropTargetSpec)(
+                withDragNode(nodeDragSourceSpec(type, false))(
+                  withSelection(
+                    false,
+                    true,
+                  )(
+                    withContextMenu(
+                      workloadContextMenu,
+                      document.getElementById('modal-container'),
+                      'odc-topology-context-menu',
+                    )(WorkloadNode),
+                  ),
+                ),
               ),
             ),
           );
         case TYPE_KNATIVE_SERVICE:
-          return withDndDrop<
-            any,
-            any,
-            { droppable?: boolean; hover?: boolean; canDrop?: boolean },
-            NodeProps
-          >(graphEventSourceDropTargetSpec)(
-            withEditReviewAccess('update')(
-              withSelection(
-                false,
-                true,
-              )(
-                withContextMenu(
-                  nodeContextMenu,
-                  document.getElementById('modal-container'),
-                  'odc-topology-context-menu',
-                )(KnativeService),
-              ),
-            ),
-          );
-        case TYPE_EVENT_SOURCE:
-          return withDragNode(nodeDragSourceSpec(type))(
-            withSelection(
-              false,
-              true,
-            )(
-              withContextMenu(
-                nodeContextMenu,
-                document.getElementById('modal-container'),
-                'odc-topology-context-menu',
-              )(EventSource),
-            ),
-          );
-        case TYPE_KNATIVE_REVISION:
           return withCreateConnector(createConnectorCallback(this.hasServiceBinding))(
-            withDndDrop<any>(graphWorkloadDropTargetSpec)(
-              withDragNode(nodeDragSourceSpec(type, false))(
+            withDndDrop<
+              any,
+              any,
+              { droppable?: boolean; hover?: boolean; canDrop?: boolean; dropTarget?: boolean },
+              NodeProps
+            >(graphEventSourceDropTargetSpec)(
+              withEditReviewAccess('update')(
                 withSelection(
                   false,
                   true,
@@ -185,8 +166,38 @@ class ComponentFactory {
                     nodeContextMenu,
                     document.getElementById('modal-container'),
                     'odc-topology-context-menu',
-                  )(RevisionNode),
+                  )(KnativeService),
                 ),
+              ),
+            ),
+          );
+        case TYPE_EVENT_SOURCE:
+          return withEditReviewAccess('patch')(
+            withDragNode(nodeDragSourceSpec(type))(
+              withSelection(
+                false,
+                true,
+              )(
+                withContextMenu(
+                  nodeContextMenu,
+                  document.getElementById('modal-container'),
+                  'odc-topology-context-menu',
+                )(EventSource),
+              ),
+            ),
+          );
+        case TYPE_KNATIVE_REVISION:
+          return withDndDrop<any>(graphWorkloadDropTargetSpec)(
+            withDragNode(nodeDragSourceSpec(type, false))(
+              withSelection(
+                false,
+                true,
+              )(
+                withContextMenu(
+                  nodeContextMenu,
+                  document.getElementById('modal-container'),
+                  'odc-topology-context-menu',
+                )(RevisionNode),
               ),
             ),
           );
