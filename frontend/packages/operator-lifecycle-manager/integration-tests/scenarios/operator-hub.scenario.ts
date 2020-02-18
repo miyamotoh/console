@@ -58,8 +58,8 @@ describe('Interacting with OperatorHub', () => {
     await sidenavView.clickNavLink(['Operators', 'OperatorHub']);
     await crudView.isLoaded();
 
-    expect(catalogPageView.catalogTiles.count()).toBeGreaterThan(0);
-  });
+    expect(catalogPageView.catalogTiles.first()).toBeTruthy();
+  }, 90000);
 
   it('filters Operators by "Provider"', async () => {
     await catalogPageView

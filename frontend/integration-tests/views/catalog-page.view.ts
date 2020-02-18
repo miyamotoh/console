@@ -1,6 +1,6 @@
-import { $, $$, browser, by, element, ExpectedConditions as until } from 'protractor';
+import { $, browser, by, element, ExpectedConditions as until } from 'protractor';
 
-export const catalogTiles = $$('.catalog-tile-pf');
+export const catalogTiles = $('.pf-l-gallery').$('a.catalog-tile-pf');
 export const catalogTileFor = (name: string) =>
   element(by.cssContainingText('.catalog-tile-pf-title', name));
 export const catalogTileByID = (id: string) => $(`[data-test=${id}]`);
