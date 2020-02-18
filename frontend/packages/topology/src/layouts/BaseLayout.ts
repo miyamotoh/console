@@ -130,6 +130,13 @@ class LayoutNode {
 
   get height(): number {
     return this.nodeHeight;
+=======
+    return this.nodeBounds.width + this.distance * 2;
+  }
+
+  get height(): number {
+    return this.nodeBounds.height + this.distance * 2;
+>>>>>>> Bug 1804285: Fix for overlapping labels in topology nodes
   }
 
   update() {
