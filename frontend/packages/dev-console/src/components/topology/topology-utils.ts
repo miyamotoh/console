@@ -693,7 +693,7 @@ export const topologyModelFromDataModel = (
       data.groupResources = d.children && d.children.map((id) => dataModel.topology[id]);
       return {
         width: 300,
-        height: 100,
+        height: d.type === TYPE_KNATIVE_SERVICE ? 100 : 180,
         id: d.id,
         type: d.type,
         label: dataModel.topology[d.id].name,
@@ -742,21 +742,26 @@ export const topologyModelFromDataModel = (
     };
   });
 
-  // create links from data
-  const edges = dataModel.graph.edges.map(
-    (d): EdgeModel => ({
-      data: d,
-      source: d.source,
-      target: d.target,
-      id: `${d.source}_${d.target}`,
-      type: d.type,
-    }),
-  );
+  // create links from data, only include those which have a valid source and target
+  const allNodes = [...nodes, ...groupNodes];
+  const edges = dataModel.graph.edges
+    .filter((d) => {
+      return allNodes.find((n) => n.id === d.source) && allNodes.find((n) => n.id === d.target);
+    })
+    .map(
+      (d): EdgeModel => ({
+        data: d,
+        source: d.source,
+        target: d.target,
+        id: `${d.source}_${d.target}`,
+        type: d.type,
+      }),
+    );
 
   // create topology model
   const model: Model = {
-    nodes: [...nodes, ...groupNodes],
-    edges: createAggregateEdges(TYPE_AGGREGATE_EDGE, edges, [...nodes, ...groupNodes]),
+    nodes: allNodes,
+    edges: createAggregateEdges(TYPE_AGGREGATE_EDGE, edges, allNodes),
   };
 
   return model;
@@ -808,7 +813,7 @@ export const createTopologyResourceConnection = (
   serviceBindingFlag: boolean,
 ): Promise<K8sResourceKind[] | K8sResourceKind> => {
   if (!source || !target || source === target) {
-    return Promise.reject();
+    return Promise.reject(new Error('Can not create a connection from a node to itself.'));
   }
 
   const sourceObj = getTopologyResourceObject(source);
@@ -825,7 +830,7 @@ export const createTopologyResourceConnection = (
               .then(resolve)
               .catch(reject);
           })
-          .catch(resolve);
+          .catch(reject);
       });
     }
 

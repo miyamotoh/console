@@ -155,9 +155,22 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'NavItem/Href',
     properties: {
+      section: 'More',
       perspective: 'dev',
       componentProps: {
-        name: 'Helm Releases',
+        name: 'Search',
+        href: '/search',
+        testID: 'more-search-header',
+      },
+    },
+  },
+  {
+    type: 'NavItem/Href',
+    properties: {
+      section: 'More',
+      perspective: 'dev',
+      componentProps: {
+        name: 'Helm',
         href: '/helm-releases',
         testID: 'helm-releases-header',
       },
@@ -169,12 +182,12 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'NavItem/ResourceCluster',
     properties: {
-      section: 'Advanced',
+      section: 'More',
       perspective: 'dev',
       componentProps: {
         name: 'Project Details',
         resource: 'projects',
-        testID: 'advanced-project-header',
+        testID: 'more-project-header',
       },
     },
     flags: {
@@ -184,24 +197,12 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'NavItem/Href',
     properties: {
-      section: 'Advanced',
+      section: 'More',
       perspective: 'dev',
       componentProps: {
         name: 'Project Access',
         href: '/project-access',
-        testID: 'advanced-project-access-header',
-      },
-    },
-  },
-  {
-    type: 'NavItem/Href',
-    properties: {
-      section: 'Advanced',
-      perspective: 'dev',
-      componentProps: {
-        name: 'Search',
-        href: '/search',
-        testID: 'advanced-search-header',
+        testID: 'more-project-access-header',
       },
     },
   },
@@ -422,6 +423,8 @@ const plugin: Plugin<ConsumedExtensions> = [
       path: [
         '/topology/all-namespaces',
         '/topology/ns/:name',
+        '/topology/all-namespaces/graph',
+        '/topology/ns/:name/graph',
         '/topology/all-namespaces/list',
         '/topology/ns/:name/list',
       ],
@@ -641,7 +644,6 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'Page/Route',
     properties: {
-      perspective: 'dev',
       exact: false,
       path: ['/dev-monitoring/all-namespaces', '/dev-monitoring/ns/:ns'],
       loader: async () =>

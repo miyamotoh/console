@@ -61,6 +61,9 @@ export const INNER_TEMPLATE_VERSION = 'v0.8.2';
 export const COMMON_TEMPLATES_NAMESPACE = 'openshift';
 export const COMMON_TEMPLATES_REVISION = '1';
 
+export const KUBEVIRT_SCRIPTS_PATH =
+  './packages/kubevirt-plugin/integration-tests/tests/utils/scripts/';
+
 export enum TAB {
   Consoles = 'Consoles',
   Details = 'Details',
@@ -140,3 +143,9 @@ export const diskTabCol = {
   storageClass: 4,
 };
 Object.freeze(diskTabCol);
+
+export enum VMI_ACTION {
+  Delete = 'Delete Virtual Machine Instance',
+  EditAnnotations = 'Edit Annotations',
+  EditLabels = 'Edit Labels',
+}

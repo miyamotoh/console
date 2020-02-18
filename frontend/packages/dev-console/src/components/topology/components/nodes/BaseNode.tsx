@@ -68,6 +68,7 @@ const BaseNode: React.FC<BaseNodeProps> = ({
   const cy = element.getBounds().height / 2;
   const resourceObj = getTopologyResourceObject(element.getData());
   const resourceModel = modelFor(referenceFor(resourceObj));
+  const iconRadius = innerRadius * 0.9;
   const editAccess = useAccessReview({
     group: resourceModel.apiGroup,
     verb: 'patch',
@@ -120,10 +121,10 @@ const BaseNode: React.FC<BaseNodeProps> = ({
         />
         {icon && (
           <image
-            x={cx - innerRadius}
-            y={cy - innerRadius}
-            width={innerRadius * 2}
-            height={innerRadius * 2}
+            x={cx - iconRadius}
+            y={cy - iconRadius}
+            width={iconRadius * 2}
+            height={iconRadius * 2}
             xlinkHref={icon}
           />
         )}
@@ -131,7 +132,7 @@ const BaseNode: React.FC<BaseNodeProps> = ({
           <SvgBoxedText
             className="odc-base-node__label"
             x={cx}
-            y={cy + outerRadius + 20}
+            y={cy + outerRadius + 24}
             paddingX={8}
             paddingY={4}
             kind={kind}

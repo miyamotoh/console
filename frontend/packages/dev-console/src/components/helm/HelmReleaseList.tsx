@@ -5,8 +5,9 @@ import { Table, TextFilter } from '@console/internal/components/factory';
 import { SortByDirection } from '@patternfly/react-table';
 import { CheckBoxes } from '@console/internal/components/row-filter';
 import { FirehoseResult, getQueryArgument } from '@console/internal/components/utils';
+import { useDeepCompareMemoize } from '@console/shared';
 import { HelmRelease, HelmFilterType } from './helm-types';
-import { helmRowFilters, getFilteredItems, useDeepCompareMemoize } from './helm-utils';
+import { helmRowFilters, getFilteredItems } from './helm-utils';
 import HelmReleaseHeader from './HelmReleaseHeader';
 import HelmReleaseRow from './HelmReleaseRow';
 
@@ -29,20 +30,19 @@ const HelmReleaseList: React.FC<HelmReleaseListProps> = ({ namespace, secrets })
     const activeFilters = queryArgument?.split(',');
 
     const fetchHelmReleases = async () => {
-      let res: HelmRelease[];
+      let namespacedReleases: HelmRelease[];
       try {
-        res = await coFetchJSON('/api/helm/releases');
+        namespacedReleases = await coFetchJSON(`/api/helm/releases?ns=${namespace}`);
       } catch {
         if (ignore) return;
 
         setReleases([]);
         setFetched(true);
       }
-      const namespacedReleases = (res && res.filter((rel) => rel.namespace === namespace)) || [];
 
       if (ignore) return;
 
-      setReleases(namespacedReleases);
+      setReleases(namespacedReleases || []);
       setFetched(true);
 
       if (activeFilters) {

@@ -7,7 +7,7 @@ import {
   rerunPipelineAndRedirect,
   startPipeline,
   handlePipelineRunSubmit,
-  // editPipeline,
+  editPipeline,
 } from '../../utils/pipeline-actions';
 import { getLatestRun } from '../../utils/pipeline-augment';
 import { PipelineRunModel, PipelineModel } from '../../models';
@@ -18,6 +18,10 @@ import {
   PipelineRuns,
 } from './detail-page-tabs';
 import PipelineForm from './pipeline-form/PipelineForm';
+import {
+  parametersValidationSchema,
+  resourcesValidationSchema,
+} from './pipeline-form/pipelineForm-validation-utils';
 
 interface PipelineDetailsPageStates {
   menuActions: Function[];
@@ -45,7 +49,7 @@ class PipelineDetailsPage extends React.Component<DetailsPageProps, PipelineDeta
                 ...(latestRun && latestRun.metadata
                   ? [() => rerunPipelineAndRedirect(PipelineRunModel, latestRun)]
                   : []),
-                // editPipeline,
+                editPipeline,
                 Kebab.factory.Delete,
               ],
             });
@@ -80,6 +84,7 @@ class PipelineDetailsPage extends React.Component<DetailsPageProps, PipelineDeta
               <PipelineForm
                 PipelineFormComponent={PipelineParametersForm}
                 formName="parameters"
+                validationSchema={parametersValidationSchema}
                 obj={props.obj}
                 {...props}
               />
@@ -92,6 +97,7 @@ class PipelineDetailsPage extends React.Component<DetailsPageProps, PipelineDeta
               <PipelineForm
                 PipelineFormComponent={PipelineResourcesForm}
                 formName="resources"
+                validationSchema={resourcesValidationSchema}
                 obj={props.obj}
                 {...props}
               />
