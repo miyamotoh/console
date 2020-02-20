@@ -50,6 +50,20 @@ describe('KubeVirt VM detail - edit flavor', () => {
 
         expect(getCPU(vm.getResource()).cores).toEqual(2);
         expect(getMemory(vm.getResource())).toEqual('3Gi');
+=======
+        await click(editFlavorView.saveButton());
+
+        await browser.wait(
+          until.textToBePresentInElement(
+            virtualMachineView.vmDetailFlavor(vm.namespace, vm.name),
+            'Custom: 2 vCPUs, 3 GiB Memory',
+          ),
+        );
+
+        expect(
+          await virtualMachineView.vmDetailLabelValue('flavor.template.kubevirt.io/Custom'),
+        ).toBe('true');
+>>>>>>> Fix kubevirt-plugin integration tests for 4.4 release
         expect(
           (await virtualMachineView.vmDetailLabelValue('vm.kubevirt.io/template')).startsWith(
             'rhel7-desktop-tiny-', // template is not changed (might be in the future)
