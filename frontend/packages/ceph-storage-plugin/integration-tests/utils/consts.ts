@@ -36,7 +36,6 @@ export const OCS_NODE_LABEL = 'cluster.ocs.openshift.io/openshift-storage';
 
 export const KIND = 'storagecluster';
 export const EXPAND_WAIT = 15 * MINUTE;
-export const STORAGE_CLUSTER_TAB_CNT = 15;
 export const CAPACITY_UNIT = 'TiB';
 export const CAPACITY_VALUE = '2';
 export const OCS_OPERATOR_NAME = 'ocs-operator';
@@ -59,4 +58,16 @@ export enum SIZE_UNITS {
 export enum PVC_STATUS {
   PENDING = 'Pending',
   BOUND = 'Bound',
+}
+
+export enum OCP_TEXT_STATUS {
+  HEALTHY = 'healthy',
+  DEGRADED = 'health is degraded',
+  NOT_AVAILABLE = 'is not available',
+}
+
+export enum OCP_HEALTH_ICON_COLORS {
+  GREEN = 'var(--pf-chart-color-green-400)',
+  YELLOW = '#f0ab00',
+  RED = '#c9190b',
 }

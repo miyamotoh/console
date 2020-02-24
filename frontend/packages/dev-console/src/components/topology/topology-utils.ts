@@ -13,6 +13,8 @@ import {
   OverviewItem,
   getImageForCSVIcon,
   getDefaultOperatorIcon,
+  OperatorBackedServiceKindMap,
+  getOperatorBackedServiceKindMap,
 } from '@console/shared';
 import { getImageForIconClass } from '@console/internal/components/catalog/catalog-item-icon';
 import {
@@ -30,7 +32,6 @@ import {
   createServiceBinding,
   removeServiceBinding,
   edgesFromServiceBinding,
-  getOperatorBackedServiceKindMap,
 } from '../../utils/application-utils';
 import { TopologyFilters } from './filters/filter-utils';
 import {
@@ -41,7 +42,6 @@ import {
   Edge,
   Group,
   TopologyOverviewItem,
-  OperatorBackedServiceKindMap,
   TrafficData,
   KialiNode,
 } from './topology-types';
@@ -58,6 +58,7 @@ import {
   TYPE_CONNECTS_TO,
   TYPE_SERVICE_BINDING,
 } from './const';
+import { ClusterServiceVersionKind } from '@console/operator-lifecycle-manager';
 
 export const allowedResources = ['deployments', 'deploymentConfigs', 'daemonSets', 'statefulSets'];
 
@@ -120,22 +121,16 @@ export const getRoutesUrl = (resource: OverviewItem): string => {
 };
 
 /**
- * get monitoring status
- */
-export const isEventWarning = (resource: OverviewItem): boolean => {
-  const { events } = resource;
-  if (!events) return false;
-  const eventStatus = _.filter(events, ['type', 'Warning']);
-  return !!eventStatus.length;
-};
-
-/**
  * create instance of TransformResourceData, return object containing all methods
  * @param resources
  * @param utils
  */
-const createInstanceForResource = (resources: TopologyDataResources, utils?: Function[]) => {
-  const transformResourceData = new TransformResourceData(resources, utils);
+const createInstanceForResource = (
+  resources: TopologyDataResources,
+  utils?: Function[],
+  installedOperators?: ClusterServiceVersionKind[],
+) => {
+  const transformResourceData = new TransformResourceData(resources, utils, installedOperators);
 
   return {
     deployments: transformResourceData.createDeploymentItems,
@@ -221,7 +216,6 @@ export const createTopologyNodeData = (
         dc: deploymentConfig,
       },
       showPodCount: filters && filters.display.podCount,
-      eventWarning: isEventWarning(dc),
     },
   };
 };
@@ -296,33 +290,38 @@ export const getTopologyEdgeItems = (
   });
 
   _.forEach(edgesFromServiceBinding(dc, sbrs), (sbr) => {
-    // handles multiple edges
-    const targetNode = _.get(
-      _.find(resources, (deployment) => {
-        const targetFound =
-          _.get(deployment, 'metadata.ownerReferences[0].name') ===
-            sbr.spec.backingServiceSelector.resourceRef &&
-          _.get(deployment, 'metadata.ownerReferences[0].kind') ===
-            sbr.spec.backingServiceSelector.kind;
-        const appGroup = _.get(
-          deployment,
-          ['metadata', 'labels', 'app.kubernetes.io/part-of'],
-          null,
-        );
-        return targetFound && (!application || application === appGroup);
-      }),
-      ['metadata', 'uid'],
-    );
-    const uid = _.get(dc, ['metadata', 'uid']);
-    if (targetNode) {
-      edges.push({
-        id: `${uid}_${targetNode}`,
-        type: TYPE_SERVICE_BINDING,
-        source: uid,
-        target: targetNode,
-        data: { sbr },
-      });
-    }
+    // look for multiple backing services first in `backingServiceSelectors`
+    // followed by a fallback to the single reference in `backingServiceSelector`
+    _.forEach(sbr.spec.backingServiceSelectors || [sbr.spec.backingServiceSelector], (bss) => {
+      // handles multiple edges
+      const targetNode = _.get(
+        _.find(resources, (deployment) => {
+          const name = _.get(deployment, 'metadata.ownerReferences[0].name');
+          const kind = _.get(deployment, 'metadata.ownerReferences[0].kind');
+          const targetFound = bss.kind === kind && bss.resourceRef === name;
+          if (targetFound) {
+            const appGroup = _.get(
+              deployment,
+              ['metadata', 'labels', 'app.kubernetes.io/part-of'],
+              null,
+            );
+            return !application || application === appGroup;
+          }
+          return false;
+        }),
+        ['metadata', 'uid'],
+      );
+      const uid = _.get(dc, ['metadata', 'uid']);
+      if (targetNode) {
+        edges.push({
+          id: `${uid}_${targetNode}`,
+          type: TYPE_SERVICE_BINDING,
+          source: uid,
+          target: targetNode,
+          data: { sbr },
+        });
+      }
+    });
   });
 
   return edges;
@@ -599,7 +598,7 @@ export const transformTopologyData = (
   resources.deployments.data = filterNonKnativeDeployments(deploymentResources);
   // END: kn call to form topology data
 
-  const transformResourceData = createInstanceForResource(resources, utils);
+  const transformResourceData = createInstanceForResource(resources, utils, installedOperators);
   const allResources = _.flatten(
     allowedResources.map((resourceKind) => {
       return resources[resourceKind]

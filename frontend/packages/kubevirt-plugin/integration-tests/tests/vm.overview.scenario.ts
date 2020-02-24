@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 import { testName } from '@console/internal-integration-tests/protractor.conf';
-import { isLoaded, resourceTitle } from '@console/internal-integration-tests/views/crud.view';
+import { resourceTitle } from '@console/internal-integration-tests/views/crud.view';
 import { asyncForEach, createResource, deleteResource } from '@console/shared/src/test-utils/utils';
 import * as vmView from '../views/virtualMachine.view';
 import { getVMManifest, basicVMConfig } from './utils/mocks';
@@ -53,7 +53,6 @@ describe('Test VM overview', () => {
 
   beforeEach(async () => {
     await vm.navigateToTab(TAB.Details);
-    await isLoaded();
   });
 
   it('Check VM details in overview when VM is off', async () => {
@@ -64,8 +63,8 @@ describe('Test VM overview', () => {
       os: basicVMConfig.operatingSystem,
       profile: basicVMConfig.workloadProfile,
       template: `rhel7-desktop-tiny-${COMMON_TEMPLATES_VERSION}`,
-      bootOrder: ['rootdisk', 'nic0', 'cloudinitdisk'],
-      flavor: basicVMConfig.flavor,
+      bootOrder: ['rootdisk (Disk)', 'nic0 (NIC)', 'cloudinitdisk (Disk)'],
+      flavor: 'Tiny: 1 vCPU, 1 GiB Memory',
       ip: NOT_AVAILABLE,
       pod: NOT_AVAILABLE,
       node: NOT_AVAILABLE,
@@ -79,7 +78,7 @@ describe('Test VM overview', () => {
       profile: await vmView.vmDetailWorkloadProfile(testName, vmName).getText(),
       template: await vmView.vmDetailTemplate(testName, vmName).getText(),
       bootOrder: await vmView.vmDetailBootOrder(testName, vmName).getText(),
-      flavor: await vmView.vmDetailFlavor(testName, vmName).getText(),
+      flavorConfig: await vmView.vmDetailFlavor(testName, vmName).getText(),
       ip: await vmView.vmDetailIP(testName, vmName).getText(),
       pod: await vmView.vmDetailPod(testName, vmName).getText(),
       node: await vmView.vmDetailNode(testName, vmName).getText(),

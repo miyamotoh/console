@@ -2,7 +2,6 @@ import { ComponentType } from 'react';
 import { FirehoseResult, KebabOption } from '@console/internal/components/utils';
 import { ExtPodKind, OverviewItem, PodControllerOverviewItem } from '@console/shared';
 import { DeploymentKind, K8sResourceKind, PodKind, EventKind } from '@console/internal/module/k8s';
-import { ClusterServiceVersionKind } from '@console/operator-lifecycle-manager';
 import { Pipeline, PipelineRun } from '../../utils/pipeline-augment';
 
 export type Point = [number, number];
@@ -111,7 +110,6 @@ export interface WorkloadData {
   donutStatus: DonutStatusData;
   connectedPipeline: ConnectedWorkloadPipeline;
   showPodCount?: boolean;
-  eventWarning?: boolean;
 }
 
 export interface DonutStatusData {
@@ -121,10 +119,6 @@ export interface DonutStatusData {
   dc: K8sResourceKind;
   isRollingOut: boolean;
 }
-
-export type OperatorBackedServiceKindMap = {
-  [name: string]: ClusterServiceVersionKind;
-};
 
 export interface GraphApi {
   zoomIn(): void;
