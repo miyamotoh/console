@@ -79,6 +79,8 @@ export default (state: UIState, action: UIAction): UIState => {
       user: {},
       consoleLinks: [],
       monitoringDashboards: ImmutableMap({
+        pollInterval: 30 * 1000,
+        timespan: 30 * 60 * 1000,
         variables: ImmutableMap(),
       }),
       queryBrowser: ImmutableMap({
@@ -145,9 +147,27 @@ export default (state: UIState, action: UIAction): UIState => {
     case ActionType.MonitoringDashboardsPatchVariable:
       return state.mergeIn(
         ['monitoringDashboards', 'variables', action.payload.key],
-        action.payload.patch,
+        ImmutableMap(action.payload.patch),
       );
 
+    case ActionType.MonitoringDashboardsSetPollInterval:
+      return state.setIn(['monitoringDashboards', 'pollInterval'], action.payload.pollInterval);
+
+    case ActionType.MonitoringDashboardsSetTimespan:
+      return state.setIn(['monitoringDashboards', 'timespan'], action.payload.timespan);
+
+    case ActionType.MonitoringDashboardsVariableOptionsLoaded: {
+      const { key, newOptions } = action.payload;
+      const { options, value } = state.getIn(['monitoringDashboards', 'variables', key]).toJS();
+      const patch = _.isEqual(options, newOptions)
+        ? { isLoading: false }
+        : {
+            isLoading: false,
+            options: newOptions,
+            value: newOptions.includes(value) ? value : newOptions[0],
+          };
+      return state.mergeIn(['monitoringDashboards', 'variables', key], ImmutableMap(patch));
+    }
     case ActionType.SetMonitoringData: {
       const alerts =
         action.payload.key === 'alerts'

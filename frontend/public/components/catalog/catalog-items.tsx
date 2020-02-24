@@ -190,34 +190,6 @@ const getAvailableFilters = (initialFilters): PageFilters => {
     },
   };
 
-  filters.capabilityLevel = {
-    BasicInstall: {
-      value: 'basicinstall',
-      label: 'Basic Install',
-      active: false,
-    },
-    SeamlessUpgrades: {
-      value: 'seamlessupgrades',
-      label: 'Seamless Upgrades',
-      active: false,
-    },
-    FullLifecycle: {
-      value: 'fulllifecycle',
-      label: 'Full Lifecycle',
-      active: true,
-    },
-    DeepInsights: {
-      value: 'deepinsights',
-      label: 'Deep Insights',
-      active: true,
-    },
-    AutoPilot: {
-      value: 'autopilot',
-      label: 'Auto Pilot',
-      active: true,
-    },
-  };
-
   return filters;
 };
 
@@ -371,9 +343,9 @@ export class CatalogTileViewPage extends React.Component<
                   }
                   iconImg={detailsItem.tileImgUrl}
                 />
-                <div className="co-catalog-page__button">
+                <div className="co-catalog-page__overlay-actions">
                   <Link
-                    className="pf-c-button pf-m-primary co-catalog-page__overlay-create"
+                    className="pf-c-button pf-m-primary co-catalog-page__overlay-action"
                     to={detailsItem.href}
                     role="button"
                     title={detailsItem.createLabel}

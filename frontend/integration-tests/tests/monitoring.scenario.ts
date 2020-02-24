@@ -1,6 +1,6 @@
 import { browser, ExpectedConditions as until } from 'protractor';
 
-import { appHost, checkLogs, checkErrors, firstElementByTestID } from '../protractor.conf';
+import { checkLogs, checkErrors, firstElementByTestID, appHost } from '../protractor.conf';
 import { dropdownMenuForTestID } from '../views/form.view';
 import * as crudView from '../views/crud.view';
 import * as yamlView from '../views/yaml.view';
@@ -20,7 +20,7 @@ const testDetailsPage = (subTitle, alertName, expectLabel = true) => {
   }
 };
 
-xdescribe('Monitoring: Alerts', () => {
+describe('Monitoring: Alerts', () => {
   afterEach(() => {
     checkLogs();
     checkErrors();
@@ -108,7 +108,7 @@ xdescribe('Monitoring: Alerts', () => {
   });
 });
 
-xdescribe('Monitoring: Silences', () => {
+describe('Monitoring: Silences', () => {
   afterEach(() => {
     checkLogs();
     checkErrors();
@@ -188,7 +188,7 @@ xdescribe('Monitoring: Silences', () => {
   });
 });
 
-xdescribe('Alertmanager: YAML', () => {
+describe('Alertmanager: YAML', () => {
   afterEach(() => {
     checkLogs();
     checkErrors();
@@ -217,7 +217,7 @@ xdescribe('Alertmanager: YAML', () => {
   });
 });
 
-xdescribe('Alertmanager: Configuration', () => {
+describe('Alertmanager: Configuration', () => {
   afterAll(() => {
     execSync(
       `kubectl patch secret 'alertmanager-main' -n 'openshift-monitoring' --type='json' -p='[{ op: 'replace', path: '/data/alertmanager.yaml', value: ${monitoringView.defaultAlertmanagerYaml}}]'`,
@@ -295,7 +295,18 @@ xdescribe('Alertmanager: Configuration', () => {
     expect(monitoringView.saveButton.isEnabled()).toBe(true); // subform valid, save should be enabled at this point
 
     // labels
+    expect(firstElementByTestID('invalid-label-name-error').isPresent()).toBe(false);
+    await firstElementByTestID('label-name-0').sendKeys('9abcgo'); // invalid, cannot start with digit
+    expect(firstElementByTestID('invalid-label-name-error').isPresent()).toBe(true);
+    await firstElementByTestID('label-name-0').clear();
+    await firstElementByTestID('label-name-0').sendKeys('_abcd'); // valid, can start with and contain '_'
+    expect(firstElementByTestID('invalid-label-name-error').isPresent()).toBe(false);
+    await firstElementByTestID('label-name-0').clear();
+    await firstElementByTestID('label-name-0').sendKeys('abcd@#$R@T%'); // invalid chars
+    expect(firstElementByTestID('invalid-label-name-error').isPresent()).toBe(true);
+    await firstElementByTestID('label-name-0').clear();
     await firstElementByTestID('label-name-0').sendKeys('severity');
+    expect(firstElementByTestID('invalid-label-name-error').isPresent()).toBe(false);
     await firstElementByTestID('label-value-0').sendKeys('warning');
 
     await monitoringView.saveButton.click();
@@ -337,7 +348,7 @@ xdescribe('Alertmanager: Configuration', () => {
   });
 
   it('deletes a receiver correctly', async () => {
-    await horizontalnavView.clickHorizontalTab('Overview');
+    await horizontalnavView.clickHorizontalTab('Details');
     await crudView.isLoaded();
     expect(crudView.resourceRows.count()).toBe(2);
 

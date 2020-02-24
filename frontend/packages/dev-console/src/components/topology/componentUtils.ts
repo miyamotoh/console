@@ -21,6 +21,7 @@ import { moveNodeToGroup } from './components/moveNodeToGroup';
 import { TYPE_CONNECTS_TO, TYPE_WORKLOAD, TYPE_KNATIVE_SERVICE, TYPE_EVENT_SOURCE } from './const';
 import './components/GraphComponent.scss';
 import { graphContextMenu, groupContextMenu } from './nodeContextMenu';
+import { errorModal } from '@console/internal/components/modals';
 
 type GraphProps = {
   element: Graph;
@@ -83,7 +84,15 @@ const nodeDragSourceSpec = (
   type: string,
   allowRegroup: boolean = true,
   canEdit: boolean = false,
-): DragSourceSpec<DragObjectWithType, Node, {}, NodeProps> => ({
+): DragSourceSpec<
+  DragObjectWithType,
+  Node,
+  {
+    dragging?: boolean;
+    regrouping?: boolean;
+  },
+  NodeProps
+> => ({
   item: { type },
   operation: (monitor, props) => {
     return (canEdit || props.canEdit) && allowRegroup
@@ -127,7 +136,7 @@ const nodesEdgeIsDragging = (monitor, props) => {
 const nodeDropTargetSpec: DropTargetSpec<
   GraphElement,
   any,
-  { droppable: boolean; canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
+  { canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
   NodeProps
 > = {
   accept: [MOVE_CONNECTOR_DROP_TYPE, CREATE_CONNECTOR_DROP_TYPE],
@@ -141,9 +150,8 @@ const nodeDropTargetSpec: DropTargetSpec<
     return !props.element.getTargetEdges().find((e) => e.getSource() === item);
   },
   collect: (monitor, props) => ({
-    droppable: monitor.isDragging(),
     canDrop: highlightNode(monitor, props),
-    dropTarget: monitor.isOver(),
+    dropTarget: monitor.isOver({ shallow: true }),
     edgeDragging: nodesEdgeIsDragging(monitor, props),
   }),
 };
@@ -185,7 +193,7 @@ const groupWorkloadDropTargetSpec: DropTargetSpec<
     monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE,
   collect: (monitor) => ({
     droppable: monitor.isDragging() && monitor.getOperation() === REGROUP_OPERATION,
-    dropTarget: monitor.isOver(),
+    dropTarget: monitor.isOver({ shallow: true }),
     canDrop: monitor.canDrop(),
   }),
   dropHint: 'create',
@@ -194,7 +202,7 @@ const groupWorkloadDropTargetSpec: DropTargetSpec<
 const graphEventSourceDropTargetSpec: DropTargetSpec<
   Edge,
   any,
-  { droppable: boolean; canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
+  { canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
   NodeProps
 > = {
   accept: [MOVE_EV_SRC_CONNECTOR_DROP_TYPE],
@@ -202,9 +210,8 @@ const graphEventSourceDropTargetSpec: DropTargetSpec<
     return item.getSource() !== props.element;
   },
   collect: (monitor, props) => ({
-    droppable: monitor.isDragging(),
     canDrop: monitor.canDrop(),
-    dropTarget: monitor.isOver(),
+    dropTarget: monitor.isOver({ shallow: true }),
     edgeDragging: nodesEdgeIsDragging(monitor, props),
   }),
 };
@@ -218,6 +225,7 @@ const edgeDragSourceSpec = (
     replaceTargetNode?: Node,
     serviceBindingFlag?: boolean,
   ) => Promise<K8sResourceKind[] | K8sResourceKind>,
+  failureTitle: string = 'Error moving connection',
 ): DragSourceSpec<DragObjectWithType, Node, { dragging: boolean }, EdgeProps> => ({
   item: { type },
   operation: MOVE_CONNECTOR_OPERATION,
@@ -231,7 +239,14 @@ const edgeDragSourceSpec = (
   end: (dropResult, monitor, props) => {
     props.element.setEndPoint();
     if (monitor.didDrop() && dropResult) {
-      callback(props.element.getSource(), dropResult, props.element.getTarget(), serviceBinding);
+      callback(
+        props.element.getSource(),
+        dropResult,
+        props.element.getTarget(),
+        serviceBinding,
+      ).catch((error) => {
+        errorModal({ title: failureTitle, error: error.message, showIcon: true });
+      });
     }
   },
   collect: (monitor) => ({
@@ -243,18 +258,26 @@ const createConnectorCallback = (serviceBinding: boolean) => (
   source: Node,
   target: Node | Graph,
 ): React.ReactElement[] | null => {
+  if (source === target) {
+    return null;
+  }
+
   if (isGraph(target)) {
     return graphContextMenu(target, source);
   }
   if (target.isGroup()) {
     return groupContextMenu(target, source);
   }
-  createConnection(source, target, null, serviceBinding);
+  createConnection(source, target, null, serviceBinding).catch((error) => {
+    errorModal({ title: 'Error creating connection', error: error.message });
+  });
   return null;
 };
 
 const removeConnectorCallback = (edge: Edge): void => {
-  removeConnection(edge);
+  removeConnection(edge).catch((error) => {
+    errorModal({ title: 'Error removing connection', error: error.message });
+  });
   return null;
 };
 

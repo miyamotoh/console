@@ -27,10 +27,10 @@ import { getOperatingSystemName, getOperatingSystem } from '../../selectors/vm';
 import { getVmiIpAddresses } from '../../selectors/vmi/ip-address';
 import { findVMPod } from '../../selectors/pod/selectors';
 import { isVMIPaused } from '../../selectors/vmi';
-
-import './vm-resource.scss';
 import { VirtualMachineInstanceModel, VirtualMachineModel } from '../../models';
 import { asVMILikeWrapper } from '../../k8s/wrapper/utils/convert';
+
+import './vm-resource.scss';
 
 export const VMDetailsItem: React.FC<VMDetailsItemProps> = ({
   title,
@@ -187,9 +187,9 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
       <VMDetailsItem
         title="IP Address"
         idValue={prefixedID(id, 'ip-addresses')}
-        isNotAvail={!ipAddrs}
+        isNotAvail={!launcherPod || !ipAddrs}
       >
-        {ipAddrs}
+        {launcherPod && ipAddrs}
       </VMDetailsItem>
 
       <VMDetailsItem title="Node" idValue={prefixedID(id, 'node')} isNotAvail={!nodeName}>
@@ -201,7 +201,7 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
           <EditButton
             id={prefixedID(id, 'flavor-edit')}
             canEdit={canEdit}
-            onClick={() => vmFlavorModal({ vmLike: vm })}
+            onClick={() => vmFlavorModal({ vmLike: vm, blocking: true })}
           >
             {flavorText}
           </EditButton>

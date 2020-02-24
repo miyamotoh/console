@@ -6,7 +6,7 @@ import {
   ValidationErrorType,
   ValidationObject,
 } from '@console/shared';
-import { validateTrim, validateURL, validateBus } from '../common';
+import { validateTrim, validateURL } from '../common';
 import { DiskWrapper } from '../../../k8s/wrapper/vm/disk-wrapper';
 import { VolumeWrapper } from '../../../k8s/wrapper/vm/volume-wrapper';
 import { DataVolumeWrapper } from '../../../k8s/wrapper/vm/data-volume-wrapper';
@@ -14,9 +14,9 @@ import { POSITIVE_SIZE_ERROR } from '../strings';
 import { StorageUISource } from '../../../components/modals/disk-modal/storage-ui-source';
 import { CombinedDisk } from '../../../k8s/wrapper/vm/combined-disk';
 import { PersistentVolumeClaimWrapper } from '../../../k8s/wrapper/vm/persistent-volume-claim-wrapper';
-import { DiskBus } from '../../../constants/vm/storage/disk-bus';
 import { DiskType } from '../../../constants/vm/storage/disk-type';
 import { UIDiskValidation } from './types';
+import { TemplateValidations } from '../template/template-validations';
 
 const validateDiskName = (name: string, usedDiskNames: Set<string>): ValidationObject => {
   let validation = validateDNS1123SubdomainValue(name);
@@ -54,11 +54,11 @@ export const validateDisk = (
   {
     usedDiskNames,
     usedPVCNames,
-    allowedBusses,
+    templateValidations,
   }: {
     usedDiskNames?: Set<string>;
     usedPVCNames?: Set<string>;
-    allowedBusses: Set<DiskBus>;
+    templateValidations: TemplateValidations;
   },
 ): UIDiskValidation => {
   const validations = {
@@ -83,68 +83,76 @@ export const validateDisk = (
     !!persistentVolumeClaimWrapper,
   );
 
-  if (source) {
-    if (source.requiresVolume()) {
-      addRequired(volume && volume.hasType());
-    }
+  const tValidations = templateValidations || new TemplateValidations();
+  const diskType = disk.getType();
 
-    if (source.requiresURL()) {
-      const url = dataVolume && dataVolume.getURL();
-      addRequired(url);
-      validations.url = validateURL(url, { subject: 'URL' });
-    }
+  if (source.requiresVolume()) {
+    addRequired(volume && volume.hasType());
+  }
 
-    if (source.requiresContainerImage()) {
-      const container = volume.getContainerImage();
-      addRequired(container);
-      validations.container = validateTrim(container, { subject: 'Container' });
-    }
+  if (source.requiresURL()) {
+    const url = dataVolume && dataVolume.getURL();
+    addRequired(url);
+    validations.url = validateURL(url, { subject: 'URL' });
+  }
 
+  if (source.requiresContainerImage()) {
+    const container = volume.getContainerImage();
+    addRequired(container);
+    validations.container = validateTrim(container, { subject: 'Container' });
+  }
+
+  if (source.requiresDatavolume()) {
+    addRequired(dataVolume);
+  }
+
+  if (source.requiresNewPVC()) {
+    addRequired(persistentVolumeClaimWrapper);
+  }
+
+  if (source.requiresSize()) {
+    let missingSize;
     if (source.requiresDatavolume()) {
-      addRequired(dataVolume);
+      missingSize = !dataVolume || !dataVolume.hasSize();
     }
-
     if (source.requiresNewPVC()) {
-      addRequired(persistentVolumeClaimWrapper);
+      missingSize =
+        missingSize || !persistentVolumeClaimWrapper || !persistentVolumeClaimWrapper.hasSize();
     }
 
-    if (source.requiresSize()) {
-      let missingSize;
-      if (source.requiresDatavolume()) {
-        missingSize = !dataVolume || !dataVolume.hasSize();
-      }
-      if (source.requiresNewPVC()) {
-        missingSize =
-          missingSize || !persistentVolumeClaimWrapper || !persistentVolumeClaimWrapper.hasSize();
-      }
-
-      if (missingSize) {
-        addRequired(null);
-        validations.size = getEmptyDiskSizeValidation();
-      }
-    }
-
-    if (source.requiresPVC()) {
-      const pvcName = new CombinedDisk({
-        diskWrapper: disk,
-        volumeWrapper: volume,
-        dataVolumeWrapper: dataVolume,
-        persistentVolumeClaimWrapper,
-        isNewPVC: !!persistentVolumeClaimWrapper,
-      }).getPVCName(source);
-      addRequired(pvcName);
-      validations.pvc = validatePVCName(pvcName, usedPVCNames);
-    }
-
-    // TODO: implement CDROM disk bus validation
-    if (disk.getType() === DiskType.DISK) {
-      addRequired(disk.getDiskBus());
-      validations.diskInterface = validateBus(disk.getDiskBus(), allowedBusses);
+    if (missingSize) {
+      addRequired(null);
+      validations.size = getEmptyDiskSizeValidation();
     }
   }
+
+  if (source.requiresPVC()) {
+    const pvcName = new CombinedDisk({
+      diskWrapper: disk,
+      volumeWrapper: volume,
+      dataVolumeWrapper: dataVolume,
+      persistentVolumeClaimWrapper,
+      isNewPVC: !!persistentVolumeClaimWrapper,
+    }).getPVCName(source);
+    addRequired(pvcName);
+    validations.pvc = validatePVCName(pvcName, usedPVCNames);
+  }
+
+  if (diskType !== DiskType.FLOPPY) {
+    addRequired(disk.getDiskBus());
+    validations.diskInterface = tValidations.validateBus(disk.getDiskBus()).asValidationObject();
+  }
+
   return {
     validations,
     hasAllRequiredFilled: !!hasAllRequiredFilled,
-    isValid: !!hasAllRequiredFilled && !Object.keys(validations).find((key) => validations[key]),
+    isValid:
+      !!hasAllRequiredFilled &&
+      !Object.keys(validations).find(
+        (key) =>
+          validations[key] &&
+          (validations[key].type === ValidationErrorType.Error ||
+            validations[key].type === ValidationErrorType.TrivialError),
+      ),
   };
 };

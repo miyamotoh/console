@@ -1,10 +1,16 @@
 import * as React from 'react';
 import { Node, observer } from '@console/topology';
-import { AddNodeDirection, BUILDER_NODE_ADD_RADIUS, BUILDER_NODE_ERROR_RADIUS } from './const';
+import {
+  AddNodeDirection,
+  BUILDER_NODE_ADD_RADIUS,
+  BUILDER_NODE_ERROR_RADIUS,
+  BUILDER_NODE_ADD_PADDING,
+} from './const';
 import ErrorNodeDecorator from './ErrorNodeDecorator';
 import PlusNodeDecorator from './PlusNodeDecorator';
 import TaskNode from './TaskNode';
 import { BuilderNodeModelData } from './types';
+import { TooltipPosition } from '@patternfly/react-core';
 
 const BuilderNode: React.FC<{ element: Node }> = ({ element }) => {
   const [showAdd, setShowAdd] = React.useState(false);
@@ -28,29 +34,33 @@ const BuilderNode: React.FC<{ element: Node }> = ({ element }) => {
         fill="transparent"
       />
       <g onClick={() => onNodeSelection(data)}>
-        <TaskNode element={element} />
-        {error?.message && (
+        <TaskNode element={element} disableTooltip />
+        {error && (
           <ErrorNodeDecorator
             x={BUILDER_NODE_ERROR_RADIUS / 2}
             y={BUILDER_NODE_ERROR_RADIUS / 4}
-            errorStr={error.message}
+            errorStr={error}
           />
         )}
       </g>
       <g style={{ display: showAdd ? 'block' : 'none' }}>
         <PlusNodeDecorator
-          x={width + BUILDER_NODE_ADD_RADIUS}
+          x={width + BUILDER_NODE_ADD_RADIUS + BUILDER_NODE_ADD_PADDING}
           y={height / 2}
+          tooltip="Add a sequential task after this task"
           onClick={() => onAddNode(AddNodeDirection.AFTER)}
         />
         <PlusNodeDecorator
-          x={-BUILDER_NODE_ADD_RADIUS}
+          x={-BUILDER_NODE_ADD_RADIUS - BUILDER_NODE_ADD_PADDING}
           y={height / 2}
+          tooltip="Add a sequential task before this task"
           onClick={() => onAddNode(AddNodeDirection.BEFORE)}
         />
         <PlusNodeDecorator
           x={width / 2}
-          y={height + BUILDER_NODE_ADD_RADIUS}
+          y={height + BUILDER_NODE_ADD_RADIUS + BUILDER_NODE_ADD_PADDING}
+          tooltip="Add a parallel task"
+          tooltipPosition={TooltipPosition.bottom}
           onClick={() => onAddNode(AddNodeDirection.PARALLEL)}
         />
       </g>

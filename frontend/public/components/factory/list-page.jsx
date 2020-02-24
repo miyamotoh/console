@@ -6,7 +6,7 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { Button } from '@patternfly/react-core';
 
-import { KEYBOARD_SHORTCUTS, getBadgeFromType } from '@console/shared';
+import { KEYBOARD_SHORTCUTS } from '@console/shared';
 import { filterList } from '../../actions/k8s';
 import { CheckBoxes, storagePrefix } from '../row-filter';
 import { ErrorPage404, ErrorBoundaryFallback } from '../error';
@@ -24,8 +24,16 @@ import {
   RequireCreatePermission,
 } from '../utils';
 
-/** @type {React.SFC<{disabled?: boolean, label: string, onChange: React.ChangeEventHandler<any>, defaultValue?: string, value?: string}}>} */
-export const TextFilter = ({ label, onChange, defaultValue, style, className, value }) => {
+/** @type {React.SFC<{disabled?: boolean, label?: string, onChange: React.ChangeEventHandler<any>, defaultValue?: string, value?: string, placeholder?: string,}}>} */
+export const TextFilter = ({
+  label,
+  onChange,
+  defaultValue,
+  style,
+  className,
+  value,
+  placeholder = `Filter ${label}...`,
+}) => {
   const input = React.useRef();
   const onKeyDown = (e) => {
     const { nodeName } = e.target;
@@ -60,7 +68,7 @@ export const TextFilter = ({ label, onChange, defaultValue, style, className, va
         defaultValue={defaultValue}
         onChange={onChange}
         onKeyDown={(e) => e.key === 'Escape' && e.target.blur()}
-        placeholder={`Filter ${label}...`}
+        placeholder={placeholder}
         style={style}
         tabIndex={0}
         type="text"
@@ -284,6 +292,11 @@ export const FireMan_ = connect(null, { filterList })(
                 />
               </div>
             )}
+            {!title && badge && (
+              <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--badge">
+                {badge}
+              </div>
+            )}
           </div>
           <div className="co-m-pane__body">
             {inject(this.props.children, {
@@ -421,7 +434,7 @@ export const ListPage = withFallback((props) => {
       showTitle={showTitle}
       textFilter={textFilter}
       title={title}
-      badge={badge || getBadgeFromType(ko.badge)}
+      badge={badge}
     />
   );
 }, ErrorBoundaryFallback);
@@ -455,7 +468,7 @@ export const MultiListPage = (props) => {
 
   const resources = _.map(props.resources, (r) => ({
     ...r,
-    isList: true,
+    isList: r.isList !== undefined ? r.isList : true,
     namespace: r.namespaced ? namespace : r.namespace,
     prop: r.prop || r.kind,
   }));

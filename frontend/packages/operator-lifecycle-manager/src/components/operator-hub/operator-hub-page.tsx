@@ -50,6 +50,7 @@ export const OperatorHubList: React.SFC<OperatorHubListProps> = (props) => {
         capabilities: capabilityLevel,
         'marketplace.openshift.io/action-text': marketplaceActionText,
         'marketplace.openshift.io/remote-workflow': marketplaceRemoteWorkflow,
+        'marketplace.openshift.io/support-workflow': marketplaceSupportWorkflow,
       } = currentCSVAnnotations;
 
       return {
@@ -90,9 +91,18 @@ export const OperatorHubList: React.SFC<OperatorHubListProps> = (props) => {
         capabilityLevel,
         marketplaceActionText,
         marketplaceRemoteWorkflow,
+        marketplaceSupportWorkflow,
       };
     },
   );
+
+  const uniqueItems = _.uniqBy(items, 'uid');
+  if (uniqueItems.length !== items.length) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `${items.length - uniqueItems.length} duplicate packagemanifests returned from olm query.`,
+    );
+  }
 
   return (
     <StatusBox
@@ -118,7 +128,7 @@ export const OperatorHubList: React.SFC<OperatorHubListProps> = (props) => {
         />
       )}
     >
-      <OperatorHubTileView items={items} namespace={namespace} />
+      <OperatorHubTileView items={uniqueItems} namespace={namespace} />
     </StatusBox>
   );
 };

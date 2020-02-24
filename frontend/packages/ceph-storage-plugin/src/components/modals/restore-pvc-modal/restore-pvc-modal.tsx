@@ -27,7 +27,11 @@ export const RestorePVCModal = withHandlePromise((props: RestorePVCModalProps) =
   const [restorePVCName, setPVCName] = React.useState(`${getName(resource) || 'pvc'}-restore`);
 
   React.useEffect(() => {
-    k8sGet(PersistentVolumeClaimModel, resource?.spec?.source?.name, getNamespace(resource))
+    k8sGet(
+      PersistentVolumeClaimModel,
+      resource?.spec?.source?.persistentVolumeClaimName,
+      getNamespace(resource),
+    )
       .then(setResource)
       .catch((error) => {
         setResource(null);
@@ -73,9 +77,9 @@ export const RestorePVCModal = withHandlePromise((props: RestorePVCModalProps) =
   return (
     <div className="modal-content modal-content--no-inner-scroll">
       <ModalTitle>Restore</ModalTitle>
-      <ModalBody>
-        <p>After restore action is finished, a new PVC will be created.</p>
-        <Form onSubmit={submit}>
+      <Form onSubmit={submit}>
+        <ModalBody>
+          <p>After restore action is finished, a new PVC will be created.</p>
           <FormGroup label="Name" isRequired fieldId="restore-pvc-modal__name">
             <TextInput
               isRequired
@@ -115,21 +119,21 @@ export const RestorePVCModal = withHandlePromise((props: RestorePVCModalProps) =
                   <p>{resource?.apiVersion}</p>
                 </div>
                 <div>
-                  <p className="ceph-restore-pvc-modal__pvc-details">Persistent Volume</p>
+                  <p className="ceph-restore-pvc-modal__pvc-details">Persistent Volume Claim</p>
                   <ResourceIcon kind={PersistentVolumeClaimModel.kind} />
-                  {resource?.spec?.source?.name}
+                  {resource?.spec?.source?.persistentVolumeClaimName}
                 </div>
               </GridItem>
             </Grid>
           </div>
-        </Form>
-      </ModalBody>
-      <ModalSubmitFooter
-        inProgress={inProgress}
-        errorMessage={errorMessage}
-        submitText="Restore"
-        cancel={cancel}
-      />
+        </ModalBody>
+        <ModalSubmitFooter
+          inProgress={inProgress}
+          errorMessage={errorMessage}
+          submitText="Restore"
+          cancel={cancel}
+        />
+      </Form>
     </div>
   );
 });

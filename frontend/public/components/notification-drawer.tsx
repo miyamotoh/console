@@ -11,6 +11,7 @@ import {
 import * as UIActions from '@console/internal/actions/ui';
 import store, { RootState } from '@console/internal/redux';
 import { Alert, alertURL } from '@console/internal/components/monitoring';
+import { RedExclamationCircleIcon } from '@console/shared';
 import {
   getAlertDescription,
   getAlertMessage,
@@ -22,6 +23,7 @@ import {
 import {
   EmptyState,
   EmptyStateBody,
+  EmptyStateIcon,
   EmptyStateSecondaryActions,
   EmptyStateVariant,
   Title,
@@ -29,16 +31,24 @@ import {
 
 import { coFetchJSON } from '../co-fetch';
 import { FirehoseResult } from './utils';
-import {
-  ClusterUpdate,
-  ClusterVersionKind,
-  hasAvailableUpdates,
-  K8sResourceKind,
-} from '../module/k8s';
+import { ClusterUpdate, ClusterVersionKind } from '../module/k8s';
 import { getSortedUpdates } from './modals/cluster-update-modal';
 import { usePrevious } from '@console/metal3-plugin/src/hooks';
 
-const emptyState = (toggleExpanded: () => void) => (
+const criticalCompare = (a: Alert): boolean => getAlertSeverity(a) === 'critical';
+const otherAlertCompare = (a: Alert): boolean => getAlertSeverity(a) !== 'critical';
+
+const AlertErrorState: React.FC<AlertErrorProps> = ({ errorText }) => (
+  <EmptyState variant={EmptyStateVariant.full}>
+    <EmptyStateIcon className="co-status-card__alerts-icon" icon={RedExclamationCircleIcon} />
+    <Title headingLevel="h5" size="lg">
+      Alerts could not be loaded
+    </Title>
+    {errorText && <EmptyStateBody>{errorText}</EmptyStateBody>}
+  </EmptyState>
+);
+
+const AlertEmptyState: React.FC<AlertEmptyProps> = ({ drawerToggle }) => (
   <EmptyState variant={EmptyStateVariant.full} className="co-status-card__alerts-msg">
     <Title headingLevel="h5" size="lg">
       No critical alerts
@@ -48,14 +58,20 @@ const emptyState = (toggleExpanded: () => void) => (
       or silenced critical alerts however.
     </EmptyStateBody>
     <EmptyStateSecondaryActions>
-      <Link to="/monitoring/alerts" onClick={toggleExpanded}>
+      <Link to="/monitoring/alerts" onClick={drawerToggle}>
         View all alerts
       </Link>
     </EmptyStateSecondaryActions>
   </EmptyState>
 );
-const criticalCompare = (a: Alert): boolean => getAlertSeverity(a) === 'critical';
-const otherAlertCompare = (a: Alert): boolean => getAlertSeverity(a) !== 'critical';
+
+const actionAlerts: ActionAlertType[] = [
+  {
+    name: 'AlertmanagerReceiversNotConfigured',
+    text: 'Configure receivers',
+    path: '/monitoring/alertmanagerconfig',
+  },
+];
 
 const getAlertNotificationEntries = (
   isLoaded: boolean,
@@ -66,17 +82,24 @@ const getAlertNotificationEntries = (
   isLoaded && !_.isEmpty(alertData)
     ? alertData
         .filter((a) => (isCritical ? criticalCompare(a) : otherAlertCompare(a)))
-        .map((alert, i) => (
-          <NotificationEntry
-            key={`${i}_${alert.activeAt}`}
-            description={getAlertDescription(alert) || getAlertMessage(alert)}
-            timestamp={getAlertTime(alert)}
-            type={NotificationTypes[getAlertSeverity(alert)]}
-            title={getAlertName(alert)}
-            toggleNotificationDrawer={toggleNotificationDrawer}
-            targetURL={alertURL(alert, alert.rule.id)}
-          />
-        ))
+        .map((alert, i) => {
+          const actionAlertMatch = actionAlerts.find(
+            (actionAlert) => actionAlert.name === alert.rule.name,
+          );
+          return (
+            <NotificationEntry
+              key={`${i}_${alert.activeAt}`}
+              description={getAlertDescription(alert) || getAlertMessage(alert)}
+              timestamp={getAlertTime(alert)}
+              type={NotificationTypes[getAlertSeverity(alert)]}
+              title={getAlertName(alert)}
+              toggleNotificationDrawer={toggleNotificationDrawer}
+              targetPath={alertURL(alert, alert.rule.id)}
+              actionText={actionAlertMatch?.text}
+              actionPath={actionAlertMatch?.path}
+            />
+          );
+        })
     : [];
 
 const getUpdateNotificationEntries = (
@@ -92,7 +115,7 @@ const getUpdateNotificationEntries = (
           type={NotificationTypes.update}
           title="Cluster update available"
           toggleNotificationDrawer={toggleNotificationDrawer}
-          targetURL="/settings/cluster"
+          targetPath="/settings/cluster"
         />,
       ]
     : [];
@@ -132,10 +155,10 @@ export const ConnectedNotificationDrawer_: React.FC<ConnectedNotificationDrawerP
     }
     return () => pollerTimeout.clearTimeout;
   }, []);
-  const cv: ClusterVersionKind = _.get(resources.cv, 'data') as ClusterVersionKind;
-  const cvLoaded: boolean = _.get(resources.cv, 'loaded');
-  const updateData: ClusterUpdate[] = hasAvailableUpdates(cv) ? getSortedUpdates(cv) : [];
-  const { data, loaded } = alerts;
+  const cv: ClusterVersionKind = resources.cv?.data;
+  const cvLoaded: boolean = resources.cv?.loaded;
+  const updateData: ClusterUpdate[] = getSortedUpdates(cv);
+  const { data, loaded, loadError } = alerts || {};
 
   const updateList: React.ReactNode[] = getUpdateNotificationEntries(
     cvLoaded,
@@ -158,17 +181,35 @@ export const ConnectedNotificationDrawer_: React.FC<ConnectedNotificationDrawerP
     !_.isEmpty(criticalAlertList),
   );
   const [isNonCriticalAlertExpanded, toggleNonCriticalAlertExpanded] = React.useState<boolean>(
-    false,
+    true,
   );
   const [isClusterUpdateExpanded, toggleClusterUpdateExpanded] = React.useState<boolean>(false);
   const prevDrawerToggleState = usePrevious(isDrawerExpanded);
 
+  const hasCriticalAlerts = criticalAlertList.length > 0;
+  const hasNonCriticalAlerts = otherAlertList.length > 0;
   React.useEffect(() => {
-    if (criticalAlertList.length > 0 && !prevDrawerToggleState && isDrawerExpanded) {
-      toggleAlertExpanded(!_.isEmpty(criticalAlertList));
+    if (hasCriticalAlerts && !prevDrawerToggleState && isDrawerExpanded) {
+      toggleAlertExpanded(true);
     }
-  }, [criticalAlertList, isAlertExpanded, isDrawerExpanded, prevDrawerToggleState]);
+    if (hasNonCriticalAlerts && !prevDrawerToggleState && isDrawerExpanded) {
+      toggleNonCriticalAlertExpanded(true);
+    }
+  }, [
+    hasCriticalAlerts,
+    hasNonCriticalAlerts,
+    isAlertExpanded,
+    isDrawerExpanded,
+    prevDrawerToggleState,
+  ]);
 
+  const emptyState = !_.isEmpty(loadError) ? (
+    <AlertErrorState errorText={loadError.message} />
+  ) : (
+    <AlertEmptyState drawerToggle={toggleNotificationDrawer} />
+  );
+
+  const criticalAlerts = _.isEmpty(criticalAlertList) ? emptyState : criticalAlertList;
   const criticalAlertCategory: React.ReactElement = (
     <NotificationCategory
       key="critical-alerts"
@@ -177,7 +218,7 @@ export const ConnectedNotificationDrawer_: React.FC<ConnectedNotificationDrawerP
       count={criticalAlertList.length}
       onExpandContents={toggleAlertExpanded}
     >
-      {_.isEmpty(criticalAlertList) ? emptyState(toggleNotificationDrawer) : criticalAlertList}
+      {criticalAlerts}
     </NotificationCategory>
   );
   const nonCriticalAlertCategory: React.ReactElement = !_.isEmpty(otherAlertList) ? (
@@ -226,10 +267,12 @@ type NotificationPoll = (url: string, dataHandler: (data) => any) => void;
 export type WithNotificationsProps = {
   isDrawerExpanded: boolean;
   notificationsRead: boolean;
-  alerts: {
+  alerts?: {
     data: Alert[];
     loaded: boolean;
-    loadError?: string;
+    loadError?: {
+      message?: string;
+    };
   };
 };
 
@@ -242,18 +285,34 @@ export type ConnectedNotificationDrawerProps = {
   alerts: {
     data: Alert[];
     loaded: boolean;
-    loadError?: string;
+    loadError?: {
+      message?: string;
+    };
   };
   resources?: {
-    [key: string]: FirehoseResult | FirehoseResult<K8sResourceKind>;
+    cv: FirehoseResult<ClusterVersionKind>;
   };
 };
 
 const notificationStateToProps = ({ UI }: RootState): WithNotificationsProps => ({
   isDrawerExpanded: !!UI.getIn(['notifications', 'isExpanded']),
   notificationsRead: !!UI.getIn(['notifications', 'isRead']),
-  alerts: UI.getIn(['monitoring', 'notificationAlerts']) || {},
+  alerts: UI.getIn(['monitoring', 'notificationAlerts']),
 });
+
+type ActionAlertType = {
+  name: string;
+  text: string;
+  path: string;
+};
+
+type AlertErrorProps = {
+  errorText: string;
+};
+
+type AlertEmptyProps = {
+  drawerToggle: (event: React.MouseEvent<HTMLElement>) => void;
+};
 
 const connectToNotifications = connect((state: RootState) => notificationStateToProps(state), {
   toggleNotificationDrawer: UIActions.notificationDrawerToggleExpanded,

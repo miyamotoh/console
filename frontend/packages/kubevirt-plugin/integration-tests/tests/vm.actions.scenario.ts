@@ -28,7 +28,7 @@ import { VirtualMachine } from './models/virtualMachine';
 
 describe('Test VM actions', () => {
   const leakedResources = new Set<string>();
-  const testVM = getVMManifest('URL', testName);
+  const testVM = getVMManifest('Container', testName);
 
   afterAll(async () => {
     removeLeakedResources(leakedResources);
@@ -92,7 +92,7 @@ describe('Test VM actions', () => {
       testVM.metadata.name = vmName;
       createResource(testVM);
       addLeakableResource(leakedResources, testVM);
-      await vm.navigateToTab(TAB.Overview);
+      await vm.navigateToTab(TAB.Details);
       await vm.waitForStatus(VM_STATUS.Off, VM_IMPORT_TIMEOUT_SECS);
     }, VM_IMPORT_TIMEOUT_SECS);
 

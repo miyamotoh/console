@@ -6,6 +6,7 @@ import { CatalogItemHeader, CatalogTile } from '@patternfly/react-catalog-view-e
 import * as classNames from 'classnames';
 import { Button, Modal } from '@patternfly/react-core';
 import { ExternalLinkAltIcon } from '@patternfly/react-icons';
+import { ExternalLink } from '@console/internal/components/utils';
 
 import {
   COMMUNITY_PROVIDERS_WARNING_LOCAL_STORAGE_KEY,
@@ -355,14 +356,20 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
                 title={detailsItem.name}
                 vendor={`${detailsItem.version} provided by ${detailsItem.provider}`}
               />
-              <div className="co-catalog-page__button">
+              <div className="co-catalog-page__overlay-actions">
                 {detailsItem.marketplaceRemoteWorkflow && (
-                  <Link
-                    className="pf-c-button pf-c-external pf-m-primary co-catalog-page__overlay-remo5e-workflow"
-                    to={detailsItem.marketplaceRemoteWorkflow}
-                  >
-                    {detailsItem.marketplaceActionText || 'View Details'} <ExternalLinkAltIcon />
-                  </Link>
+                  <ExternalLink
+                    additionalClassName="pf-c-button pf-m-primary co-catalog-page__overlay-action"
+                    href={detailsItem.marketplaceRemoteWorkflow}
+                    text={
+                      <>
+                        <div className="co-catalog-page__overlay-action-label">
+                          {detailsItem.marketplaceActionText || 'Purchase'}
+                        </div>
+                        <ExternalLinkAltIcon className="co-catalog-page__overlay-action-icon" />
+                      </>
+                    }
+                  />
                 )}
                 {!detailsItem.installed ? (
                   <Link
@@ -370,7 +377,7 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
                       'pf-c-button',
                       { 'pf-m-secondary': detailsItem.marketplaceRemoteWorkflow },
                       { 'pf-m-primary': !detailsItem.marketplaceRemoteWorkflow },
-                      'co-catalog-page__overlay-create',
+                      'co-catalog-page__overlay-action',
                     )}
                     to={createLink}
                   >
@@ -378,7 +385,7 @@ export const OperatorHubTileView: React.FC<OperatorHubTileViewProps> = (props) =
                   </Link>
                 ) : (
                   <Button
-                    className="co-catalog-page__overlay-create"
+                    className="co-catalog-page__overlay-action"
                     isDisabled={!detailsItem.installed}
                     onClick={() => history.push(uninstallLink())}
                     variant="secondary"
