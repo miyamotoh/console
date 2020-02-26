@@ -180,7 +180,7 @@ const SingleVariableDropdown = connect(
 
 const AllVariableDropdowns_: React.FC<AllVariableDropdownsProps> = ({ variables }) => (
   <>
-    {_.map(_.keys(variables.toJS()), (name) => (
+    {variables.keySeq().map((name) => (
       <SingleVariableDropdown key={name} name={name} />
     ))}
   </>
@@ -254,7 +254,7 @@ const PollIntervalDropdown_: React.FC<PollIntervalDropdownProps> = ({
       items={pollIntervalOptions}
       label="Refresh Interval"
       onChange={onChange}
-      selectedKey={formatPrometheusDuration(pollInterval)}
+      selectedKey={pollInterval === null ? pollOffText : formatPrometheusDuration(pollInterval)}
     />
   );
 };
@@ -325,6 +325,19 @@ const CardBody = connect(({ UI }: RootState) => ({
   variables: UI.getIn(['monitoringDashboards', 'variables']),
 }))(CardBody_);
 
+// Determine how many columns a panel should span. If panel specifies a `span`, use that. Otherwise
+// look for a `breakpoint` percentage. If neither are specified, default to 12 (full width).
+const getPanelSpan = (panel: Panel): number => {
+  if (panel.span) {
+    return panel.span;
+  }
+  const breakpoint = _.toInteger(_.trimEnd(panel.breakpoint, '%'));
+  if (breakpoint > 0) {
+    return Math.round(12 * (breakpoint / 100));
+  }
+  return 12;
+};
+
 const Card: React.FC<CardProps> = ({ panel }) => {
   if (panel.type === 'row') {
     return (
@@ -336,8 +349,7 @@ const Card: React.FC<CardProps> = ({ panel }) => {
     );
   }
 
-  // If panel doesn't specify a span, default to 12
-  const panelSpan: number = _.get(panel, 'span', 12);
+  const panelSpan: number = getPanelSpan(panel);
   // If panel.span is greater than 12, default colSpan to 12
   const colSpan: number = panelSpan > 12 ? 12 : panelSpan;
   // If colSpan is less than 7, double it for small
@@ -373,13 +385,12 @@ const Board: React.FC<BoardProps> = ({ rows }) => (
 );
 
 const MonitoringDashboardsPage_: React.FC<MonitoringDashboardsPageProps> = ({
-  clearVariables,
   deleteAll,
   match,
-  patchVariable,
+  patchAllVariables,
 }) => {
   const [board, setBoard] = React.useState();
-  const [boards, setBoards] = React.useState([]);
+  const [boards, setBoards] = React.useState<Board[]>([]);
   const [error, setError] = React.useState();
   const [isLoading, , , setLoaded] = useBoolean(true);
 
@@ -394,7 +405,7 @@ const MonitoringDashboardsPage_: React.FC<MonitoringDashboardsPageProps> = ({
         setLoaded();
         setError(undefined);
 
-        const getBoardData = (item) => ({
+        const getBoardData = (item): Board => ({
           data: JSON.parse(_.values(item?.data)[0]),
           name: item.metadata.name,
         });
@@ -415,31 +426,38 @@ const MonitoringDashboardsPage_: React.FC<MonitoringDashboardsPageProps> = ({
     boards,
   ]);
 
-  const changeBoard = (newBoard: string) => {
-    if (newBoard !== board) {
-      clearVariables();
+  const changeBoard = React.useCallback(
+    (newBoard: string) => {
+      if (newBoard !== board) {
+        const data = _.find(boards, { name: newBoard })?.data;
 
-      const data = _.find(boards, { name: newBoard })?.data;
+        const allVariables = {};
+        _.each(data?.templating?.list, (v) => {
+          if (v.type === 'query' || v.type === 'interval') {
+            allVariables[v.name] = ImmutableMap({
+              isHidden: v.hide !== 0,
+              isLoading: v.type === 'query',
+              options: _.map(v.options, 'value'),
+              query: v.type === 'query' ? v.query : undefined,
+              value: _.find(v.options, { selected: true })?.value || v.options?.[0]?.value,
+            });
+          }
+        });
+        patchAllVariables(allVariables);
 
-      _.each(data?.templating?.list as TemplateVariable[], (v) => {
-        if (v.type === 'query' || v.type === 'interval') {
-          patchVariable(v.name, {
-            isHidden: v.hide !== 0,
-            options: _.map(v.options, 'value'),
-            query: v.type === 'query' ? v.query : undefined,
-            value: _.find(v.options, { selected: true })?.value || v.options?.[0]?.value,
-          });
-        }
-      });
+        setBoard(newBoard);
+        history.replace(`/monitoring/dashboards/${newBoard}`);
+      }
+    },
+    [board, boards, patchAllVariables],
+  );
 
-      setBoard(newBoard);
-      history.replace(`/monitoring/dashboards/${newBoard}`);
+  // Default to displaying the first board
+  React.useEffect(() => {
+    if (!board && !_.isEmpty(boards)) {
+      changeBoard(match.params.board || boards?.[0]?.name);
     }
-  };
-
-  if (!board && !_.isEmpty(boards)) {
-    changeBoard(match.params.board || boards?.[0]?.name);
-  }
+  }, [board, boards, changeBoard, match.params.board]);
 
   if (error) {
     return <ErrorAlert message={error} />;
@@ -478,9 +496,8 @@ const MonitoringDashboardsPage_: React.FC<MonitoringDashboardsPageProps> = ({
   );
 };
 const MonitoringDashboardsPage = connect(null, {
-  clearVariables: UIActions.monitoringDashboardsClearVariables,
   deleteAll: UIActions.queryBrowserDeleteAllQueries,
-  patchVariable: UIActions.monitoringDashboardsPatchVariable,
+  patchAllVariables: UIActions.monitoringDashboardsPatchAllVariables,
 })(MonitoringDashboardsPage_);
 
 type TemplateVariable = {
@@ -489,6 +506,22 @@ type TemplateVariable = {
   options: { selected: boolean; value: string }[];
   query: string;
   type: string;
+};
+
+type Row = {
+  panels: Panel[];
+};
+
+type Board = {
+  data: {
+    panels: Panel[];
+    rows: Row[];
+    templating: {
+      list: TemplateVariable[];
+    };
+    title: string;
+  };
+  name: string;
 };
 
 type Variable = {
@@ -521,11 +554,11 @@ type SingleVariableDropdownProps = {
 };
 
 type BoardProps = {
-  rows: Panel[];
+  rows: Row[];
 };
 
 type AllVariableDropdownsProps = {
-  variables: ImmutableMap<string, Variable>;
+  variables: ImmutableMap<string, ImmutableMap<string, any>>;
 };
 
 type TimespanDropdownProps = {
@@ -541,7 +574,7 @@ type PollIntervalDropdownProps = {
 type CardBodyProps = {
   panel: Panel;
   pollInterval: null | number;
-  variables: ImmutableMap<string, Variable>;
+  variables: ImmutableMap<string, ImmutableMap<string, any>>;
 };
 
 type CardProps = {
@@ -549,12 +582,11 @@ type CardProps = {
 };
 
 type MonitoringDashboardsPageProps = {
-  clearVariables: () => undefined;
   deleteAll: () => undefined;
   match: {
     params: { board: string };
   };
-  patchVariable: (key: string, patch: Variable) => undefined;
+  patchAllVariables: (variables: VariablesMap) => undefined;
 };
 
 export default withFallback(MonitoringDashboardsPage, ErrorBoundaryFallback);

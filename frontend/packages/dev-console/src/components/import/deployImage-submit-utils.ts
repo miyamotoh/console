@@ -12,7 +12,7 @@ import {
   getKnativeServiceDepResource,
   ServiceModel as KnServiceModel,
 } from '@console/knative-plugin';
-import { getAppLabels, getPodLabels } from '../../utils/resource-label-utils';
+import { getAppLabels, getPodLabels, mergeData } from '../../utils/resource-label-utils';
 import {
   createRoute,
   createService,
@@ -91,7 +91,7 @@ export const createOrUpdateImageStream = (
     },
   };
 
-  const imageStream = _.merge({}, originalImageStream || {}, newImageStream);
+  const imageStream = mergeData(originalImageStream, newImageStream);
 
   return verb === 'update'
     ? k8sUpdate(ImageStreamModel, imageStream)
@@ -220,7 +220,7 @@ export const createOrUpdateDeployment = (
     },
   };
 
-  const deployment = _.merge({}, originalDeployment || {}, newDeployment);
+  const deployment = mergeData(originalDeployment, newDeployment);
 
   return verb === 'update'
     ? k8sUpdate(DeploymentModel, deployment)
@@ -306,7 +306,7 @@ export const createOrUpdateDeploymentConfig = (
     },
   };
 
-  const deploymentConfig = _.merge({}, originalDeploymentConfig || {}, newDeploymentConfig);
+  const deploymentConfig = mergeData(originalDeploymentConfig, newDeploymentConfig);
 
   return verb === 'update'
     ? k8sUpdate(DeploymentConfigModel, deploymentConfig)
@@ -359,9 +359,12 @@ export const createOrUpdateDeployImageResources = async (
   }
   if (formData.resources !== Resources.KnativeService) {
     registry === RegistryType.External &&
-      requests.push(
-        createOrUpdateImageStream(formData, dryRun, _.get(appResources, 'imageStream.data'), verb),
-      );
+      (await createOrUpdateImageStream(
+        formData,
+        dryRun,
+        _.get(appResources, 'imageStream.data'),
+        verb,
+      ));
     if (formData.resources === Resources.Kubernetes) {
       requests.push(
         createOrUpdateDeployment(
