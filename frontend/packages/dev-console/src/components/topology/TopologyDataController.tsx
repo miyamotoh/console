@@ -13,6 +13,22 @@ import { allowedResources, getHelmReleaseKey, getServiceBindingStatus } from './
 import { TopologyDataModel, TopologyDataResources, TrafficData } from './topology-types';
 import { HelmReleaseResourcesMap } from '../helm/helm-types';
 import { fetchHelmReleases } from '../helm/helm-utils';
+=======
+import { Firehose } from '@console/internal/components/utils';
+import { coFetchJSON } from '@console/internal/co-fetch';
+import * as plugins from '@console/internal/plugins';
+import { getResourceList } from '@console/shared';
+import { referenceForModel, K8sResourceKind } from '@console/internal/module/k8s';
+import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager/src/models';
+import { RootState } from '@console/internal/redux';
+import { safeLoadAll } from 'js-yaml';
+import { ServiceBindingRequestModel } from '../../models';
+import { TopologyFilters, getTopologyFilters } from './filters/filter-utils';
+import { allowedResources, transformTopologyData, getHelmReleaseKey } from './topology-utils';
+import { TopologyDataModel, TopologyDataResources, TrafficData } from './topology-types';
+import trafficConnectorMock from './__mocks__/traffic-connector.mock';
+import { HelmRelease, HelmReleaseResourcesMap } from '../helm/helm-types';
+>>>>>>> Change helm grouping strategy in topology based on release manifest
 
 export interface RenderProps {
   data?: TopologyDataModel;
@@ -36,6 +52,7 @@ export interface ControllerProps {
   namespace: string;
   serviceBinding: boolean;
   trafficData?: TrafficData;
+  helmResourcesMap?: HelmReleaseResourcesMap;
 }
 
 export interface TopologyDataControllerProps extends StateProps {
