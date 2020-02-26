@@ -8,7 +8,7 @@ export const clickNavLink = (path: [string, string]) =>
     .wait(until.visibilityOf(navSectionFor(path[0])))
     .then(() => navSectionFor(path[0]).click())
     .then(() =>
-      browser.wait(until.visibilityOf(navSectionFor(path[0]).element(by.linkText(path[1])))),
+      browser.wait(until.visibilityOf(navSectionFor(path[0]).element(by.cssContainingText('.pf-c-nav__link', path[1])))),
     )
     .then(() =>
       navSectionFor(path[0])

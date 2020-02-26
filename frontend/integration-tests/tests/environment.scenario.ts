@@ -2,7 +2,7 @@ import { browser, ExpectedConditions as until } from 'protractor';
 import { safeLoad, safeDump } from 'js-yaml';
 import * as _ from 'lodash';
 
-import { appHost, testName, checkLogs, checkErrors } from '../protractor.conf';
+import { appHost, testName, checkLogs, checkErrors, JASMSPEC_TIMEOUT } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as environmentView from '../views/environment.view';
 import * as yamlView from '../views/yaml.view';
@@ -117,7 +117,7 @@ describe('Interacting with the environment variable editor', () => {
       await environmentEditor(Actions.add, key, value);
       await environmentView.isLoaded();
       await validateKeyAndValue(key, value, true);
-    });
+    }, JASMSPEC_TIMEOUT);
   });
 
   describe('When a variable is deleted', () => {
@@ -127,7 +127,7 @@ describe('Interacting with the environment variable editor', () => {
       await environmentEditor(Actions.delete, key, value);
       await environmentView.isLoaded();
       await validateKeyAndValue(key, value, false);
-    });
+    }, JASMSPEC_TIMEOUT);
   });
 
   describe('When a variable is added from a config map', () => {
@@ -137,7 +137,7 @@ describe('Interacting with the environment variable editor', () => {
       await environmentEditor(Actions.addFrom, resourceName, envPrefix);
       await environmentView.isLoaded();
       await validateValueFrom(resourceName, envPrefix);
-    });
+    }, JASMSPEC_TIMEOUT);
   });
 
   xdescribe('CONSOLE-1504 - When a variable is added from a secret', () => {

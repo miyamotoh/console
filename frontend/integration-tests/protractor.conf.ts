@@ -17,6 +17,8 @@ import {
 const tap = !!process.env.TAP;
 
 export const BROWSER_TIMEOUT = 15000;
+export const JASMSPEC_TIMEOUT = 120000;
+export const SLOW_BACKEND = 2.0;
 export const appHost = `${process.env.BRIDGE_BASE_ADDRESS || 'http://localhost:9000'}${(
   process.env.BRIDGE_BASE_PATH || '/'
 ).replace(/\/$/, '')}`;
@@ -135,12 +137,12 @@ export const config = {
   skipSourceMapSupport: true,
   jasmineNodeOpts: {
     print: () => null,
-    defaultTimeoutInterval: 30000,
+    defaultTimeoutInterval: 30000 * SLOW_BACKEND,
   },
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
-    browserName: 'firefox',
+    browserName: 'chrome',
     acceptInsecureCerts: true,
     chromeOptions: {
       // A path to chrome binary, if undefined will use system chrome browser.
@@ -173,7 +175,7 @@ export const config = {
         '--safe-mode',
         '--width=1920',
         '--height=1200',
-        '--MOZ_LOG=timestamp,nsHttp:2,sync',
+        '--MOZ_LOG=timestamp,nsHttp:0,sync',
         `--MOZ_LOG_FILE=${screenshotsDir}/browser`,
       ],
       log: {level: 'trace'},

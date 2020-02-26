@@ -181,7 +181,7 @@ export const createNamespacedTestResource = async (kindModel, name) => {
   await clickCreateWithYAML();
   await yamlView.isLoaded();
   const content = await yamlView.getEditorContent();
-  const newContent = _.defaultsDeep(
+  const newContent = await _.defaultsDeep(
     {},
     { metadata: { name, labels: { automatedTestName: testName } } },
     safeLoad(content),

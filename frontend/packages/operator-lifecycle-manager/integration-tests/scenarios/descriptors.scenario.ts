@@ -350,6 +350,8 @@ describe('Using OLM descriptor components', () => {
 
   beforeAll(async () => {
     /* eslint-disable no-console */
+    //console.log('\nUsing CustomResourceDefinition:');
+    //console.log(safeDump(testCRD));
     console.log('\nUsing ClusterServiceVersion:');
     console.log(safeDump(testCSV));
     console.log('\nUsing custom resource:');
@@ -376,10 +378,13 @@ describe('Using OLM descriptor components', () => {
     execSync(`kubectl delete -n ${testName} clusterserviceversion ${testCSV.metadata.name}`);
   });
 
+  const SPEC_WAIT = 90000;
+  
   it('displays list containing operands', async () => {
-    await crudView.resourceRowsPresent();
+    //await crudView.resourceRowsPresent();
+    await browser.wait(until.presenceOf(crudView.resourceRows.first()));
     expect(operatorView.operandLink(testCR.metadata.name).isDisplayed()).toBe(true);
-  });
+  }, SPEC_WAIT);
 
   it('displays detail view for operand', async () => {
     const {
@@ -393,13 +398,13 @@ describe('Using OLM descriptor components', () => {
     await crudView.isLoaded();
 
     expect(crudView.resourceTitle.getText()).toEqual(testCR.metadata.name);
-  });
+  }, SPEC_WAIT);
 
   testCSV.spec.customresourcedefinitions.owned[0].specDescriptors.forEach((descriptor) => {
     it(`displays spec descriptor for ${descriptor.displayName}`, async () => {
       const label = operatorView.descriptorLabel(descriptor);
       expect(label.isDisplayed()).toBe(true);
-    });
+    }, SPEC_WAIT);
   });
 
   testCSV.spec.customresourcedefinitions.owned[0].statusDescriptors
@@ -409,7 +414,7 @@ describe('Using OLM descriptor components', () => {
       it(`displays status descriptor for ${descriptor.displayName}`, async () => {
         const label = operatorView.descriptorLabel(descriptor);
         expect(label.isDisplayed()).toBe(true);
-      });
+      }, SPEC_WAIT);
     });
 
   // Delete operand instance created in proir steps. Fixes a failure when trying to create a
@@ -423,7 +428,7 @@ describe('Using OLM descriptor components', () => {
     await crudView.isLoaded();
     await crudView.resourceRowsPresent();
     await crudView.deleteRow(testCR.kind)(testCR.metadata.name);
-  });
+  }, SPEC_WAIT);
 
   it('displays form for creating operand', async () => {
     await $$('[data-test-id=breadcrumb-link-1]').click();
@@ -434,7 +439,7 @@ describe('Using OLM descriptor components', () => {
     await browser.wait(until.presenceOf($('#metadata\\.name')));
 
     expect($$('.co-create-operand__form-group').count()).not.toEqual(0);
-  });
+  }, SPEC_WAIT);
 
   it('pre-populates form values using sample operand from ClusterServiceVersion', async () => {
     $$('.pf-c-accordion__toggle').each(async (toggleBtn) => {
@@ -482,14 +487,14 @@ describe('Using OLM descriptor components', () => {
     expect(
       element(by.id(SpecCapability.fieldGroup.concat('specDescriptorFieldGroup'))).isDisplayed(),
     ).toBe(true);
-  });
+  }, SPEC_WAIT);
 
   it('renders groups of fields together from nested properties in OpenAPI schema', async () => {
     expect(element(by.id(SpecCapability.fieldGroup.concat('fieldGroup'))).isDisplayed()).toBe(true);
     expect(element(by.id(SpecCapability.fieldGroup.concat('hiddenFieldGroup'))).isPresent()).toBe(
       false,
     );
-  });
+  }, SPEC_WAIT);
 
   it('prevents creation and displays validation errors for required or non-empty fields', async () => {
     await $('#number').sendKeys('4000');
@@ -503,7 +508,7 @@ describe('Using OLM descriptor components', () => {
 
     expect($('.co-error').getText()).toContain('Does not match required pattern');
     expect($('.pf-c-alert').isPresent()).toBe(true);
-  });
+  }, SPEC_WAIT);
 
   it('successfully creates operand using form', async () => {
     await browser.refresh();
@@ -517,5 +522,5 @@ describe('Using OLM descriptor components', () => {
     await browser.wait(until.presenceOf($('.loading-box__loaded')), 5000);
 
     expect($('.co-operand-details__section--info').isDisplayed()).toBe(true);
-  });
+  }, SPEC_WAIT);
 });
