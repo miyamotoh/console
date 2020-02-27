@@ -241,7 +241,15 @@ const Graph: React.FC<GraphProps> = React.memo(
 
     let yTickFormat = formatValue;
 
-    if (!isStack) {
+    if (isStack) {
+      // Specify Y axis range if all values are zero, but otherwise let Chart set it automatically
+      const isAllZero = _.every(allSeries, (series) =>
+        _.every(series, ([, values]) => _.every(values, { y: 0 })),
+      );
+      if (isAllZero) {
+        domain.y = [-1, 1];
+      }
+    } else {
       // Set a reasonable Y-axis range based on the min and max values in the data
       const findMin = (series: GraphDataPoint[]) => _.minBy(series, 'y');
       const findMax = (series: GraphDataPoint[]) => _.maxBy(series, 'y');
@@ -265,6 +273,18 @@ const Graph: React.FC<GraphProps> = React.memo(
 
     const xTickFormat = span < 5 * 60 * 1000 ? twentyFourHourTimeWithSeconds : twentyFourHourTime;
 
+    let xAxisStyle;
+    if (width < 225) {
+      xAxisStyle = {
+        tickLabels: {
+          angle: 45,
+          fontSize: 10,
+          textAnchor: 'start',
+          verticalAnchor: 'middle',
+        },
+      };
+    }
+
     const legendData = formatLegendLabel
       ? _.flatMap(allSeries, (series, i) =>
           _.map(series, (s) => ({ name: formatLegendLabel(s[0], i) })),
@@ -283,7 +303,7 @@ const Graph: React.FC<GraphProps> = React.memo(
             theme={chartTheme}
             width={width}
           >
-            <ChartAxis tickCount={5} tickFormat={xTickFormat} />
+            <ChartAxis style={xAxisStyle} tickCount={5} tickFormat={xTickFormat} />
             <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={yTickFormat} />
             {isStack ? (
               <ChartStack>
