@@ -23,11 +23,14 @@ type OwnProps = {
   graphType?: GraphTypes;
   humanize: Humanize;
   byteDataType: ByteDataTypes;
+  timespan?: number;
+  pollInterval?: number;
 };
 
 type MonitoringDashboardGraphProps = OwnProps & DispatchProps;
 
-const defaultTimespan = 30 * 60 * 1000;
+const DEFAULT_TIME_SPAN = 30 * 60 * 1000;
+const DEFAULT_SAMPLES = 30;
 
 export const MonitoringDashboardGraph: React.FC<MonitoringDashboardGraphProps> = ({
   query,
@@ -35,6 +38,8 @@ export const MonitoringDashboardGraph: React.FC<MonitoringDashboardGraphProps> =
   title,
   patchQuery,
   graphType = GraphTypes.area,
+  timespan,
+  pollInterval,
 }) => {
   return (
     <div className="odc-monitoring-dashboard-graph">
@@ -43,10 +48,13 @@ export const MonitoringDashboardGraph: React.FC<MonitoringDashboardGraphProps> =
         <div onMouseEnter={() => patchQuery({ query })}>
           <QueryBrowser
             hideControls
-            defaultTimespan={defaultTimespan}
+            defaultTimespan={DEFAULT_TIME_SPAN}
+            defaultSamples={DEFAULT_SAMPLES}
             namespace={namespace}
             queries={[query]}
             isStack={graphType === GraphTypes.area}
+            timespan={timespan}
+            pollInterval={pollInterval}
           />
         </div>
       </PrometheusGraphLink>

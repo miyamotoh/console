@@ -16,7 +16,7 @@ import {
   TableData,
   MultiListPage,
 } from '@console/internal/components/factory';
-import { withFallback } from '@console/internal/components/utils/error-boundary';
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
 import {
   modelFor,
   referenceForModel,
@@ -99,6 +99,8 @@ export const ClusterServiceVersionTableHeader = () => {
     },
     {
       title: 'Namespace',
+      sortField: 'metadata.namespace',
+      transforms: [sortable],
       props: { className: tableColumnClasses[1] },
     },
     {
@@ -107,6 +109,8 @@ export const ClusterServiceVersionTableHeader = () => {
     },
     {
       title: 'Deployment',
+      sortField: 'spec.install.spec.deployments[0].name',
+      transforms: [sortable],
       props: { className: tableColumnClasses[3] },
     },
     {
