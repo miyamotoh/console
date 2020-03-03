@@ -4,6 +4,7 @@ import { $, $$, browser, by, ExpectedConditions as until, element } from 'protra
 
 import * as yamlView from './yaml.view';
 import { appHost, testName, waitForNone } from '../protractor.conf';
+import { waitForCount } from '@console/shared/src/test-utils/utils';
 
 export const createYAMLButton = $('#yaml-create');
 export const createItemButton = $('#item-create');
@@ -23,25 +24,20 @@ export const isLoaded = () =>
     .wait(until.and(untilNoLoadersPresent, untilLoadingBoxLoaded))
     .then(() => browser.sleep(1000));
 export const resourceRowsPresent = () =>
-  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 10000);
+  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 30000);
+export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
 export const resourceRowNamesAndNs = $$('.co-m-resource-icon + a');
+
+// FIXME: Avoid this helper since it can result in StaleElementReferenceErrors.
+// Prefer to use a `data-test-` attribute on the row.
 export const rowForName = (name: string) =>
   resourceRows
     .filter((row) =>
       row
         .$$('.co-m-resource-icon + a')
         .first()
-        .getText()
-        .then((text) => text === name),
-    )
-    .first();
-export const rowForOperator = (name: string) =>
-  resourceRows
-    .filter((row) =>
-      row
-        .$('.co-clusterserviceversion-logo__name__clusterserviceversion')
         .getText()
         .then((text) => text === name),
     )
@@ -63,7 +59,8 @@ export const actions = Object.freeze({
   edit: 'Edit',
   delete: 'Delete',
 });
-export const actionForLabel = (label: string) => $(`[data-test-action="${label}"]`);
+export const actionForLabel = (label: string) =>
+  $(`[data-test-action="${label}"]:not(.pf-m-disabled)`);
 
 export const filterForName = async (name: string) => {
   await browser.wait(until.presenceOf(textFilter));
@@ -80,11 +77,18 @@ const actionOnKind = (action: string, kind: string) => {
 export const editHumanizedKind = (kind: string) => actionOnKind(actions.edit, kind);
 export const deleteHumanizedKind = (kind: string) => actionOnKind(actions.delete, kind);
 
-export const clickKebabAction = (resourceName: string, actionLabel: string) => {
-  return rowForName(resourceName)
+export const clickCreateWithYAML = () => {
+  browser.wait(until.elementToBeClickable(createYAMLButton))
+    .then(() => createYAMLButton.click());
+}
+
+export const clickKebabAction = async (resourceName: string, actionLabel: string) => {
+  await browser.wait(until.elementToBeClickable($('[data-test-id="kebab-button"]')));
+  return await rowForName(resourceName)
     .$('[data-test-id="kebab-button"]')
     .click()
     .then(() => browser.wait(until.elementToBeClickable(actionForLabel(actionLabel))))
+    .then(() => browser.wait(waitForCount($$('.pf-m-disabled'), 0)))
     .then(() => actionForLabel(actionLabel).click());
 };
 
@@ -127,6 +131,7 @@ export const deleteRow = (kind: string) => (name: string) =>
   });
 
 export const rowFilters = $$('.row-filter__box');
+export const rowFiltersPresent = () => browser.wait(until.presenceOf($('.row-filter__box')));
 export const rowFilterFor = (name: string) =>
   rowFilters.filter((el) => el.getText().then((text) => text.includes(name))).first();
 export const activeRowFilters = $$('.row-filter__box--active');
@@ -151,9 +156,10 @@ export const visitResource = async (resource: string, name: string) => {
 };
 
 export const clickDetailsPageAction = async (actionID: string) => {
-  const action = actionForLabel(actionID);
   await browser.wait(until.presenceOf(actionsButton));
   await actionsButton.click();
+  await browser.wait(until.presenceOf(actionsDropdownMenu));
+  const action = actionForLabel(actionID);
   await browser.wait(until.elementToBeClickable(action));
   await action.click();
 };
@@ -170,10 +176,12 @@ export const deleteResource = async (resource: string, kind: string, name: strin
 // then navigates back to the original url.
 export const createNamespacedTestResource = async (kindModel, name) => {
   const next = await browser.getCurrentUrl();
-  await browser.get(`${appHost}/k8s/ns/${testName}/${kindModel.plural}/~new`);
+  await browser.get(`${appHost}/k8s/ns/${testName}/${kindModel.plural}`);
+  await isLoaded();
+  await clickCreateWithYAML();
   await yamlView.isLoaded();
   const content = await yamlView.getEditorContent();
-  const newContent = _.defaultsDeep(
+  const newContent = await _.defaultsDeep(
     {},
     { metadata: { name, labels: { automatedTestName: testName } } },
     safeLoad(content),
@@ -189,6 +197,7 @@ export const checkResourceExists = async (resource: string, name: string) => {
   await isLoaded();
   await browser.wait(until.presenceOf(actionsButton));
   expect(resourceTitle.getText()).toEqual(name);
+  
 };
 
 export const emptyState = $('.cos-status-box').$('.text-center');

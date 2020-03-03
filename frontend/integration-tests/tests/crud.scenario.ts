@@ -12,7 +12,10 @@ import * as yamlView from '../views/yaml.view';
 import * as namespaceView from '../views/namespace.view';
 import * as createRoleBindingView from '../views/create-role-binding.view';
 
-const K8S_CREATION_TIMEOUT = 15000;
+const K8S_CREATION_TIMEOUT = 30000; //orig 15000;
+const YAML_EDITOR_TIMEOUT = K8S_CREATION_TIMEOUT;
+const K8S_EDIT_TIMEOUT = K8S_CREATION_TIMEOUT * 2;
+const K8S_DELETION_TIMEOUT = K8S_CREATION_TIMEOUT * 6;
 
 describe('Kubernetes resource CRUD operations', () => {
   const testLabel = 'automatedTestName';
@@ -35,6 +38,7 @@ describe('Kubernetes resource CRUD operations', () => {
     .set('persistentvolumeclaims', { kind: 'PersistentVolumeClaim' })
     .set('statefulsets', { kind: 'StatefulSet' })
     .set('resourcequotas', { kind: 'ResourceQuota' })
+    .set('limitranges', { kind: 'LimitRange' })
     .set('horizontalpodautoscalers', { kind: 'HorizontalPodAutoscaler' })
     .set('networkpolicies', { kind: 'NetworkPolicy' })
     .set('roles', { kind: 'Role' });
@@ -43,10 +47,13 @@ describe('Kubernetes resource CRUD operations', () => {
     .set('buildconfigs', { kind: 'BuildConfig' })
     .set('imagestreams', { kind: 'ImageStream' })
     .set('routes', { kind: 'Route' })
-    .set('groups', { kind: 'user.openshift.io~v1~Group', namespaced: false });
+    .set('user.openshift.io~v1~Group', { kind: 'user.openshift.io~v1~Group', namespaced: false });
   const serviceCatalogObjs = OrderedMap<string, { kind: string; namespaced?: boolean }>().set(
     'clusterservicebrokers',
-    { kind: 'servicecatalog.k8s.io~v1beta1~ClusterServiceBroker', namespaced: false },
+    {
+      kind: 'servicecatalog.k8s.io~v1beta1~ClusterServiceBroker',
+      namespaced: false,
+    },
   );
   let testObjs = browser.params.openshift === 'true' ? k8sObjs.merge(openshiftObjs) : k8sObjs;
   testObjs =
@@ -72,11 +79,12 @@ describe('Kubernetes resource CRUD operations', () => {
           console.error(`Failed to delete ${plural} ${name}:\n${error}`);
         }
       });
+    browser.sleep(60000);
   });
 
   testObjs.forEach(({ kind, namespaced = true }, resource) => {
     describe(kind, () => {
-      const name = `${testName}-${kind.toLowerCase()}`;
+      const name = `${testName}-${_.kebabCase(kind)}`;
       it('displays a list view for the resource', async () => {
         await browser.get(
           `${appHost}${
@@ -112,7 +120,7 @@ describe('Kubernetes resource CRUD operations', () => {
           safeLoad(content),
         );
         await yamlView.setEditorContent(safeDump(newContent));
-      });
+      }, YAML_EDITOR_TIMEOUT);
 
       it('creates a new resource instance', async () => {
         leakedResources.add(
@@ -133,10 +141,9 @@ describe('Kubernetes resource CRUD operations', () => {
         await browser.get(
           `${appHost}/search/${
             namespaced ? `ns/${testName}` : 'all-namespaces'
-          }?kind=${kind}&q=${testLabel}%3d${testName}`,
+          }?kind=${kind}&q=${testLabel}%3d${testName}&name=${name}`,
         );
         await crudView.resourceRowsPresent();
-        await crudView.filterForName(name);
         await crudView
           .rowForName(name)
           .element(by.linkText(name))
@@ -150,13 +157,12 @@ describe('Kubernetes resource CRUD operations', () => {
           await browser.get(
             `${appHost}/search/${
               namespaced ? `ns/${testName}` : 'all-namespaces'
-            }?kind=${kind}&q=${testLabel}%3d${testName}`,
+            }?kind=${kind}&q=${testLabel}%3d${testName}&name=${name}`,
           );
-          await crudView.filterForName(name);
           await crudView.resourceRowsPresent();
           await crudView.editRow(kind)(name);
         }
-      });
+      }, K8S_EDIT_TIMEOUT);
 
       it('deletes the resource instance', async () => {
         await browser.get(
@@ -170,7 +176,7 @@ describe('Kubernetes resource CRUD operations', () => {
         leakedResources.delete(
           JSON.stringify({ name, plural: resource, namespace: namespaced ? testName : undefined }),
         );
-      });
+      }, K8S_DELETION_TIMEOUT);
     });
   });
 
@@ -223,7 +229,7 @@ describe('Kubernetes resource CRUD operations', () => {
       leakedResources.delete(
         JSON.stringify({ name: bindingName, plural: 'rolebindings', namespace: testName }),
       );
-    });
+    }, K8S_DELETION_TIMEOUT);
   });
 
   describe('Namespace', () => {
@@ -254,11 +260,11 @@ describe('Kubernetes resource CRUD operations', () => {
       await browser.get(`${appHost}/k8s/cluster/namespaces`);
       // Filter by resource name to make sure the resource is on the first page of results.
       // Otherwise the tests fail since we do virtual scrolling and the element isn't found.
-      await crudView.filterForName(name);
       await crudView.resourceRowsPresent();
+      await crudView.filterForName(name);
       await crudView.deleteRow('Namespace')(name);
       leakedResources.delete(JSON.stringify({ name, plural: 'namespaces' }));
-    });
+    }, K8S_DELETION_TIMEOUT);
   });
 
   describe('CustomResourceDefinitions', () => {
@@ -316,10 +322,15 @@ describe('Kubernetes resource CRUD operations', () => {
     });
 
     it('deletes the `CustomResourceDefinition`', async () => {
-      await browser.get(`${appHost}/k8s/cluster/customresourcedefinitions?name=${name}`);
-      await crudView.resourceRowsPresent();
+      await browser.get(`${appHost}/k8s/cluster/customresourcedefinitions?name=cdtest`); // orig=${name}
+      //await crudView.resourceRowsPresent();
+      await browser.wait(until.presenceOf($('[data-test-rows=resource-row]')))
       await crudView.deleteRow('CustomResourceDefinition')(crd.spec.names.kind);
       leakedResources.delete(JSON.stringify({ name, plural: 'customresourcedefinitions' }));
+    }, K8S_DELETION_TIMEOUT);
+
+    afterAll(async () => {
+      await crudView.isLoaded();
     });
   });
 
@@ -330,7 +341,9 @@ describe('Kubernetes resource CRUD operations', () => {
     const labelValue = 'appblah';
 
     beforeAll(async () => {
-      await browser.get(`${appHost}/k8s/ns/${testName}/${plural}/~new`);
+      await browser.get(`${appHost}/k8s/ns/${testName}/${plural}`);
+      await crudView.isLoaded();
+      await crudView.createYAMLButton.click();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -369,29 +382,51 @@ describe('Kubernetes resource CRUD operations', () => {
         until.urlContains(`/search/ns/${testName}?kind=core~v1~ConfigMap&q=${labelValue}`),
       );
 
-      expect($('.co-text-configmap').isDisplayed()).toBe(true);
+      expect($('.pf-c-chip__text').isDisplayed()).toBe(true);
     });
 
     afterAll(async () => {
       await crudView.deleteResource(plural, kind, name);
       leakedResources.delete(JSON.stringify({ name, plural, namespace: testName }));
+      await crudView.isLoaded();
     });
   });
 
-  describe('Visiting special routes', () => {
-    new Set([
+  describe('Visiting other routes', () => {
+    const otherRoutes = [
+      '/',
       '/k8s/cluster/clusterroles/view',
       '/k8s/cluster/nodes',
-      '/settings/cluster',
       '/k8s/all-namespaces/events',
-      '/k8s/cluster/customresourcedefinitions',
-      '/',
-      '/k8s/all-namespaces/alertmanagers',
-      '/k8s/ns/tectonic-system/alertmanagers/main',
-    ]).forEach((route) => {
+      '/k8s/all-namespaces/import',
+      '/api-explorer',
+      '/api-resource/ns/default/core~v1~Pod',
+      '/api-resource/ns/default/core~v1~Pod/schema',
+      '/api-resource/ns/default/core~v1~Pod/instances',
+      ...(browser.params.openshift === 'true'
+        ? [
+            '/api-resource/ns/default/core~v1~Pod/access',
+            '/k8s/cluster/user.openshift.io~v1~User',
+            '/k8s/ns/openshift-machine-api/machine.openshift.io~v1beta1~Machine',
+            '/k8s/ns/openshift-machine-api/machine.openshift.io~v1beta1~MachineSet',
+            '/k8s/ns/openshift-machine-api/autoscaling.openshift.io~v1beta1~MachineAutoscaler',
+            '/k8s/ns/openshift-machine-api/machine.openshift.io~v1beta1~MachineHealthCheck',
+            '/k8s/cluster/machineconfiguration.openshift.io~v1~MachineConfig',
+            '/k8s/cluster/machineconfiguration.openshift.io~v1~MachineConfigPool',
+            '/k8s/all-namespaces/monitoring.coreos.com~v1~Alertmanager',
+            '/k8s/ns/openshift-monitoring/monitoring.coreos.com~v1~Alertmanager/main',
+            '/settings/cluster',
+            '/monitoring/query-browser',
+            // Test loading search page for a kind with no static model.
+            '/search/all-namespaces?kind=config.openshift.io~v1~Console',
+          ]
+        : []),
+    ];
+    otherRoutes.forEach((route) => {
       it(`successfully displays view for route: ${route}`, async () => {
         await browser.get(`${appHost}${route}`);
         await browser.sleep(5000);
+        expect(crudView.errorPage.isPresent()).toBe(false);
       });
     });
   });

@@ -1,15 +1,18 @@
-import { $, $$, element, by } from 'protractor';
+import { $, browser, by, element, ExpectedConditions as until } from 'protractor';
 
-export const catalogTiles = $$('.catalog-tile-pf');
+export const catalogTiles = $('.pf-l-gallery').$('a.catalog-tile-pf');
 export const catalogTileFor = (name: string) =>
   element(by.cssContainingText('.catalog-tile-pf-title', name));
-export const catalogTileById = (id: string) => $(`[data-test=${id}]`);
+export const catalogTileByID = (id: string) => $(`[data-test=${id}]`);
 
 // FilterSidePanel views
 export const filterSectionFor = (group: string) => $(`[data-test-group-name=${group}]`);
 export const showMoreFilters = (group: string) => $(`[data-test-group-name=${group}] .btn-link`);
 export const filterCheckboxFor = (id: string) => $(`input[data-test=${id}]`);
-export const clickFilterCheckbox = (id: string) => filterCheckboxFor(id).click();
+export const clickFilterCheckbox = async (id: string) => {
+  await browser.wait(until.presenceOf(filterCheckboxFor(id)));
+  await filterCheckboxFor(id).click();
+};
 export const filterCheckboxCount = (id: string) =>
   filterCheckboxFor(id)
     .$('.item-count')

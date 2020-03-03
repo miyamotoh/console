@@ -2,13 +2,14 @@ import { browser, ExpectedConditions as until } from 'protractor';
 import { safeLoad, safeDump } from 'js-yaml';
 import * as _ from 'lodash';
 
-import { appHost, testName, checkLogs, checkErrors } from '../protractor.conf';
+import { appHost, testName, checkLogs, checkErrors, retry } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as modalAnnotationsView from '../views/modal-annotations.view';
 import * as yamlView from '../views/yaml.view';
 
 const BROWSER_TIMEOUT = 15000;
-const WORKLOAD_NAME = `modal-${testName}`;
+const GIVE_ANNOTATION_EXTRA = 120000;
+const CONFIG_MAP_NAME = `modal-${testName}`;
 const Actions = {
   add: 'add',
   update: 'update',
@@ -17,14 +18,20 @@ const Actions = {
 
 describe('Modal Annotations', () => {
   beforeAll(async () => {
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps`);
     await crudView.isLoaded();
     await crudView.createYAMLButton.click();
     await yamlView.isLoaded();
     const content = await yamlView.getEditorContent();
     const newContent = _.defaultsDeep(
       {},
-      { metadata: { name: WORKLOAD_NAME, labels: { 'lbl-modal': testName } } },
+      {
+        metadata: {
+          name: CONFIG_MAP_NAME,
+          labels: { test: testName },
+          annotations: { test: testName },
+        },
+      },
       safeLoad(content),
     );
     await yamlView.setEditorContent(safeDump(newContent));
@@ -41,10 +48,10 @@ describe('Modal Annotations', () => {
   });
 
   afterAll(async () => {
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps`);
     await crudView.resourceRowsPresent();
-    await crudView.nameFilter.sendKeys(WORKLOAD_NAME);
-    await crudView.deleteRow('Deployment')(WORKLOAD_NAME);
+    await crudView.nameFilter.sendKeys(CONFIG_MAP_NAME);
+    await crudView.deleteRow('ConfigMap')(CONFIG_MAP_NAME);
     checkLogs();
     checkErrors();
   });
@@ -60,9 +67,9 @@ describe('Modal Annotations', () => {
       const annKey = await item.getAttribute('value');
       if (annKey === annotationKey) {
         keyFound = keyFound + 1;
-        expect(modalAnnotationsView.annotationRowsValue.get(index).getAttribute('value')).toBe(
-          annotationValue,
-        );
+        expect(
+          retry(() => modalAnnotationsView.annotationRowsValue.get(index).getAttribute('value')),
+        ).toBe(annotationValue);
       }
     });
 
@@ -85,7 +92,7 @@ describe('Modal Annotations', () => {
     annotationKey: string,
     annotationValue: string,
   ) {
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}`);
     await clickModalAnnotationsLink();
     await modalAnnotationsView.isLoaded();
 
@@ -119,7 +126,7 @@ describe('Modal Annotations', () => {
     isPresent: boolean,
   ) {
     await crudAnnotationFromDetail(action, annotationKey, annotationValue);
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}`);
     await clickModalAnnotationsLink();
     await modalAnnotationsView.isLoaded();
     await validateKeyAndValue(annotationKey, annotationValue, isPresent);
@@ -138,7 +145,7 @@ describe('Modal Annotations', () => {
     const annotationValue = 'delete';
 
     await crudAnnotationFromDetail(Actions.add, annotationKey, annotationValue);
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}`);
     await browser.wait(
       until.textToBePresentInElement(crudView.modalAnnotationsLink, '2'),
       BROWSER_TIMEOUT,
@@ -148,7 +155,7 @@ describe('Modal Annotations', () => {
     await validateKeyAndValue(annotationKey, annotationValue, true);
 
     await crudAnnotationFromDetail(Actions.delete, annotationKey, annotationValue);
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}`);
     await browser.wait(
       until.textToBePresentInElement(crudView.modalAnnotationsLink, '1'),
       BROWSER_TIMEOUT,
@@ -156,12 +163,12 @@ describe('Modal Annotations', () => {
     await clickModalAnnotationsLink();
     await modalAnnotationsView.isLoaded();
     await validateKeyAndValue(annotationKey, annotationValue, false);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add numeric Annotation from grid
   // Given I log in into the console if it's required
   //   And I create a deployment
-  //   And I go to the deployments list page
+  //   And I go to the configmaps list page
   //   And I open modal annotations from gear option
   //  When I add an annotation
   //   And I close the modal
@@ -173,22 +180,22 @@ describe('Modal Annotations', () => {
     const annotationValue = '2233344';
     const annotationYAML = `${annotationKey}: '${annotationValue}'`;
 
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps`);
     await crudView.isLoaded();
-    await crudView.clickKebabAction(WORKLOAD_NAME, crudView.actions.annotations);
+    await crudView.clickKebabAction(CONFIG_MAP_NAME, crudView.actions.annotations);
     await modalAnnotationsView.isLoaded();
     await modalAnnotationsView.addAnnotation(annotationKey, annotationValue);
     await modalAnnotationsView.isLoaded();
     await modalAnnotationsView.confirmActionBtn.click();
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps`);
     await crudView.isLoaded();
-    await crudView.clickKebabAction(WORKLOAD_NAME, crudView.actions.annotations);
+    await crudView.clickKebabAction(CONFIG_MAP_NAME, crudView.actions.annotations);
     await modalAnnotationsView.isLoaded();
     await validateKeyAndValue(annotationKey, annotationValue, true);
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add alphanumeric Annotation from object detail
   // Given I log in into the console if it's required
@@ -207,10 +214,10 @@ describe('Modal Annotations', () => {
 
     await crudAndValidate(Actions.add, annotationKey, annotationValue, true);
 
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add Annotation without value
   // Given I log in into the console if it's required
@@ -227,10 +234,10 @@ describe('Modal Annotations', () => {
 
     await crudAndValidate(Actions.add, annotationKey, annotationValue, true);
 
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Add annotation wihout key
   // Given I log in into the console if it's required
@@ -240,12 +247,12 @@ describe('Modal Annotations', () => {
   //  When I add an annotation without key
   //   And I close the modal
   //  Then I expect that the annotation is not displayed
-  it('Add annotation wihout key', async () => {
+  it('Add annotation without key', async () => {
     const annotationKey = '';
     const annotationValue = 'value_no_key';
 
     await crudAndValidate(Actions.add, annotationKey, annotationValue, false);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Update Annotation from value to empty value
   // Given I log in into the console if it's required
@@ -263,7 +270,7 @@ describe('Modal Annotations', () => {
 
     await crudAndValidate(Actions.add, annotationKey, annotationValueBeforeUpd, true);
     await crudAndValidate(Actions.update, annotationKey, annotationValueAfterUpd, true);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   //   And I create a deployment
   //   And I open modal annotations from gear option
@@ -280,15 +287,15 @@ describe('Modal Annotations', () => {
     await crudAndValidate(Actions.add, annotationKey, annotationValueBeforeUpd, true);
     await crudAndValidate(Actions.update, annotationKey, annotationValueAfterUpd, true);
 
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments/${WORKLOAD_NAME}/yaml`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps/${CONFIG_MAP_NAME}/yaml`);
     await yamlView.isLoaded();
     expect(yamlView.getEditorContent()).toContain(annotationYAML);
-  });
+  }, GIVE_ANNOTATION_EXTRA);
 
   // Scenario: Cancel add Annotation
   // Given I log in into the console if it's required
   //   And I create a deployment
-  //   And I go to the deployments list page
+  //   And I go to the configmaps list page
   //   And I open modal annotations from gear option
   //  When I add an annotation
   //   And I cancel the action
@@ -298,15 +305,15 @@ describe('Modal Annotations', () => {
     const annotationKey = 'KEY_Cancel';
     const annotationValue = 'cancel';
 
-    await browser.get(`${appHost}/k8s/ns/${testName}/deployments`);
+    await browser.get(`${appHost}/k8s/ns/${testName}/configmaps`);
     await crudView.isLoaded();
-    await crudView.clickKebabAction(WORKLOAD_NAME, crudView.actions.annotations);
+    await crudView.clickKebabAction(CONFIG_MAP_NAME, crudView.actions.annotations);
     await modalAnnotationsView.isLoaded();
     await modalAnnotationsView.addAnnotation(annotationKey, annotationValue);
     await modalAnnotationsView.isLoaded();
     await modalAnnotationsView.cancelBtn.click();
     await crudView.isLoaded();
-    await crudView.clickKebabAction(WORKLOAD_NAME, crudView.actions.annotations);
+    await crudView.clickKebabAction(CONFIG_MAP_NAME, crudView.actions.annotations);
     await modalAnnotationsView.isLoaded();
     await validateKeyAndValue(annotationKey, annotationValue, false);
   });

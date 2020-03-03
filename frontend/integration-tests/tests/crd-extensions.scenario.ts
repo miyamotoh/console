@@ -2,9 +2,11 @@ import { $, browser, by, element, ExpectedConditions as until } from 'protractor
 import * as _ from 'lodash';
 import { safeDump, safeLoad } from 'js-yaml';
 
-import { appHost, testName, checkLogs, checkErrors } from '../protractor.conf';
+import { appHost, testName, checkLogs, checkErrors, SLOW_BACKEND } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as yamlView from '../views/yaml.view';
+
+const YAML_EDITOR_TIMEOUT = 15000 * SLOW_BACKEND;
 
 describe('CRD extensions', () => {
   afterEach(() => {
@@ -36,11 +38,11 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       await yamlView.setEditorContent(safeDump(crdObj));
       expect(yamlView.getEditorContent()).toContain(`kind: ${crd}`);
-    });
+    }, YAML_EDITOR_TIMEOUT);
 
     it(`creates a new ${crd} instance`, async () => {
       await yamlView.saveButton.click();
@@ -104,7 +106,7 @@ describe('CRD extensions', () => {
           await crudView.isLoaded();
           await crudView.clickKebabAction(crd, 'View Instances');
           await crudView.isLoaded();
-          await crudView.createYAMLButton.click();
+          await crudView.clickCreateWithYAML();
           await yamlView.isLoaded();
           const content = await yamlView.getEditorContent();
           const newContent = _.defaultsDeep(
@@ -117,7 +119,7 @@ describe('CRD extensions', () => {
           );
           await yamlView.setEditorContent(safeDump(newContent));
           expect(yamlView.getEditorContent()).toContain(`kind: ${crd}`);
-        });
+        }, YAML_EDITOR_TIMEOUT);
 
         it(`creates a new ${crd} ${dropdownMenuName} instance`, async () => {
           await yamlView.saveButton.click();
@@ -169,7 +171,7 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -179,7 +181,7 @@ describe('CRD extensions', () => {
       );
       await yamlView.setEditorContent(safeDump(newContent));
       expect(yamlView.getEditorContent()).toContain(`kind: ${crd}`);
-    });
+    }, YAML_EDITOR_TIMEOUT);
 
     it(`creates a new ${crd} instance`, async () => {
       await yamlView.saveButton.click();
@@ -209,7 +211,7 @@ describe('CRD extensions', () => {
       await yamlView.saveButton.click();
       await browser.wait(until.visibilityOf(crudView.successMessage), 1000);
       expect(crudView.successMessage.isPresent()).toBe(true);
-    });
+    }, YAML_EDITOR_TIMEOUT);
 
     it(`displays the ${crd} instance in its new location`, async () => {
       location = 'BannerBottom';
@@ -241,7 +243,7 @@ describe('CRD extensions', () => {
       await crudView.isLoaded();
       await crudView.clickKebabAction(crd, 'View Instances');
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
@@ -267,7 +269,7 @@ describe('CRD extensions', () => {
     it(`creates a new test pod to display the ${crd} instance`, async () => {
       await browser.get(`${appHost}/k8s/ns/${testName}/pods`);
       await crudView.isLoaded();
-      await crudView.createYAMLButton.click();
+      await crudView.clickCreateWithYAML();
       await yamlView.isLoaded();
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(

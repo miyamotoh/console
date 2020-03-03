@@ -1,7 +1,7 @@
 import { browser, ExpectedConditions as until } from 'protractor';
 import { Set as ImmutableSet } from 'immutable';
 
-import { appHost, testName, checkErrors, checkLogs } from '../../protractor.conf';
+import { appHost, testName, checkErrors, checkLogs, JASMSPEC_TIMEOUT } from '../../protractor.conf';
 import * as overviewView from '../../views/overview.view';
 import * as crudView from '../../views/crud.view';
 import {
@@ -38,11 +38,11 @@ describe('Visiting Overview page', () => {
 
       it(`displays a ${kindModel.id} in the project overview list`, async () => {
         await browser.wait(until.presenceOf(overviewView.projectOverview));
-        await overviewView.itemsAreVisible();
+        await overviewView.testObjectVisible(resourceName); //HM
         expect(
           overviewView.getProjectOverviewListItem(kindModel, resourceName).isPresent(),
         ).toBeTruthy();
-      });
+      }, JASMSPEC_TIMEOUT);
 
       // Disabling for now due to flake https://jira.coreos.com/browse/CONSOLE-1298
       xit(`CONSOLE-1298 - shows ${kindModel.id} details sidebar when item is clicked`, async () => {

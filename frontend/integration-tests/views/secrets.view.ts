@@ -1,12 +1,4 @@
-import {
-  $,
-  $$,
-  browser,
-  by,
-  ExpectedConditions as until,
-  element,
-  ElementFinder,
-} from 'protractor';
+import { $, $$, browser, by, ExpectedConditions as until, element } from 'protractor';
 import { Base64 } from 'js-base64';
 import { execSync } from 'child_process';
 import * as _ from 'lodash';
@@ -19,6 +11,8 @@ export const dt = $$('dl.secret-data dt');
 
 export const saveButton = $('#save-changes');
 export const authTypeDropdown = $('#dropdown-selectbox');
+export const authSshOption = element(by.partialButtonText('SSH Key'));
+export const authConfigFileOption = element(by.partialButtonText('Upload Configuration File'));
 
 export const secretWebhookInput = $('input[name=webhookSecretKey]');
 export const secretAddressInput = $('input[name=address]');
@@ -73,7 +67,7 @@ export const clickRevealValues = async () => {
 export const encode = (username, password) => Base64.encode(`${username}:${password}`);
 
 export const createSecret = async (
-  linkElement: ElementFinder,
+  linkElement: any,
   ns: string,
   name: string,
   updateForm: Function,

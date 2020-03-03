@@ -1,10 +1,11 @@
 /* eslint-disable max-nested-callbacks */
-import { $, $$, element, browser, by, ExpectedConditions as until, Key } from 'protractor';
+import { $, $$, element, browser, by, ExpectedConditions as until } from 'protractor';
+import { execSync } from 'child_process';
 
 import { appHost, testName, checkLogs, checkErrors, waitForCount } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as secretsView from '../views/secrets.view';
-import { execSync } from 'child_process';
+import { DeploymentKind } from '../../public/module/k8s';
 
 describe('Interacting with the create secret forms', () => {
   afterEach(() => {
@@ -118,10 +119,7 @@ describe('Interacting with the create secret forms', () => {
         sshSourceSecretName,
         async () => {
           await secretsView.authTypeDropdown.click().then(() =>
-            browser
-              .actions()
-              .sendKeys(Key.ARROW_UP, Key.ENTER)
-              .perform(),
+            secretsView.authSshOption.click(),
           );
           await browser.wait(until.presenceOf(secretsView.uploadFileTextArea));
           await secretsView.uploadFileTextArea.sendKeys(sshSourceSecretSSHKey);
@@ -280,10 +278,7 @@ describe('Interacting with the create secret forms', () => {
         uploadConfigFileImageSecretName,
         async () => {
           await secretsView.authTypeDropdown.click().then(() =>
-            browser
-              .actions()
-              .sendKeys(Key.ARROW_UP, Key.ENTER)
-              .perform(),
+            secretsView.authConfigFileOption.click(),
           );
           await browser.wait(until.presenceOf(secretsView.uploadFileTextArea));
           await secretsView.uploadFileTextArea.sendKeys(JSON.stringify(configFile));
@@ -373,10 +368,40 @@ describe('Add Secret to Workloads', () => {
   const resourceKind = 'deployment';
   const envPrefix = 'env-';
   const mountPath = '/tmp/testdata';
+  const deployment: DeploymentKind = {
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      name: resourceName,
+      namespace: testName,
+    },
+    spec: {
+      selector: {
+        matchLabels: {
+          test: 'add-secret-to-workload',
+        },
+      },
+      template: {
+        metadata: {
+          labels: {
+            test: 'add-secret-to-workload',
+          },
+        },
+        spec: {
+          containers: [
+            {
+              name: 'hello-openshift',
+              image: 'openshift/hello-openshift',
+            },
+          ],
+        },
+      },
+    },
+  };
 
-  beforeAll(async () => {
+  beforeAll(() => {
     // create deployment and secret
-    execSync(`kubectl run ${resourceName} --image=aosqe/hello-openshift -n ${testName}`);
+    execSync(`echo '${JSON.stringify(deployment)}' | kubectl create -n ${testName} -f -`);
     execSync(
       `kubectl create secret generic ${secretName} --from-literal=key1=supersecret -n ${testName}`,
     );

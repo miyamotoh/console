@@ -1,25 +1,19 @@
 import { execSync } from 'child_process';
-import {
-  browser,
-  element,
-  by,
-  $,
-  $$,
-  ExpectedConditions as until,
-  ElementFinder,
-} from 'protractor';
+import { browser, element, by, $, $$, ExpectedConditions as until } from 'protractor';
 import { safeDump } from 'js-yaml';
 import { startCase, get, find, isUndefined } from 'lodash';
 import {
   appHost,
-  testName,
-  checkLogs,
   checkErrors,
+  checkLogs,
   create,
-} from '../../../../integration-tests/protractor.conf';
+  retry,
+  testName,
+} from '@console/internal-integration-tests/protractor.conf';
+import * as crudView from '@console/internal-integration-tests/views/crud.view';
+import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
+import * as operatorView from '../views/operator.view';
 import { SpecCapability, StatusCapability } from '../../src/components/descriptors/types';
-import * as crudView from '../../../../integration-tests/views/crud.view';
-import * as yamlView from '../../../../integration-tests/views/yaml.view';
 
 const defaultValueFor = <C extends SpecCapability | StatusCapability>(capability: C) => {
   switch (capability) {
@@ -30,7 +24,10 @@ const defaultValueFor = <C extends SpecCapability | StatusCapability>(capability
     case SpecCapability.label:
       return 'app=openshift';
     case SpecCapability.resourceRequirements:
-      return { limits: { cpu: '500m', memory: '50Mi' }, requests: { cpu: '500m', memory: '50Mi' } };
+      return {
+        limits: { cpu: '500m', memory: '50Mi', 'ephemeral-storage': '50Mi' },
+        requests: { cpu: '500m', memory: '50Mi', 'ephemeral-storage': '50Mi' },
+      };
     case SpecCapability.namespaceSelector:
       return { matchNames: ['default'] };
     case SpecCapability.booleanSwitch:
@@ -81,7 +78,7 @@ const defaultValueFor = <C extends SpecCapability | StatusCapability>(capability
   }
 };
 
-const inputValueFor = (capability: SpecCapability) => async (el: ElementFinder) => {
+const inputValueFor = (capability: SpecCapability) => async (el: any) => {
   switch (capability) {
     case SpecCapability.podCount:
       return parseInt(await el.$('input').getAttribute('value'), 10);
@@ -98,20 +95,28 @@ const inputValueFor = (capability: SpecCapability) => async (el: ElementFinder) 
             .$$('input')
             .get(1)
             .getAttribute('value'),
+          'ephemeral-storage': await el
+            .$$('input')
+            .get(2)
+            .getAttribute('value'),
         },
         requests: {
           cpu: await el
             .$$('input')
-            .get(2)
+            .get(3)
             .getAttribute('value'),
           memory: await el
             .$$('input')
-            .get(3)
+            .get(4)
+            .getAttribute('value'),
+          'ephemeral-storage': await el
+            .$$('input')
+            .get(5)
             .getAttribute('value'),
         },
       };
     case SpecCapability.booleanSwitch:
-      return (await el.$('.pf-c-switch__input').getAttribute('checked')) !== 'false';
+      return (await el.$$('.pf-c-switch__input').getAttribute('checked')) !== 'false';
     case SpecCapability.password:
       return el.$('input').getAttribute('value');
     case SpecCapability.checkbox:
@@ -345,6 +350,8 @@ describe('Using OLM descriptor components', () => {
 
   beforeAll(async () => {
     /* eslint-disable no-console */
+    //console.log('\nUsing CustomResourceDefinition:');
+    //console.log(safeDump(testCRD));
     console.log('\nUsing ClusterServiceVersion:');
     console.log(safeDump(testCSV));
     console.log('\nUsing custom resource:');
@@ -356,9 +363,7 @@ describe('Using OLM descriptor components', () => {
     create(testCR);
 
     await browser.get(
-      `${appHost}/ns/${testName}/clusterserviceversions/${testCSV.metadata.name}/${
-        testCRD.spec.group
-      }~${testCRD.spec.version}~${testCRD.spec.names.kind}`,
+      `${appHost}/ns/${testName}/clusterserviceversions/${testCSV.metadata.name}/${testCRD.spec.group}~${testCRD.spec.version}~${testCRD.spec.names.kind}`,
     );
     await crudView.isLoaded();
   });
@@ -373,10 +378,13 @@ describe('Using OLM descriptor components', () => {
     execSync(`kubectl delete -n ${testName} clusterserviceversion ${testCSV.metadata.name}`);
   });
 
+  const SPEC_WAIT = 90000;
+  
   it('displays list containing operands', async () => {
-    await crudView.resourceRowsPresent();
-    expect(crudView.rowForName(testCR.metadata.name).isDisplayed()).toBe(true);
-  });
+    //await crudView.resourceRowsPresent();
+    await browser.wait(until.presenceOf(crudView.resourceRows.first()));
+    expect(operatorView.operandLink(testCR.metadata.name).isDisplayed()).toBe(true);
+  }, SPEC_WAIT);
 
   it('displays detail view for operand', async () => {
     const {
@@ -385,43 +393,61 @@ describe('Using OLM descriptor components', () => {
       names: { kind },
     } = testCRD.spec;
     await browser.get(
-      `${appHost}/ns/${testName}/clusterserviceversions/${
-        testCSV.metadata.name
-      }/${group}~${version}~${kind}/${testCR.metadata.name}`,
+      `${appHost}/ns/${testName}/clusterserviceversions/${testCSV.metadata.name}/${group}~${version}~${kind}/${testCR.metadata.name}`,
     );
     await crudView.isLoaded();
 
     expect(crudView.resourceTitle.getText()).toEqual(testCR.metadata.name);
-  });
+  }, SPEC_WAIT);
 
   testCSV.spec.customresourcedefinitions.owned[0].specDescriptors.forEach((descriptor) => {
-    const label = element(by.cssContainingText('.olm-descriptor__title', descriptor.displayName));
-
     it(`displays spec descriptor for ${descriptor.displayName}`, async () => {
+      const label = operatorView.descriptorLabel(descriptor);
       expect(label.isDisplayed()).toBe(true);
-    });
+    }, SPEC_WAIT);
   });
 
-  testCSV.spec.customresourcedefinitions.owned[0].statusDescriptors.forEach((descriptor) => {
-    const label = element(by.cssContainingText('.olm-descriptor__title', descriptor.displayName));
-
-    it(`displays status descriptor for ${descriptor.displayName}`, async () => {
-      expect(label.isDisplayed()).toBe(true);
+  testCSV.spec.customresourcedefinitions.owned[0].statusDescriptors
+    // exclude Conditions since they are included in their own section
+    .filter((descriptor) => descriptor.path !== 'conditions')
+    .forEach((descriptor) => {
+      it(`displays status descriptor for ${descriptor.displayName}`, async () => {
+        const label = operatorView.descriptorLabel(descriptor);
+        expect(label.isDisplayed()).toBe(true);
+      }, SPEC_WAIT);
     });
-  });
+
+  // Delete operand instance created in proir steps. Fixes a failure when trying to create a
+  // duplicate operand in the 'successfully creates operand using form' step.
+  // TODO Test cases need to be fixed so that they will pass independently. They should
+  // be self-contained and not depend on state from previous steps.
+  it('deletes operand', async () => {
+    await browser.get(
+      `${appHost}/ns/${testName}/clusterserviceversions/${testCSV.metadata.name}/${testCRD.spec.group}~${testCRD.spec.version}~${testCRD.spec.names.kind}`,
+    );
+    await crudView.isLoaded();
+    await crudView.resourceRowsPresent();
+    await crudView.deleteRow(testCR.kind)(testCR.metadata.name);
+  }, SPEC_WAIT);
 
   it('displays form for creating operand', async () => {
     await $$('[data-test-id=breadcrumb-link-1]').click();
     await browser.wait(until.visibilityOf(element(by.buttonText('Create App'))));
-    await element(by.buttonText('Create App')).click();
+    await retry(() => element(by.buttonText('Create App')).click());
     await yamlView.isLoaded();
     await element(by.buttonText('Edit Form')).click();
     await browser.wait(until.presenceOf($('#metadata\\.name')));
 
     expect($$('.co-create-operand__form-group').count()).not.toEqual(0);
-  });
+  }, SPEC_WAIT);
 
   it('pre-populates form values using sample operand from ClusterServiceVersion', async () => {
+    $$('.pf-c-accordion__toggle').each(async (toggleBtn) => {
+      const toggleBtnClasses = await toggleBtn.getAttribute('class');
+      if (!toggleBtnClasses.includes('pf-m-expanded')) {
+        toggleBtn.click();
+      }
+    });
     $$('.co-create-operand__form-group').each(async (input) => {
       await browser
         .actions()
@@ -461,14 +487,14 @@ describe('Using OLM descriptor components', () => {
     expect(
       element(by.id(SpecCapability.fieldGroup.concat('specDescriptorFieldGroup'))).isDisplayed(),
     ).toBe(true);
-  });
+  }, SPEC_WAIT);
 
   it('renders groups of fields together from nested properties in OpenAPI schema', async () => {
     expect(element(by.id(SpecCapability.fieldGroup.concat('fieldGroup'))).isDisplayed()).toBe(true);
     expect(element(by.id(SpecCapability.fieldGroup.concat('hiddenFieldGroup'))).isPresent()).toBe(
       false,
     );
-  });
+  }, SPEC_WAIT);
 
   it('prevents creation and displays validation errors for required or non-empty fields', async () => {
     await $('#number').sendKeys('4000');
@@ -482,7 +508,7 @@ describe('Using OLM descriptor components', () => {
 
     expect($('.co-error').getText()).toContain('Does not match required pattern');
     expect($('.pf-c-alert').isPresent()).toBe(true);
-  });
+  }, SPEC_WAIT);
 
   it('successfully creates operand using form', async () => {
     await browser.refresh();
@@ -491,13 +517,10 @@ describe('Using OLM descriptor components', () => {
     await browser.wait(until.presenceOf($('#metadata\\.name')));
     await element(by.buttonText('Create')).click();
     await crudView.isLoaded();
-    await browser.wait(until.visibilityOf(crudView.rowForName(testCR.metadata.name)));
-    await crudView
-      .rowForName(testCR.metadata.name)
-      .element(by.linkText(testCR.metadata.name))
-      .click();
+    await browser.wait(until.elementToBeClickable(operatorView.operandLink(testCR.metadata.name)));
+    await operatorView.operandLink(testCR.metadata.name).click();
     await browser.wait(until.presenceOf($('.loading-box__loaded')), 5000);
 
     expect($('.co-operand-details__section--info').isDisplayed()).toBe(true);
-  });
+  }, SPEC_WAIT);
 });
