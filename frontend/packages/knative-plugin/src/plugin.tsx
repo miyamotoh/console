@@ -9,6 +9,7 @@ import {
   ResourceListPage,
   ResourceDetailsPage,
   GlobalConfig,
+  KebabActions,
   YAMLTemplate,
 } from '@console/plugin-sdk';
 import { referenceForModel } from '@console/internal/module/k8s';
@@ -20,19 +21,35 @@ import {
   FLAG_KNATIVE_SERVING_REVISION,
   FLAG_KNATIVE_SERVING_ROUTE,
   FLAG_KNATIVE_SERVING_SERVICE,
+  FLAG_EVENT_SOURCE_CRONJOB,
+  FLAG_EVENT_SOURCE_CONTAINER,
+  FLAG_EVENT_SOURCE_APISERVER,
+  FLAG_EVENT_SOURCE_CAMEL,
+  FLAG_EVENT_SOURCE_KAFKA,
 } from './const';
 import {
   knativeServingResourcesRevision,
   knativeServingResourcesConfigurations,
   knativeServingResourcesRoutes,
   knativeServingResourcesServices,
+  eventSourceResourcesCronJob,
+  eventSourceResourcesContainer,
+  eventSourceResourcesApiServer,
+  eventSourceResourcesCamel,
+  eventSourceResourcesKafka,
 } from './utils/create-knative-utils';
 import {
   getKnativeServingConfigurations,
   getKnativeServingRoutes,
   getKnativeServingRevisions,
   getKnativeServingServices,
+  getEventSourceCronjob,
+  getEventSourceContainer,
+  getEventSourceApiserver,
+  getEventSourceCamel,
+  getEventSourceKafka,
 } from './utils/get-knative-resources';
+import { getKebabActionsForKind } from './utils/kebab-actions';
 
 type ConsumedExtensions =
   | ResourceNSNavItem
@@ -42,6 +59,7 @@ type ConsumedExtensions =
   | OverviewResourceTab
   | OverviewCRD
   | ResourceListPage
+  | KebabActions
   | YAMLTemplate
   | ResourceDetailsPage;
 
@@ -85,6 +103,41 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: models.ServiceModel,
       flag: FLAG_KNATIVE_SERVING_SERVICE,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.EventSourceCronJobModel,
+      flag: FLAG_EVENT_SOURCE_CRONJOB,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.EventSourceContainerModel,
+      flag: FLAG_EVENT_SOURCE_CONTAINER,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.EventSourceApiServerModel,
+      flag: FLAG_EVENT_SOURCE_APISERVER,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.EventSourceCamelModel,
+      flag: FLAG_EVENT_SOURCE_CAMEL,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.EventSourceKafkaModel,
+      flag: FLAG_EVENT_SOURCE_KAFKA,
     },
   },
   {
@@ -175,6 +228,46 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
+    type: 'Overview/CRD',
+    properties: {
+      resources: eventSourceResourcesCronJob,
+      required: FLAG_EVENT_SOURCE_CRONJOB,
+      utils: getEventSourceCronjob,
+    },
+  },
+  {
+    type: 'Overview/CRD',
+    properties: {
+      resources: eventSourceResourcesContainer,
+      required: FLAG_EVENT_SOURCE_CONTAINER,
+      utils: getEventSourceContainer,
+    },
+  },
+  {
+    type: 'Overview/CRD',
+    properties: {
+      resources: eventSourceResourcesApiServer,
+      required: FLAG_EVENT_SOURCE_APISERVER,
+      utils: getEventSourceApiserver,
+    },
+  },
+  {
+    type: 'Overview/CRD',
+    properties: {
+      resources: eventSourceResourcesCamel,
+      required: FLAG_EVENT_SOURCE_CAMEL,
+      utils: getEventSourceCamel,
+    },
+  },
+  {
+    type: 'Overview/CRD',
+    properties: {
+      resources: eventSourceResourcesKafka,
+      required: FLAG_EVENT_SOURCE_KAFKA,
+      utils: getEventSourceKafka,
+    },
+  },
+  {
     type: 'Page/Resource/List',
     properties: {
       model: models.RevisionModel,
@@ -229,6 +322,12 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       model: models.ServiceModel,
       template: yamlTemplates.getIn([models.ServiceModel, 'default']),
+    },
+  },
+  {
+    type: 'KebabActions',
+    properties: {
+      getKebabActionsForKind,
     },
   },
 ];

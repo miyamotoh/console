@@ -8,7 +8,8 @@ import GitSection from './git/GitSection';
 import BuilderSection from './builder/BuilderSection';
 import AppSection from './app/AppSection';
 import AdvancedSection from './advanced/AdvancedSection';
-import ServerlessSection from './serverless/ServerlessSection';
+import ResourceSection from './section/ResourceSection';
+import PipelineSection from './pipeline/PipelineSection';
 
 const SourceToImageForm: React.FC<FormikProps<FormikValues> & SourceToImageFormProps> = ({
   values,
@@ -28,7 +29,8 @@ const SourceToImageForm: React.FC<FormikProps<FormikValues> & SourceToImageFormP
       project={values.project}
       noProjectsAvailable={projects.loaded && _.isEmpty(projects.data)}
     />
-    <ServerlessSection />
+    <PipelineSection />
+    <ResourceSection />
     <AdvancedSection values={values} />
     <ButtonBar errorMessage={status && status.submitError} inProgress={isSubmitting}>
       <ActionGroup className="pf-c-form">

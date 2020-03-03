@@ -3,11 +3,16 @@ import Dashboard from '@console/shared/src/components/dashboard/Dashboard';
 import DashboardGrid from '@console/shared/src/components/dashboard/DashboardGrid';
 import { K8sResourceKind, PodKind } from '@console/internal/module/k8s';
 import { VMKind, VMIKind } from '../../types';
-import { VMDetailsCard, VMInventoryCard, VMStatusCard } from '../dashboards-page/vm-dashboard';
+import {
+  VMDetailsCard,
+  VMInventoryCard,
+  VMStatusCard,
+  VMActivityCard,
+  VMUtilizationCard,
+} from '../dashboards-page/vm-dashboard';
 import { VMDashboardContext } from './vm-dashboard-context';
-import { VMActivityCard } from './vm-activity';
 
-const mainCards = [{ Card: VMStatusCard }];
+const mainCards = [{ Card: VMStatusCard }, { Card: VMUtilizationCard }];
 const leftCards = [{ Card: VMDetailsCard }, { Card: VMInventoryCard }];
 const rightCards = [{ Card: VMActivityCard }];
 
@@ -22,13 +27,11 @@ export const VMDashboard: React.FC<VMDashboardProps> = (props) => {
   };
 
   return (
-    <div className="co-m-pane__body">
-      <VMDashboardContext.Provider value={context}>
-        <Dashboard>
-          <DashboardGrid mainCards={mainCards} leftCards={leftCards} rightCards={rightCards} />
-        </Dashboard>
-      </VMDashboardContext.Provider>
-    </div>
+    <VMDashboardContext.Provider value={context}>
+      <Dashboard>
+        <DashboardGrid mainCards={mainCards} leftCards={leftCards} rightCards={rightCards} />
+      </Dashboard>
+    </VMDashboardContext.Provider>
   );
 };
 

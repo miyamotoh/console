@@ -5,19 +5,9 @@ import { ImageStreamImportsModel } from '@console/internal/models';
 import { useFormikContext, FormikValues } from 'formik';
 import { TextInputTypes, Alert, AlertActionCloseButton, Button } from '@patternfly/react-core';
 import { SecretTypeAbstraction } from '@console/internal/components/secrets/create-secret';
-import { getPorts, makePortName } from '../../../utils/imagestream-utils';
-import { InputSearchField } from '../../formik-fields';
+import { InputSearchField } from '@console/shared';
+import { getSuggestedName, getPorts, makePortName } from '../../../utils/imagestream-utils';
 import { secretModalLauncher } from '../CreateSecretModal';
-
-const getSuggestedName = (name: string): string | undefined => {
-  if (!name) {
-    return undefined;
-  }
-
-  const imageName: string = _.last(name.split('/'));
-
-  return _.first(imageName.split(/[^a-z0-9-]/));
-};
 
 const ImageSearch: React.FC = () => {
   const { values, setFieldValue, setFieldError } = useFormikContext<FormikValues>();
@@ -89,7 +79,7 @@ const ImageSearch: React.FC = () => {
   };
 
   return (
-    <React.Fragment>
+    <>
       <InputSearchField
         type={TextInputTypes.text}
         data-test-id="deploy-image-search-term"
@@ -124,7 +114,7 @@ const ImageSearch: React.FC = () => {
           action={<AlertActionCloseButton onClose={() => shouldHideAlert(false)} />}
         />
       )}
-    </React.Fragment>
+    </>
   );
 };
 

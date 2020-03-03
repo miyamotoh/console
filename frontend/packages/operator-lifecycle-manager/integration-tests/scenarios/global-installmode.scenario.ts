@@ -3,16 +3,18 @@ import { browser, $, element, ExpectedConditions as until, by } from 'protractor
 import * as _ from 'lodash';
 import {
   appHost,
-  testName,
-  checkLogs,
   checkErrors,
-} from '../../../../integration-tests/protractor.conf';
-import * as crudView from '../../../../integration-tests/views/crud.view';
-import * as catalogView from '../../../../integration-tests/views/catalog.view';
-import * as catalogPageView from '../../../../integration-tests/views/catalog-page.view';
+  checkLogs,
+  retry,
+  testName,
+} from '@console/internal-integration-tests/protractor.conf';
+import * as crudView from '@console/internal-integration-tests/views/crud.view';
+import * as catalogView from '@console/internal-integration-tests/views/catalog.view';
+import * as catalogPageView from '@console/internal-integration-tests/views/catalog-page.view';
+import * as sidenavView from '@console/internal-integration-tests/views/sidenav.view';
+import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
+import * as operatorView from '../views/operator.view';
 import * as operatorHubView from '../views/operator-hub.view';
-import * as sidenavView from '../../../../integration-tests/views/sidenav.view';
-import * as yamlView from '../../../../integration-tests/views/yaml.view';
 
 describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', () => {
   const jaegerResources = new Set([
@@ -23,11 +25,11 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     'Secret',
     'ConfigMap',
   ]);
-  const deleteRecoveryTime = 60000;
   const jaegerOperatorName = 'jaeger-operator';
   const jaegerName = 'my-jaeger';
 
   const catalogNamespace = _.get(browser.params, 'globalCatalogNamespace', 'openshift-marketplace');
+  const jaegerTileID = `jaeger-console-e2e-${catalogNamespace}`;
   const globalOperatorsNamespace = _.get(
     browser.params,
     'globalOperatorsNamespace',
@@ -86,9 +88,10 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
   });
 
   it('displays subscription creation form for selected Operator', async () => {
+    await catalogView.categoryTabsPresent();
     await catalogView.categoryTabs.get(0).click();
     await catalogPageView.clickFilterCheckbox('providerType-custom');
-    await catalogPageView.catalogTileFor('Jaeger Tracing').click();
+    await catalogPageView.catalogTileByID(jaegerTileID).click();
     await browser.wait(until.visibilityOf(operatorHubView.operatorModal));
     await operatorHubView.operatorModalInstallBtn.click();
     await operatorHubView.createSubscriptionFormLoaded();
@@ -111,16 +114,16 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     await crudView.isLoaded();
     await catalogPageView.clickFilterCheckbox('installState-installed');
 
-    expect(catalogPageView.catalogTileFor('Jaeger Tracing').isDisplayed()).toBe(true);
+    expect(catalogPageView.catalogTileByID(jaegerTileID).isDisplayed()).toBe(true);
   });
 
   it(`displays Operator in "Cluster Service Versions" view for "${testName}" namespace`, async () => {
-    await catalogPageView.catalogTileFor('Jaeger Tracing').click();
+    await retry(() => catalogPageView.catalogTileByID(jaegerTileID).click());
     await operatorHubView.operatorModalIsLoaded();
     await operatorHubView.viewInstalledOperator();
     await crudView.isLoaded();
 
-    await browser.wait(until.visibilityOf(crudView.rowForOperator('Jaeger Tracing')), 30000);
+    await browser.wait(until.visibilityOf(operatorView.rowForOperator('Jaeger Tracing')), 30000);
   });
 
   it('creates Operator `Deployment`', async () => {
@@ -138,35 +141,10 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     expect(crudView.rowForName(jaegerOperatorName).isDisplayed()).toBe(true);
   });
 
-  xit(
-    'recreates Operator `Deployment` if manually deleted',
-    async () => {
-      await crudView.deleteRow('Deployment')(jaegerOperatorName);
-      await browser.wait(
-        until.textToBePresentInElement(
-          crudView.rowForName(jaegerOperatorName).$('a[title=pods]'),
-          '0 of 1 pods',
-        ),
-      );
-      await browser.wait(
-        until.textToBePresentInElement(
-          crudView.rowForName(jaegerOperatorName).$('a[title=pods]'),
-          '1 of 1 pods',
-        ),
-      );
-
-      expect(crudView.rowForName(jaegerOperatorName).isDisplayed()).toBe(true);
-    },
-    deleteRecoveryTime,
-  );
-
   it('displays metadata about Operator in the "Overview" section', async () => {
     await browser.get(`${appHost}/k8s/ns/${testName}/clusterserviceversions`);
     await crudView.isLoaded();
-    await crudView
-      .rowForOperator('Jaeger Tracing')
-      .$('.co-clusterserviceversion-logo')
-      .click();
+    await operatorView.rowForOperator('Jaeger Tracing').click();
     await browser.wait(until.presenceOf($('.loading-box__loaded')), 5000);
 
     expect($('.co-m-pane__details').isDisplayed()).toBe(true);
@@ -184,7 +162,7 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
 
   it('displays YAML editor for creating a new `Jaeger` instance', async () => {
     await browser.wait(until.visibilityOf(element(by.buttonText('Create Jaeger'))));
-    await element(by.buttonText('Create Jaeger')).click();
+    await retry(() => element(by.buttonText('Create Jaeger')).click());
     await yamlView.isLoaded();
 
     expect($('.co-create-operand__header').getText()).toContain('Create Jaeger');
@@ -193,16 +171,14 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
   it('displays new `Jaeger` that was created from YAML editor', async () => {
     await $('#save-changes').click();
     await crudView.isLoaded();
-    await browser.wait(until.visibilityOf(crudView.rowForName(jaegerName)));
+    await browser.wait(until.visibilityOf(operatorView.operandLink(jaegerName)));
 
-    expect(crudView.rowForName(jaegerName).getText()).toContain('Jaeger');
+    const isDisplayed = retry(() => operatorView.operandKind('Jaeger').isDisplayed());
+    expect(isDisplayed).toBe(true);
   });
 
   it('displays metadata about the created `Jaeger` in its "Overview" section', async () => {
-    await crudView
-      .rowForName(jaegerName)
-      .element(by.linkText(jaegerName))
-      .click();
+    await retry(() => operatorView.operandLink(jaegerName).click());
     await browser.wait(until.presenceOf($('.loading-box__loaded')), 5000);
 
     expect($('.co-operand-details__section--info').isDisplayed()).toBe(true);
@@ -225,6 +201,7 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     await element(by.linkText('Resources')).click();
     await crudView.isLoaded();
 
+    await crudView.rowFiltersPresent();
     jaegerResources.forEach((kind) => {
       expect(crudView.rowFilterFor(kind).isDisplayed()).toBe(true);
     });
@@ -235,7 +212,7 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     await crudView.isLoaded();
     await catalogPageView.clickFilterCheckbox('providerType-custom');
     await catalogPageView.clickFilterCheckbox('installState-installed');
-    await catalogPageView.catalogTileFor('Jaeger Tracing').click();
+    await catalogPageView.catalogTileByID(jaegerTileID).click();
     await operatorHubView.operatorModalIsLoaded();
 
     expect(operatorHubView.operatorModalUninstallBtn.isDisplayed()).toBe(true);
@@ -246,8 +223,8 @@ describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', (
     await browser.wait(until.visibilityOf($('.co-catalog-install-modal')));
     await element(by.cssContainingText('#confirm-action', 'Remove')).click();
     await crudView.isLoaded();
-    await browser.wait(until.invisibilityOf(crudView.rowForOperator('Jaeger Tracing')), 5000);
+    await browser.wait(until.invisibilityOf(operatorView.rowForOperator('Jaeger Tracing')), 5000);
 
-    expect(crudView.rowForOperator('Jaeger Tracing').isPresent()).toBe(false);
+    expect(operatorView.rowForOperator('Jaeger Tracing').isPresent()).toBe(false);
   });
 });

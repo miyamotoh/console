@@ -12,13 +12,13 @@ import {
   DashboardsOverviewHealthURLSubsystem,
   DashboardsOverviewInventoryItem,
   DashboardsInventoryItemGroup,
+  ReduxReducer,
+  ProjectDashboardInventoryItem,
+  DashboardsOverviewResourceActivity,
 } from '@console/plugin-sdk';
-import {
-  DashboardsStorageTopConsumerUsed,
-  DashboardsStorageTopConsumerRequested,
-  DashboardsStorageCapacityDropdownItem,
-} from '@console/ceph-storage-plugin';
+import { DashboardsStorageCapacityDropdownItem } from '@console/ceph-storage-plugin';
 import { TemplateModel, PodModel } from '@console/internal/models';
+import { getName } from '@console/shared/src/selectors/common';
 import * as models from './models';
 import { VMTemplateYAMLTemplates, VirtualMachineYAMLTemplates } from './models/templates';
 import { getKubevirtHealthState } from './components/dashboards-page/overview-dashboard/health';
@@ -26,6 +26,7 @@ import {
   getVMStatusGroups,
   VMOffGroupIcon,
 } from './components/dashboards-page/overview-dashboard/inventory';
+import kubevirtReducer from './redux';
 
 import './style.scss';
 
@@ -40,11 +41,12 @@ type ConsumedExtensions =
   | DashboardsOverviewHealthURLSubsystem
   | DashboardsOverviewInventoryItem
   | DashboardsInventoryItemGroup
-  | DashboardsStorageTopConsumerUsed
-  | DashboardsStorageTopConsumerRequested
-  | DashboardsStorageCapacityDropdownItem;
+  | DashboardsStorageCapacityDropdownItem
+  | ReduxReducer
+  | ProjectDashboardInventoryItem
+  | DashboardsOverviewResourceActivity;
 
-const FLAG_KUBEVIRT = 'KUBEVIRT';
+export const FLAG_KUBEVIRT = 'KUBEVIRT';
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -61,18 +63,6 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'NavItem/ResourceNS',
-    properties: {
-      section: 'Workloads',
-      componentProps: {
-        name: 'Virtual Machines',
-        resource: models.VirtualMachineModel.plural,
-        required: FLAG_KUBEVIRT,
-      },
-      mergeAfter: 'Pods',
-    },
-  },
-  {
     // NOTE(yaacov): vmtemplates is a template resource with a selector.
     // 'NavItem/ResourceNS' is used, and not 'NavItem/Href', because it injects
     // the namespace needed to get the correct link to a resource ( template with selector ) in our case.
@@ -84,7 +74,19 @@ const plugin: Plugin<ConsumedExtensions> = [
         resource: 'vmtemplates',
         required: FLAG_KUBEVIRT,
       },
-      mergeAfter: 'Virtual Machines',
+      mergeBefore: 'Deployments',
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      section: 'Workloads',
+      componentProps: {
+        name: 'Virtual Machines',
+        resource: models.VirtualMachineModel.plural,
+        required: FLAG_KUBEVIRT,
+      },
+      mergeBefore: 'Virtual Machine Templates',
     },
   },
   {
@@ -131,6 +133,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import('./components/vm-templates/vm-template' /* webpackChunkName: "kubevirt" */).then(
           (m) => m.VirtualMachineTemplatesPage,
         ),
+      required: FLAG_KUBEVIRT,
     },
   },
   {
@@ -142,6 +145,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/vm-templates/vm-template-create-yaml' /* webpackChunkName: "kubevirt" */
         ).then((m) => m.CreateVMTemplateYAML),
+      required: FLAG_KUBEVIRT,
     },
   },
   {
@@ -153,6 +157,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/create-vm-wizard' /* webpackChunkName: "kubevirt-create-vm-wizard" */
         ).then((m) => m.CreateVMWizardPage),
+      required: FLAG_KUBEVIRT,
     },
   },
   {
@@ -164,6 +169,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/create-vm-wizard' /* webpackChunkName: "kubevirt-create-vm-wizard" */
         ).then((m) => m.CreateVMWizardPage),
+      required: FLAG_KUBEVIRT,
     },
   },
   {
@@ -174,6 +180,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/vm-templates/vm-template-details-page' /* webpackChunkName: "kubevirt" */
         ).then((m) => m.VMTemplateDetailsPage),
+      required: FLAG_KUBEVIRT,
     },
   },
   {
@@ -190,12 +197,12 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'Dashboards/Overview/Inventory/Item',
     properties: {
-      resource: {
-        isList: true,
-        kind: models.VirtualMachineModel.kind,
-        prop: 'vms',
-      },
       additionalResources: [
+        {
+          isList: true,
+          kind: models.VirtualMachineInstanceModel.kind,
+          prop: 'vmis',
+        },
         {
           isList: true,
           kind: PodModel.kind,
@@ -222,26 +229,6 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Dashboards/Storage/TopConsumers/Used',
-    properties: {
-      name: 'VMs',
-      metricType: 'pod',
-      query:
-        '(sort(topk(5, sum((avg_over_time(kubelet_volume_stats_used_bytes[1h]) * on (namespace,persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"virt-launcher-.*"}) * on (namespace,persistentvolumeclaim) group_left(storageclass, provisioner) (kube_persistentvolumeclaim_info * on (storageclass)  group_left(provisioner) kube_storageclass_info {provisioner=~"(.*rbd.csi.ceph.com)|(.*cephfs.csi.ceph.com)|(ceph.rook.io/block)"})) by (pod,namespace))))[60m:10m]',
-      required: FLAG_KUBEVIRT,
-    },
-  },
-  {
-    type: 'Dashboards/Storage/TopConsumers/Requested',
-    properties: {
-      name: 'VMs',
-      metricType: 'pod',
-      query:
-        '(sort(topk(5, sum((avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes[1h]) * on (namespace,persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"virt-launcher-.*"}) * on (namespace,persistentvolumeclaim) group_left(storageclass, provisioner) (kube_persistentvolumeclaim_info * on (storageclass)  group_left(provisioner) kube_storageclass_info {provisioner=~"(.*rbd.csi.ceph.com)|(.*cephfs.csi.ceph.com)|(ceph.rook.io/block)"})) by (pod,namespace))))[60m:10m]',
-      required: FLAG_KUBEVIRT,
-    },
-  },
-  {
     type: 'Dashboards/Storage/Capacity/Dropdown/Item',
     properties: {
       metric: 'VMs vs Pods',
@@ -249,6 +236,74 @@ const plugin: Plugin<ConsumedExtensions> = [
         'sum((kube_persistentvolumeclaim_resource_requests_storage_bytes * on (namespace,persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"virt-launcher-.*"}) * on (namespace,persistentvolumeclaim) group_left(storageclass, provisioner) (kube_persistentvolumeclaim_info * on (storageclass)  group_left(provisioner) kube_storageclass_info {provisioner=~"(.*rbd.csi.ceph.com)|(.*cephfs.csi.ceph.com)|(ceph.rook.io/block)"}))',
         'sum((kube_persistentvolumeclaim_resource_requests_storage_bytes * on (namespace,persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{pod !~"virt-launcher-.*"}) * on (namespace,persistentvolumeclaim) group_left(storageclass, provisioner) (kube_persistentvolumeclaim_info * on (storageclass)  group_left(provisioner) kube_storageclass_info {provisioner=~"(.*rbd.csi.ceph.com)|(.*cephfs.csi.ceph.com)|(ceph.rook.io/block)"}))',
       ],
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
+    type: 'ReduxReducer',
+    properties: {
+      namespace: 'kubevirt',
+      reducer: kubevirtReducer,
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
+    type: 'Project/Dashboard/Inventory/Item',
+    properties: {
+      additionalResources: [
+        {
+          isList: true,
+          kind: models.VirtualMachineInstanceModel.kind,
+          prop: 'vmis',
+        },
+        {
+          isList: true,
+          kind: PodModel.kind,
+          prop: 'pods',
+        },
+        {
+          isList: true,
+          kind: models.VirtualMachineInstanceMigrationModel.kind,
+          prop: 'migrations',
+        },
+      ],
+      model: models.VirtualMachineModel,
+      mapper: getVMStatusGroups,
+      useAbbr: true,
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Activity/Resource',
+    properties: {
+      k8sResource: {
+        isList: true,
+        kind: models.DataVolumeModel.kind,
+        prop: 'dvs',
+      },
+      isActivity: (resource) => _.get(resource, 'status.phase') === 'ImportInProgress',
+      getTimestamp: (resource) => new Date(resource.metadata.creationTimestamp),
+      loader: () =>
+        import(
+          './components/dashboards-page/overview-dashboard/activity' /* webpackChunkName: "kubevirt-activity" */
+        ).then((m) => m.DiskImportActivity),
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Activity/Resource',
+    properties: {
+      k8sResource: {
+        isList: true,
+        kind: PodModel.kind,
+        prop: 'pods',
+      },
+      isActivity: (resource) => getName(resource).startsWith('kubevirt-v2v-conversion'),
+      getTimestamp: (resource) => new Date(resource.metadata.creationTimestamp),
+      loader: () =>
+        import(
+          './components/dashboards-page/overview-dashboard/activity' /* webpackChunkName: "kubevirt-activity" */
+        ).then((m) => m.V2VImportActivity),
       required: FLAG_KUBEVIRT,
     },
   },

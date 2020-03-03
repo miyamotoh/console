@@ -1,23 +1,26 @@
 import * as React from 'react';
 import { connect } from 'react-redux';
-import { match } from 'react-router-dom';
+import { Link, match } from 'react-router-dom';
 import * as _ from 'lodash-es';
 import * as classNames from 'classnames';
+import { Button } from '@patternfly/react-core';
 import { sortable } from '@patternfly/react-table';
 
 import * as UIActions from '../actions/ui';
-import { UserModel } from '../models';
+import { OAuthModel, UserModel } from '../models';
 import { K8sKind, referenceForModel, UserKind } from '../module/k8s';
 import { DetailsPage, ListPage, Table, TableRow, TableData } from './factory';
 import { RoleBindingsPage } from './RBAC';
 import {
   Kebab,
   KebabAction,
+  MsgBox,
   navFactory,
   ResourceKebab,
   ResourceLink,
   ResourceSummary,
   SectionHeading,
+  resourcePathFromModel,
 } from './utils';
 
 const tableColumnClasses = [
@@ -96,14 +99,39 @@ const UserTableRow: React.FC<UserTableRowProps> = ({ obj, index, key, style }) =
   );
 };
 
+const EmptyMsg = () => <MsgBox title="No Users Found" />;
+const oAuthResourcePath = resourcePathFromModel(OAuthModel, 'cluster');
+const noDataDetail = (
+  <>
+    <p>Add identity providers (IDPs) to the OAuth configuration to allow others to log&nbsp;in.</p>
+    <p>
+      <Link to={oAuthResourcePath}>
+        <Button variant="primary">Add IDP</Button>
+      </Link>
+    </p>
+  </>
+);
+const NoDataEmptyMsg = () => <MsgBox title="No Users Found" detail={noDataDetail} />;
+
 export const UserList: React.FC = (props) => (
-  <Table {...props} aria-label="Users" Header={UserTableHeader} Row={UserTableRow} virtualize />
+  <Table
+    {...props}
+    aria-label="Users"
+    Header={UserTableHeader}
+    Row={UserTableRow}
+    EmptyMsg={EmptyMsg}
+    NoDataEmptyMsg={NoDataEmptyMsg}
+    virtualize
+  />
 );
 
 export const UserPage: React.FC<UserPageProps> = (props) => (
   <ListPage
     {...props}
     title="Users"
+    helpText={
+      <p className="co-help-text">Users are automatically added the first time they log&nbsp;in.</p>
+    }
     kind={referenceForModel(UserModel)}
     ListComponent={UserList}
     canCreate={false}
@@ -150,18 +178,32 @@ type UserTableRowProps = {
   style: any;
 };
 
-export const UserDetailsPage: React.FC<UserDetailsPageProps> = (props) => (
-  <DetailsPage
-    {...props}
-    kind={referenceForModel(UserModel)}
-    menuActions={Kebab.factory.common}
-    pages={[
-      navFactory.details(UserDetails),
-      navFactory.editYaml(),
-      navFactory.roles(RoleBindingsTab),
-    ]}
-  />
-);
+const UserDetailsPage_: React.FC<UserDetailsPageProps & UserKebabDispatchProps> = ({
+  startImpersonate,
+  ...props
+}) => {
+  const impersonateAction: KebabAction = (kind: K8sKind, obj: UserKind) => ({
+    label: `Impersonate User "${obj.metadata.name}"`,
+    callback: () => startImpersonate('User', obj.metadata.name),
+  });
+  return (
+    <DetailsPage
+      {...props}
+      kind={referenceForModel(UserModel)}
+      menuActions={[impersonateAction, ...Kebab.factory.common]}
+      pages={[
+        navFactory.details(UserDetails),
+        navFactory.editYaml(),
+        navFactory.roles(RoleBindingsTab),
+      ]}
+    />
+  );
+};
+
+export const UserDetailsPage = connect<{}, UserKebabDispatchProps, UserDetailsPageProps>(
+  null,
+  { startImpersonate: UIActions.startImpersonate },
+)(UserDetailsPage_);
 
 type UserPageProps = {
   autoFocus?: boolean;

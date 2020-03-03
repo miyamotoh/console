@@ -1,20 +1,21 @@
 import * as React from 'react';
 import { DetailsPage, DetailsPageProps } from '@console/internal/components/factory';
 import { Kebab, navFactory } from '@console/internal/components/utils';
-import { viewYamlComponent } from '@console/internal/components//utils/horizontal-nav';
 import { k8sGet, k8sList } from '@console/internal/module/k8s';
 import { ErrorPage404 } from '@console/internal/components/error';
 import {
-  rerunPipeline,
+  rerunPipelineAndRedirect,
   startPipeline,
   handlePipelineRunSubmit,
 } from '../../utils/pipeline-actions';
 import { getLatestRun } from '../../utils/pipeline-augment';
 import { PipelineRunModel, PipelineModel } from '../../models';
-import PipelineDetails from './PipelineDetails';
-import PipelineResources from './PipelineResources';
-import PipelineParameters from './PipelineParameters';
-import PipelineRuns from './PipelineRuns';
+import {
+  PipelineDetails,
+  PipelineParameters,
+  PipelineResources,
+  PipelineRuns,
+} from './detail-page-tabs';
 import PipelineForm from './pipeline-form/PipelineForm';
 
 interface PipelineDetailsPageStates {
@@ -41,7 +42,7 @@ class PipelineDetailsPage extends React.Component<DetailsPageProps, PipelineDeta
               menuActions: [
                 () => startPipeline(PipelineModel, res, handlePipelineRunSubmit),
                 ...(latestRun && latestRun.metadata
-                  ? [() => rerunPipeline(PipelineModel, res, latestRun, handlePipelineRunSubmit)]
+                  ? [() => rerunPipelineAndRedirect(PipelineRunModel, latestRun)]
                   : []),
                 Kebab.factory.Delete,
               ],
@@ -64,7 +65,7 @@ class PipelineDetailsPage extends React.Component<DetailsPageProps, PipelineDeta
         menuActions={this.state.menuActions}
         pages={[
           navFactory.details(PipelineDetails),
-          navFactory.editYaml(viewYamlComponent),
+          navFactory.editYaml(),
           {
             href: 'Runs',
             name: 'Pipeline Runs',

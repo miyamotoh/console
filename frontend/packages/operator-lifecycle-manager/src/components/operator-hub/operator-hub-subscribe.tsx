@@ -52,6 +52,7 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
   const [updateChannel, setUpdateChannel] = React.useState(null);
   const [approval, setApproval] = React.useState(InstallPlanApproval.Automatic);
   const [cannotResolve, setCannotResolve] = React.useState(false);
+  const [error, setError] = React.useState('');
 
   const { name: pkgName } = props.packageManifest.data[0].metadata;
   const {
@@ -156,6 +157,8 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
   };
 
   const submit = () => {
+    // Clear any previous errors.
+    setError('');
     const operatorGroup: OperatorGroupKind = {
       apiVersion: apiVersionForModel(OperatorGroupModel) as OperatorGroupKind['apiVersion'],
       kind: 'OperatorGroup',
@@ -199,7 +202,8 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
             targetNamespace || props.targetNamespace || selectedTargetNamespace,
           ),
         ),
-      );
+      )
+      .catch(({ message = 'Could not create operator subscription.' }) => setError(message));
   };
 
   const formValid = () =>
@@ -213,6 +217,16 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
 
   const formError = () => {
     return (
+      (error && (
+        <Alert
+          isInline
+          className="co-alert co-alert--scrollable"
+          variant="danger"
+          title="An error occurred"
+        >
+          <div className="co-pre-line">{error}</div>
+        </Alert>
+      )) ||
       (!namespaceSupports(selectedTargetNamespace)(selectedInstallMode) && (
         <Alert
           isInline
@@ -226,7 +240,7 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
           isInline
           className="co-alert"
           variant="danger"
-          title={`Operator subscription for namespace &quot;${selectedTargetNamespace}&quot; already exists`}
+          title={`Operator subscription for namespace '${selectedTargetNamespace}' already exists`}
         />
       )) ||
       (!_.isEmpty(conflictingProvidedAPIs(selectedTargetNamespace)) && (
@@ -256,7 +270,7 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
   return (
     <div className="row">
       <div className="col-xs-6">
-        <React.Fragment>
+        <>
           <div className="form-group">
             <h5 className="co-required">Installation Mode</h5>
             <div>
@@ -339,7 +353,7 @@ export const OperatorHubSubscribeForm: React.FC<OperatorHubSubscribeFormProps> =
               onChange={(e) => setApproval(e.currentTarget.value)}
             />
           </div>
-        </React.Fragment>
+        </>
         <div className="co-form-section__separator" />
         {formError()}
         <ActionGroup className="pf-c-form">
@@ -395,7 +409,7 @@ export const OperatorHubSubscribePage: React.SFC<OperatorHubSubscribePageProps> 
   });
 
   return (
-    <React.Fragment>
+    <>
       <Helmet>
         <title>OperatorHub Subscription</title>
       </Helmet>
@@ -450,7 +464,7 @@ export const OperatorHubSubscribePage: React.SFC<OperatorHubSubscribePageProps> 
           />
         </Firehose>
       </div>
-    </React.Fragment>
+    </>
   );
 };
 

@@ -1,59 +1,50 @@
 import * as React from 'react';
-import * as _ from 'lodash';
 import { K8sResourceKind } from '@console/internal/module/k8s';
-import { SidebarSectionHeading } from '@console/internal/components/utils';
 import { OverviewItem } from '@console/shared';
-import ConfigurationsOverviewList from './ConfigurationsOverviewList';
-import RevisionsOverviewList from './RevisionsOverviewList';
-import KSRoutesOverviewList from './RoutesOverviewList';
+import {
+  RevisionModel,
+  ServiceModel,
+  EventSourceCronJobModel,
+  EventSourceContainerModel,
+  EventSourceApiServerModel,
+  EventSourceCamelModel,
+  EventSourceKafkaModel,
+} from '../../models';
+import KnativeServiceResources from './KnativeServiceResources';
+import KnativeRevisionResources from './KnativeRevisionResources';
+import EventSinkServicesOverviewList from './EventSinkServicesOverviewList';
 
 export type KnativeOverviewProps = {
   ksroutes: K8sResourceKind[];
   configurations: K8sResourceKind[];
   revisions: K8sResourceKind[];
+  obj: K8sResourceKind;
 };
 
 export type OverviewDetailsResourcesTabProps = {
   item: OverviewItem;
 };
 
-const OverviewDetailsKnativeResourcesTab: React.FC<OverviewDetailsResourcesTabProps> = ({
-  item: { ksroutes, revisions, configurations },
-}) => (
-  <div className="overview__sidebar-pane-body">
-    <KnativeOverview ksroutes={ksroutes} configurations={configurations} revisions={revisions} />
-  </div>
-);
-
-const KnativeOverview: React.FC<KnativeOverviewProps> = ({
-  ksroutes,
-  configurations,
-  revisions,
-}) => {
-  return (
-    <React.Fragment>
-      <SidebarSectionHeading text="Revisions" />
-      {_.isEmpty(revisions) ? (
-        <span className="text-muted">No Revisions found for this resource.</span>
-      ) : (
-        <RevisionsOverviewList revisions={revisions} />
-      )}
-
-      <SidebarSectionHeading text="Routes" />
-      {_.isEmpty(ksroutes) ? (
-        <span className="text-muted">No Routes found for this resource.</span>
-      ) : (
-        <KSRoutesOverviewList ksroutes={ksroutes} />
-      )}
-
-      <SidebarSectionHeading text="Configurations" />
-      {_.isEmpty(configurations) ? (
-        <span className="text-muted">No Configurations found for this resource.</span>
-      ) : (
-        <ConfigurationsOverviewList configurations={configurations} />
-      )}
-    </React.Fragment>
-  );
+const getSidebarResources = ({ obj, ksroutes, revisions, configurations }: OverviewItem) => {
+  switch (obj.kind) {
+    case RevisionModel.kind:
+      return (
+        <KnativeRevisionResources ksroutes={ksroutes} obj={obj} configurations={configurations} />
+      );
+    case ServiceModel.kind:
+      return <KnativeServiceResources ksroutes={ksroutes} obj={obj} revisions={revisions} />;
+    case EventSourceCronJobModel.kind:
+    case EventSourceContainerModel.kind:
+    case EventSourceApiServerModel.kind:
+    case EventSourceCamelModel.kind:
+    case EventSourceKafkaModel.kind:
+      return <EventSinkServicesOverviewList obj={obj} />;
+    default:
+      return null;
+  }
 };
+const OverviewDetailsKnativeResourcesTab: React.FC<OverviewDetailsResourcesTabProps> = ({
+  item,
+}) => <div className="overview__sidebar-pane-body"> {getSidebarResources(item)} </div>;
 
 export default OverviewDetailsKnativeResourcesTab;

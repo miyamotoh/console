@@ -10,6 +10,7 @@ describe('TopologyDataController', () => {
     namespace: 'test',
     resources,
     knative: false,
+    serviceBinding: false,
     cheURL: 'https://test-che.test-cluster.com',
     render: () => <TestInner />,
   };
@@ -21,6 +22,16 @@ describe('TopologyDataController', () => {
         resourceList={[]}
         application={undefined}
         namespace="namespace"
+        filters={{
+          display: {
+            podCount: true,
+            eventSources: true,
+            knativeServices: true,
+            appGrouping: true,
+            operatorGrouping: true,
+          },
+          searchQuery: null,
+        }}
         {...props}
       />,
     );

@@ -11,21 +11,23 @@ const formatCount = (count: number) => {
 const BucketsRowStatus: React.FC<BucketsRowStatusProps> = React.memo(({ status, link, error }) => (
   <div className="nb-buckets-card__row-status-item">
     {error || _.isNil(status) ? (
-      <span className="co-dashboard-text--small nb-buckets-card__row-subtitle">Unavailable</span>
+      <span className="co-dashboard-text--small nb-buckets-card__row-subtitle">Not available</span>
     ) : Number(status) > 0 ? (
-      <React.Fragment>
+      <>
         <a href={link} style={{ textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">
           <RedExclamationCircleIcon className="co-dashboard-icon nb-bucket-card__status-icon" />
           <span className="nb-buckets-card__row-status-item-text">{status}</span>
         </a>
-      </React.Fragment>
+      </>
     ) : null}
   </div>
 ));
 
 const BucketsRow: React.FC<BucketsRowProps> = React.memo(
   ({ bucketsCount, title, objectsCount }) => {
-    const subtitle = _.isNil(objectsCount) ? 'Unavailable' : formatCount(Number(objectsCount));
+    const subtitle: string = _.isNil(objectsCount)
+      ? 'Not available'
+      : formatCount(Number(objectsCount));
     return (
       <div className="nb-buckets-card__row-title">
         <div>{_.isNil(bucketsCount) ? title : pluralize(Number(bucketsCount), title)}</div>

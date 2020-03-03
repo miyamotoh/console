@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as _ from 'lodash';
 import { Map as ImmutableMap } from 'immutable';
-import { Button, Switch, Tooltip } from '@patternfly/react-core';
+import { Button, Switch, Tooltip, Checkbox } from '@patternfly/react-core';
 import { EyeIcon, EyeSlashIcon, PencilAltIcon } from '@patternfly/react-icons';
 import { LoadingInline, ResourceLink, Selector } from '@console/internal/components/utils';
 import { k8sPatch } from '@console/internal/module/k8s';
@@ -14,7 +14,7 @@ import { configureSizeModal } from './configure-size';
 import { configureUpdateStrategyModal } from './configure-update-strategy';
 
 const Default: React.SFC<SpecCapabilityProps> = ({ value }) => {
-  if (_.isEmpty(value) && !_.isNumber(value)) {
+  if (_.isEmpty(value) && !_.isNumber(value) && !_.isBoolean(value)) {
     return <span className="text-muted">None</span>;
   }
   if (_.isObject(value)) {
@@ -82,7 +82,8 @@ const BasicSelector: React.SFC<SpecCapabilityProps> = ({ value, capability }) =>
 );
 
 const BooleanSwitch: React.FC<SpecCapabilityProps> = (props) => {
-  const [value, setValue] = React.useState(props.value);
+  const convertedValue = !_.isNil(props.value) ? props.value : false;
+  const [value, setValue] = React.useState(convertedValue);
   const [confirmed, setConfirmed] = React.useState(false);
 
   const patchFor = (val: boolean) => [
@@ -106,15 +107,55 @@ const BooleanSwitch: React.FC<SpecCapabilityProps> = (props) => {
         labelOff="False"
       />
       &nbsp;&nbsp;
-      {value !== props.value && confirmed && <LoadingInline />}
-      {value !== props.value && !confirmed && (
-        <React.Fragment>
+      {value !== convertedValue && confirmed && <LoadingInline />}
+      {value !== convertedValue && !confirmed && (
+        <>
           &nbsp;&nbsp;
           <Button className="pf-m-link--align-left" type="button" variant="link" onClick={update}>
             <YellowExclamationTriangleIcon className="co-icon-space-r pf-c-button-icon--plain" />
             Confirm change
           </Button>
-        </React.Fragment>
+        </>
+      )}
+    </div>
+  );
+};
+
+const CheckboxUIComponent: React.FC<SpecCapabilityProps> = (props) => {
+  const convertedValue = !_.isNil(props.value) ? props.value : false;
+  const [value, setValue] = React.useState(convertedValue);
+  const [confirmed, setConfirmed] = React.useState(false);
+
+  const patchFor = (val: boolean) => [
+    { op: 'add', path: `/spec/${props.descriptor.path.replace('.', '/')}`, value: val },
+  ];
+  const update = () => {
+    setConfirmed(true);
+    return k8sPatch(props.model, props.obj, patchFor(value));
+  };
+
+  return (
+    <div className="co-spec-descriptor--switch">
+      <Checkbox
+        id={props.descriptor.path}
+        style={{ marginLeft: '10px' }}
+        isChecked={value}
+        label={props.descriptor.displayName}
+        onChange={(val) => {
+          setValue(val);
+          setConfirmed(false);
+        }}
+      />
+      &nbsp;&nbsp;
+      {value !== convertedValue && confirmed && <LoadingInline />}
+      {value !== convertedValue && !confirmed && (
+        <>
+          &nbsp;&nbsp;
+          <Button className="pf-m-link--align-left" type="button" variant="link" onClick={update}>
+            <YellowExclamationTriangleIcon className="co-icon-space-r pf-c-button-icon--plain" />
+            Confirm change
+          </Button>
+        </>
       )}
     </div>
   );
@@ -124,22 +165,22 @@ const Secret: React.FC<SpecCapabilityProps> = (props) => {
   const [reveal, setReveal] = React.useState(false);
 
   return (
-    <React.Fragment>
+    <>
       <Button type="button" onClick={() => setReveal(!reveal)}>
         {reveal ? (
-          <React.Fragment>
+          <>
             <EyeSlashIcon className="co-icon-space-r" />
             Hide Values
-          </React.Fragment>
+          </>
         ) : (
-          <React.Fragment>
+          <>
             <EyeIcon className="co-icon-space-r" />
             Reveal Values
-          </React.Fragment>
+          </>
         )}
       </Button>
       <SecretValue value={props.value} encoded={false} reveal={reveal} />
-    </React.Fragment>
+    </>
   );
 };
 
@@ -175,7 +216,8 @@ const capabilityComponents = ImmutableMap<
   .set(SpecCapability.selector, BasicSelector)
   .set(SpecCapability.booleanSwitch, BooleanSwitch)
   .set(SpecCapability.password, Secret)
-  .set(SpecCapability.updateStrategy, UpdateStrategy);
+  .set(SpecCapability.updateStrategy, UpdateStrategy)
+  .set(SpecCapability.checkbox, CheckboxUIComponent);
 
 const capabilityFor = (specCapability: SpecCapability) => {
   if (_.isEmpty(specCapability)) {
@@ -196,15 +238,22 @@ const capabilityFor = (specCapability: SpecCapability) => {
  */
 export const SpecDescriptor: React.SFC<DescriptorProps> = (props) => {
   const { model, obj, descriptor, value, namespace } = props;
-  // Only using first capability instead of dealing with combimations/permutations
-  const capability = _.get(descriptor, ['x-descriptors', 0], null) as SpecCapability;
+  const capability = _.get(descriptor, ['x-descriptors'], []).find(
+    (c) =>
+      !c.startsWith(SpecCapability.fieldGroup) &&
+      !c.startsWith(SpecCapability.arrayFieldGroup) &&
+      !c.startsWith(SpecCapability.advanced) &&
+      !c.startsWith(SpecCapability.fieldDependency),
+  ) as SpecCapability;
   const Capability = capabilityFor(capability);
 
   return (
     <dl className="olm-descriptor">
       <div style={{ width: 'max-content' }}>
         <Tooltip content={descriptor.description}>
-          <dt className="olm-descriptor__title">{descriptor.displayName}</dt>
+          <dt className="olm-descriptor__title" data-test-descriptor-label={descriptor.displayName}>
+            {descriptor.displayName}
+          </dt>
         </Tooltip>
       </div>
       <dd className="olm-descriptor__value">

@@ -6,8 +6,8 @@ import {
   AccessReviewResourceAttributes,
 } from '@console/internal/module/k8s';
 import { checkAccess } from '@console/internal/components/utils';
-import { podColor } from '../constants/pod';
-import { Pod } from '../types/pod';
+import { podColor, AllPodStatus } from '../constants/pod';
+import { ExtPodKind } from '../types/pod';
 import { DEPLOYMENT_STRATEGY, DEPLOYMENT_PHASE } from '../constants';
 import { PodControllerOverviewItem, DeploymentStrategy } from '../types';
 
@@ -147,13 +147,22 @@ export const isIdled = (deploymentConfig: K8sResourceKind): boolean => {
   );
 };
 
+const getScalingUp = (dc: K8sResourceKind): ExtPodKind => {
+  return {
+    ..._.pick(dc, 'metadata'),
+    status: {
+      phase: AllPodStatus.ScalingUp,
+    },
+  };
+};
+
 export const getPodData = (
   dc: K8sResourceKind,
-  pods: Pod[],
+  pods: ExtPodKind[],
   current: PodControllerOverviewItem,
   previous: PodControllerOverviewItem,
   isRollingOut: boolean,
-): { inProgressDeploymentData: Pod[] | null; completedDeploymentData: Pod[] } => {
+): { inProgressDeploymentData: ExtPodKind[] | null; completedDeploymentData: ExtPodKind[] } => {
   const strategy: DeploymentStrategy = _.get(dc, ['spec', 'strategy', 'type'], null);
   const currentDeploymentphase = current && current.phase;
   const currentPods = current && current.pods;
@@ -176,5 +185,9 @@ export const getPodData = (
       completedDeploymentData: previousPods,
     };
   }
-  return { inProgressDeploymentData: null, completedDeploymentData: currentPods };
+  // if build is not finished show `Scaling Up` on pod phase
+  if (!current && !previous) {
+    return { inProgressDeploymentData: null, completedDeploymentData: [getScalingUp(dc)] };
+  }
+  return { inProgressDeploymentData: null, completedDeploymentData: pods };
 };

@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { TextInputTypes } from '@patternfly/react-core';
-import { InputField } from '../../formik-fields';
+import { InputField } from '@console/shared';
 
 const PipelineStorageOptions: React.FC = () => (
-  <React.Fragment>
+  <>
     <InputField
       type={TextInputTypes.text}
       name="params.type"
@@ -24,7 +24,7 @@ const PipelineStorageOptions: React.FC = () => (
       label="Directory"
       helpText="Represents whether the blob storage is a directory or not"
     />
-  </React.Fragment>
+  </>
 );
 
 export default PipelineStorageOptions;

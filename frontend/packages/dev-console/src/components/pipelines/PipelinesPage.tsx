@@ -1,43 +1,31 @@
 import * as React from 'react';
-import { FireMan_ as FireMan } from '@console/internal/components/factory';
-import { Firehose } from '@console/internal/components/utils';
+import { RouteComponentProps } from 'react-router';
 import { getBadgeFromType } from '@console/shared';
-import { referenceForModel } from '@console/internal/module/k8s';
 import { PipelineModel } from '../../models';
 import ProjectListPage from '../projects/ProjectListPage';
-import { filters } from './PipelineAugmentRuns';
-import PipelineAugmentRunsWrapper from './PipelineAugmentRunsWrapper';
+import PipelinesResourceList from './PipelinesResourceList';
 
-interface PipelinesPageProps {
-  namespace: string;
-}
+type PipelinesPageProps = RouteComponentProps<{ ns: string }>;
 
-const PipelinesPage: React.FC<PipelinesPageProps> = ({ namespace }) => {
-  const resources = [
-    {
-      isList: true,
-      kind: referenceForModel(PipelineModel),
-      namespace,
-      prop: PipelineModel.id,
-      filters: { ...filters },
+export const PipelinesPage: React.FC<PipelinesPageProps> = (props) => {
+  const {
+    match: {
+      params: { ns: namespace },
     },
-  ];
+  } = props;
   return namespace ? (
-    <FireMan
-      canCreate={false}
-      filterLabel="by name"
-      textFilter="name"
-      resources={resources}
+    <PipelinesResourceList
+      {...props}
+      badge={getBadgeFromType(PipelineModel.badge)}
+      namespace={namespace}
+      title={PipelineModel.labelPlural}
+    />
+  ) : (
+    <ProjectListPage
       title={PipelineModel.labelPlural}
       badge={getBadgeFromType(PipelineModel.badge)}
     >
-      <Firehose resources={resources}>
-        <PipelineAugmentRunsWrapper />
-      </Firehose>
-    </FireMan>
-  ) : (
-    <ProjectListPage title="Pipelines" badge={getBadgeFromType(PipelineModel.badge)}>
-      Select a project to view the list of pipelines
+      Select a project to view the list of {PipelineModel.labelPlural}
     </ProjectListPage>
   );
 };

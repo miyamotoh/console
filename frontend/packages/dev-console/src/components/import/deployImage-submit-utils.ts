@@ -1,9 +1,11 @@
 import * as _ from 'lodash';
 import {
   DeploymentConfigModel,
+  DeploymentModel,
   ImageStreamModel,
   ServiceModel,
   RouteModel,
+  RoleBindingModel,
 } from '@console/internal/models';
 import { k8sCreate, K8sResourceKind } from '@console/internal/module/k8s';
 import {
@@ -17,7 +19,36 @@ import {
   annotations,
   dryRunOpt,
 } from '../../utils/shared-submit-utils';
-import { DeployImageFormData } from './import-types';
+import { RegistryType } from '../../utils/imagestream-utils';
+import { DeployImageFormData, Resources } from './import-types';
+
+export const createSystemImagePullerRoleBinding = (
+  formData: DeployImageFormData,
+  dryRun: boolean,
+): Promise<K8sResourceKind> => {
+  const { imageStream } = formData;
+  const roleBinding = {
+    kind: RoleBindingModel.kind,
+    apiVersion: `${RoleBindingModel.apiGroup}/${RoleBindingModel.apiVersion}`,
+    metadata: {
+      name: 'system:image-puller',
+      namespace: imageStream.namespace,
+    },
+    subjects: [
+      {
+        kind: 'ServiceAccount',
+        name: 'default',
+        namespace: formData.project.name,
+      },
+    ],
+    roleRef: {
+      apiGroup: RoleBindingModel.apiGroup,
+      kind: 'ClusterRole',
+      name: 'system:image-puller',
+    },
+  };
+  return k8sCreate(RoleBindingModel, roleBinding, dryRun ? dryRunOpt : {});
+};
 
 export const createImageStream = (
   formData: DeployImageFormData,
@@ -60,18 +91,12 @@ export const createImageStream = (
   return k8sCreate(ImageStreamModel, imageStream, dryRun ? dryRunOpt : {});
 };
 
-export const createDeploymentConfig = (
-  formData: DeployImageFormData,
-  dryRun: boolean,
-): Promise<K8sResourceKind> => {
+const getMetadata = (formData: DeployImageFormData) => {
   const {
-    project: { name: namespace },
     application: { name: application },
     name,
-    isi: { image, tag, ports },
-    deployment: { env, replicas, triggers },
+    isi: { image },
     labels: userLabels,
-    limits: { cpu, memory },
   } = formData;
 
   const defaultLabels = getAppLabels(name, application);
@@ -93,6 +118,115 @@ export const createDeploymentConfig = (
       mountPath: path,
     });
   });
+
+  return { labels, podLabels, volumes, volumeMounts };
+};
+
+export const createDeployment = (
+  formData: DeployImageFormData,
+  dryRun: boolean,
+): Promise<K8sResourceKind> => {
+  const {
+    registry,
+    project: { name: namespace },
+    name,
+    isi: { image, ports },
+    deployment: { env, replicas },
+    labels: userLabels,
+    limits: { cpu, memory },
+    imageStream: { image: imgName, namespace: imgNamespace, tag },
+  } = formData;
+
+  const defaultAnnotations = {
+    ...annotations,
+    'alpha.image.policy.openshift.io/resolve-names': '*',
+    'image.openshift.io/triggers': JSON.stringify([
+      {
+        from: {
+          kind: 'ImageStreamTag',
+          name: `${imgName || name}:${tag}`,
+          namespace: imgNamespace || namespace,
+        },
+        fieldPath: `spec.template.spec.containers[?(@.name=="${name}")].image`,
+      },
+    ]),
+  };
+
+  const { labels, podLabels, volumes, volumeMounts } = getMetadata(formData);
+
+  const imageRef =
+    registry === RegistryType.External
+      ? `${imgName || name}:${tag}`
+      : _.get(image, 'dockerImageReference');
+
+  const deployment = {
+    kind: 'Deployment',
+    apiVersion: 'apps/v1',
+    metadata: {
+      name,
+      namespace,
+      labels,
+      annotations: defaultAnnotations,
+    },
+    spec: {
+      replicas,
+      selector: {
+        matchLabels: {
+          app: name,
+        },
+      },
+      template: {
+        metadata: {
+          labels: { ...userLabels, ...podLabels },
+          annotations,
+        },
+        spec: {
+          volumes,
+          containers: [
+            {
+              name,
+              image: imageRef,
+              ports,
+              volumeMounts,
+              env,
+              resources: {
+                ...((cpu.limit || memory.limit) && {
+                  limits: {
+                    ...(cpu.limit && { cpu: `${cpu.limit}${cpu.limitUnit}` }),
+                    ...(memory.limit && { memory: `${memory.limit}${memory.limitUnit}` }),
+                  },
+                }),
+                ...((cpu.request || memory.request) && {
+                  requests: {
+                    ...(cpu.request && { cpu: `${cpu.request}${cpu.requestUnit}` }),
+                    ...(memory.request && { memory: `${memory.request}${memory.requestUnit}` }),
+                  },
+                }),
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+  return k8sCreate(DeploymentModel, deployment, dryRun ? dryRunOpt : {});
+};
+
+export const createDeploymentConfig = (
+  formData: DeployImageFormData,
+  dryRun: boolean,
+): Promise<K8sResourceKind> => {
+  const {
+    project: { name: namespace },
+    name,
+    isi: { image, tag, ports },
+    deployment: { env, replicas, triggers },
+    labels: userLabels,
+    limits: { cpu, memory },
+    imageStream: { image: imgName, namespace: imgNamespace },
+  } = formData;
+
+  const { labels, podLabels, volumes, volumeMounts } = getMetadata(formData);
 
   const deploymentConfig = {
     kind: 'DeploymentConfig',
@@ -146,8 +280,8 @@ export const createDeploymentConfig = (
             containerNames: [name],
             from: {
               kind: 'ImageStreamTag',
-              name: `${name}:${tag}`,
-              namespace,
+              name: `${imgName || name}:${tag}`,
+              namespace: imgNamespace || namespace,
             },
           },
         },
@@ -189,15 +323,23 @@ export const createResources = async (
 ): Promise<K8sResourceKind[]> => {
   const formData = ensurePortExists(rawFormData);
   const {
+    registry,
     route: { create: canCreateRoute },
     isi: { ports, tag: imageStreamTag },
   } = formData;
 
   const requests: Promise<K8sResourceKind>[] = [];
-  requests.push(createImageStream(formData, dryRun));
-  if (!formData.serverless.enabled) {
-    requests.push(createDeploymentConfig(formData, dryRun));
-
+  if (registry === RegistryType.Internal) {
+    formData.imageStream.grantAccess &&
+      requests.push(createSystemImagePullerRoleBinding(formData, dryRun));
+  }
+  if (formData.resources !== Resources.KnativeService) {
+    registry === RegistryType.External && requests.push(createImageStream(formData, dryRun));
+    if (formData.resources === Resources.Kubernetes) {
+      requests.push(createDeployment(formData, dryRun));
+    } else {
+      requests.push(createDeploymentConfig(formData, dryRun));
+    }
     if (!_.isEmpty(ports)) {
       const service = createService(formData);
       requests.push(k8sCreate(ServiceModel, service, dryRun ? dryRunOpt : {}));
@@ -208,7 +350,7 @@ export const createResources = async (
     }
   } else if (!dryRun) {
     // Do not run serverless call during the dry run.
-    const [imageStreamResponse] = await Promise.all(requests);
+    const imageStreamResponse = await createImageStream(formData, dryRun);
     const imageStreamUrl = imageStreamTag
       ? `${imageStreamResponse.status.dockerImageRepository}:${imageStreamTag}`
       : imageStreamResponse.status.dockerImageRepository;

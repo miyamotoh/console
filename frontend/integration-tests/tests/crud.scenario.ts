@@ -12,7 +12,7 @@ import * as yamlView from '../views/yaml.view';
 import * as namespaceView from '../views/namespace.view';
 import * as createRoleBindingView from '../views/create-role-binding.view';
 
-const K8S_CREATION_TIMEOUT = 30000; //orig 15000;
+const K8S_CREATION_TIMEOUT = 30000;
 const YAML_EDITOR_TIMEOUT = K8S_CREATION_TIMEOUT;
 const K8S_EDIT_TIMEOUT = K8S_CREATION_TIMEOUT * 2;
 const K8S_DELETION_TIMEOUT = K8S_CREATION_TIMEOUT * 6;

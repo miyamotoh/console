@@ -5,36 +5,33 @@ import { prefixedID } from '../../utils';
 import { getStringEnumValues } from '../../utils/types';
 import { FormRow } from './form-row';
 import { Integer } from './integer/integer';
+import { BinaryUnit, toIECUnit } from './size-unit-utils';
 
 import './size-unit-form-row.scss';
-
-export enum BinaryUnit {
-  Mi = 'Mi',
-  Gi = 'Gi',
-  Ti = 'Ti',
-}
 
 type SizeUnitFormRowProps = {
   size: string;
   title?: string;
   unit: BinaryUnit;
+  units?: BinaryUnit[];
   validation: ValidationObject;
   id?: string;
   isDisabled?: boolean;
   isRequired?: boolean;
-  onSizeChanged: (size: string) => void;
-  onUnitChanged: (unit: BinaryUnit) => void;
+  onSizeChanged?: (size: string) => void;
+  onUnitChanged?: (unit: BinaryUnit) => void;
 };
 export const SizeUnitFormRow: React.FC<SizeUnitFormRowProps> = ({
   title = 'Size',
   size,
   unit,
+  units,
   validation,
   id,
   isRequired,
   isDisabled,
-  onSizeChanged,
-  onUnitChanged,
+  onSizeChanged = () => undefined,
+  onUnitChanged = () => undefined,
 }) => (
   <FormRow
     key="size"
@@ -62,9 +59,9 @@ export const SizeUnitFormRow: React.FC<SizeUnitFormRowProps> = ({
           id={prefixedID(id, 'unit')}
           isDisabled={isDisabled}
         >
-          {getStringEnumValues<BinaryUnit>(BinaryUnit).map((u) => {
-            return <FormSelectOption key={u} value={u} label={u} />;
-          })}
+          {(units || getStringEnumValues<BinaryUnit>(BinaryUnit)).map((u) => (
+            <FormSelectOption key={u} value={u} label={toIECUnit(u)} />
+          ))}
         </FormSelect>
       </SplitItem>
     </Split>

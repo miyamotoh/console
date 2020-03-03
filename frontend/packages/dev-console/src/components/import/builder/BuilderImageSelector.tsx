@@ -4,8 +4,8 @@ import { useField, useFormikContext, FormikValues } from 'formik';
 import { LoadingInline } from '@console/internal/components/utils';
 import { FormGroup, Alert } from '@patternfly/react-core';
 import { StarIcon } from '@patternfly/react-icons';
+import { getFieldId } from '@console/shared';
 import { NormalizedBuilderImages } from '../../../utils/imagestream-utils';
-import { getFieldId } from '../../formik-fields/field-utils';
 import BuilderImageCard from './BuilderImageCard';
 import './BuilderImageSelector.scss';
 
@@ -38,7 +38,16 @@ const BuilderImageSelector: React.FC<BuilderImageSelectorProps> = ({
       const image = _.find(builderImages);
       handleImageChange(image.name);
     }
-  }, [builderImageCount, builderImages, handleImageChange, selected.value]);
+    if (!selected.value && values.image.recommended) {
+      handleImageChange(values.image.recommended);
+    }
+  }, [
+    builderImageCount,
+    builderImages,
+    handleImageChange,
+    selected.value,
+    values.image.recommended,
+  ]);
 
   if (builderImageCount === 1) {
     return null;

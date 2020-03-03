@@ -26,9 +26,13 @@ export type RouteKind = {
 
 export enum ConditionTypes {
   Ready = 'Ready',
+  Active = 'Active',
+  ContainerHealthy = 'ContainerHealthy',
+  ResourcesAvailable = 'ResourcesAvailable',
 }
 
 export type Traffic = {
   revisionName: string;
   percent: number;
+  latestRevision?: boolean;
 };

@@ -11,7 +11,7 @@ import DashboardCardHeader from '@console/shared/src/components/dashboard/dashbo
 import DashboardCardTitle from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardTitle';
 import HealthBody from '@console/shared/src/components/dashboard/status-card/HealthBody';
 import HealthItem from '@console/shared/src/components/dashboard/status-card/HealthItem';
-import { getAlerts } from '@console/shared/src/components/dashboard/health-card/utils';
+import { getAlerts } from '@console/shared/src/components/dashboard/status-card/utils';
 import { PrometheusResponse } from '@console/internal/components/graphs';
 import {
   withDashboardResources,
@@ -19,10 +19,11 @@ import {
 } from '@console/internal/components/dashboard/with-dashboard-resources';
 import { FirehoseResource, FirehoseResult } from '@console/internal/components/utils';
 import { referenceForModel } from '@console/internal/module/k8s';
+import { getDataResiliencyState } from '@console/ceph-storage-plugin/src/components/dashboard-page/storage-dashboard/status-card/utils';
 import { filterNooBaaAlerts } from '../../utils';
 import { DATA_RESILIENCE_QUERIES, StatusCardQueries } from '../../queries';
 import { NooBaaSystemModel } from '../../models';
-import { getNooBaaState, getDataResiliencyState, ObjectServiceState } from './statuses';
+import { getNooBaaState, ObjectServiceState } from './statuses';
 import './status-card.scss';
 
 const statusCardQueries = Object.keys(StatusCardQueries);
@@ -124,12 +125,11 @@ const StatusCard: React.FC<DashboardItemProps> = ({
 
   const dataResiliencyState: ObjectServiceState = getDataResiliencyState(
     [progressResult],
-    !!progressError,
-    !progressResult,
+    [progressError],
   );
 
   return (
-    <DashboardCard>
+    <DashboardCard gradient>
       <DashboardCardHeader>
         <DashboardCardTitle>Status</DashboardCardTitle>
       </DashboardCardHeader>

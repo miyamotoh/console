@@ -11,28 +11,37 @@ import {
 import { vmWizardStorageModalEnhanced } from './vm-wizard-storage-modal-enhanced';
 
 const menuActionEdit = (
-  { diskWrapper, volumeWrapper, dataVolumeWrapper, id, type }: VMWizardStorageWithWrappers,
+  storageWithWrappers: VMWizardStorageWithWrappers,
   { wizardReduxID, withProgress }: VMWizardStorageRowActionOpts,
-): KebabOption => ({
-  label: 'Edit',
-  callback: () =>
-    withProgress(
-      vmWizardStorageModalEnhanced({
-        wizardReduxID,
-        id,
-        type,
-        diskWrapper,
-        volumeWrapper,
-        dataVolumeWrapper,
-      }).result,
-    ),
-});
+): KebabOption => {
+  return {
+    label: 'Edit',
+    isDisabled: [
+      VMWizardStorageType.WINDOWS_GUEST_TOOLS,
+      VMWizardStorageType.WINDOWS_GUEST_TOOLS_TEMPLATE,
+    ].includes(storageWithWrappers.type),
+    callback: () =>
+      withProgress(
+        vmWizardStorageModalEnhanced({
+          blocking: true,
+          isEditing: true,
+          wizardReduxID,
+          storage: storageWithWrappers,
+        }).result,
+      ),
+  };
+};
 
 const menuActionRemove = (
-  { id }: VMWizardStorageWithWrappers,
+  { id, type }: VMWizardStorageWithWrappers,
   { withProgress, removeStorage }: VMWizardStorageRowActionOpts,
 ): KebabOption => ({
   label: 'Delete',
+  isDisabled: [
+    VMWizardStorageType.PROVISION_SOURCE_DISK,
+    VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK,
+    VMWizardStorageType.V2V_VMWARE_IMPORT_TEMP,
+  ].includes(type),
   callback: () =>
     withProgress(
       new Promise((resolve) => {
@@ -42,22 +51,10 @@ const menuActionRemove = (
     ),
 });
 
-const getActions = (
+export const getActions = (
   wizardNetworkData: VMWizardStorageWithWrappers,
   opts: VMWizardStorageRowActionOpts,
-) => {
-  const actions = [menuActionEdit];
-
-  if (
-    ![
-      VMWizardStorageType.PROVISION_SOURCE_DISK,
-      VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK,
-    ].includes(wizardNetworkData.type)
-  ) {
-    actions.push(menuActionRemove);
-  }
-  return actions.map((a) => a(wizardNetworkData, opts));
-};
+) => [menuActionEdit, menuActionRemove].map((a) => a(wizardNetworkData, opts));
 
 export type VMWizardNicRowProps = {
   obj: VMWizardStorageBundle;

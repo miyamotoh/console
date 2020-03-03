@@ -8,8 +8,10 @@ import {
   HOST_STATUS_TITLES,
   HOST_STATUS_PROVISIONED,
   HOST_STATUS_EXTERNALLY_PROVISIONED,
+  NODE_STATUS_TITLES,
+  HOST_STATUS_AVAILABLE,
 } from '../../constants';
-import { HostRowBundle } from '../types';
+import { BareMetalHostBundle } from '../types';
 
 const hostStatesToFilterMap = Object.freeze({
   registering: {
@@ -17,8 +19,8 @@ const hostStatesToFilterMap = Object.freeze({
     states: HOST_REGISTERING_STATES,
   },
   ready: {
-    title: 'Ready',
-    states: [HOST_STATUS_READY],
+    title: 'Available',
+    states: [HOST_STATUS_READY, HOST_STATUS_AVAILABLE],
   },
   provisioning: {
     title: 'Provisioning',
@@ -32,13 +34,17 @@ const hostStatesToFilterMap = Object.freeze({
     title: 'Error',
     states: HOST_ERROR_STATES,
   },
+  maintenance: {
+    title: 'Maintenance',
+    states: Object.keys(NODE_STATUS_TITLES),
+  },
   other: {
     title: 'Other',
     states: Object.keys(HOST_STATUS_TITLES),
   },
 });
 
-export const getHostFilterStatus = (bundle: HostRowBundle): string => {
+export const getHostFilterStatus = (bundle: BareMetalHostBundle): string => {
   return _.findKey(hostStatesToFilterMap, ({ states }) => states.includes(bundle.status.status));
 };
 
@@ -47,7 +53,7 @@ export const hostStatusFilter: Filter = {
   selected: Object.keys(hostStatesToFilterMap),
   reducer: getHostFilterStatus,
   items: _.map(hostStatesToFilterMap, ({ title }, id) => ({ id, title })),
-  filter: (groups, bundle: HostRowBundle) => {
+  filter: (groups, bundle: BareMetalHostBundle) => {
     const status = getHostFilterStatus(bundle);
     return groups.selected.has(status) || !_.includes(groups.all, status);
   },

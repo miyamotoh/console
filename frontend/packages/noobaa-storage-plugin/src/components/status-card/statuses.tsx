@@ -1,8 +1,8 @@
 import * as _ from 'lodash';
-import { HealthState } from '@console/shared/src/components/dashboard/health-card/states';
+import { HealthState } from '@console/shared/src/components/dashboard/status-card/states';
 import { PrometheusResponse } from '@console/internal/components/graphs';
 import { FirehoseResult } from '@console/internal/components/utils';
-import { getGaugeValue, getResiliencyProgress } from '../../utils';
+import { getGaugeValue } from '../../utils';
 
 const NooBaaStatus = [
   {
@@ -38,8 +38,9 @@ export const getNooBaaState: GetObjectServiceStatus = (
   );
   const noobaaPhase = _.get(k8sResponse, 'data[0].status.phase');
   const unhealthyBucketsRatio = unhealthyBuckets / buckets;
+  const noData = !(buckets && unhealthyBuckets && pools && unhealthyPools && noobaaPhase);
 
-  if (hasLoadError) {
+  if (hasLoadError || noData) {
     return { state: HealthState.UNKNOWN };
   }
   if (isLoading) {
@@ -59,25 +60,6 @@ export const getNooBaaState: GetObjectServiceStatus = (
   }
   if (unhealthyBucketsRatio >= 0.3) {
     return NooBaaStatus[4];
-  }
-  return { state: HealthState.OK };
-};
-
-export const getDataResiliencyState: GetObjectServiceStatus = (
-  prometheusResponses,
-  hasLoadError,
-  isLoading,
-) => {
-  const progress = getResiliencyProgress(prometheusResponses[0]);
-
-  if (hasLoadError || !progress) {
-    return { state: HealthState.UNKNOWN };
-  }
-  if (isLoading) {
-    return { state: HealthState.LOADING };
-  }
-  if (progress < 100) {
-    return { state: HealthState.PROGRESS };
   }
   return { state: HealthState.OK };
 };

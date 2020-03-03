@@ -36,7 +36,12 @@ export function getDefaultPerspective() {
   return activePerspective || undefined;
 }
 
-const defaultQueryBrowserQuery = ImmutableMap({ isEnabled: true, isExpanded: true });
+const newQueryBrowserQuery = (): ImmutableMap<string, any> =>
+  ImmutableMap({
+    id: _.uniqueId('query-browser-query'),
+    isEnabled: true,
+    isExpanded: true,
+  });
 
 export default (state: UIState, action: UIAction): UIState => {
   if (!state) {
@@ -75,7 +80,7 @@ export default (state: UIState, action: UIAction): UIState => {
       consoleLinks: [],
       queryBrowser: ImmutableMap({
         metrics: [],
-        queries: ImmutableList([defaultQueryBrowserQuery]),
+        queries: ImmutableList([newQueryBrowserQuery()]),
       }),
     });
   }
@@ -174,19 +179,22 @@ export default (state: UIState, action: UIAction): UIState => {
     case ActionType.QueryBrowserAddQuery:
       return state.setIn(
         ['queryBrowser', 'queries'],
-        state.getIn(['queryBrowser', 'queries']).push(defaultQueryBrowserQuery),
+        state.getIn(['queryBrowser', 'queries']).push(newQueryBrowserQuery()),
       );
 
     case ActionType.QueryBrowserDeleteAllQueries:
-      return state.setIn(['queryBrowser', 'queries'], ImmutableList([defaultQueryBrowserQuery]));
+      return state.setIn(['queryBrowser', 'queries'], ImmutableList([newQueryBrowserQuery()]));
 
     case ActionType.QueryBrowserDeleteQuery: {
       let queries = state.getIn(['queryBrowser', 'queries']).delete(action.payload.index);
       if (queries.size === 0) {
-        queries = queries.push(defaultQueryBrowserQuery);
+        queries = queries.push(newQueryBrowserQuery());
       }
       return state.setIn(['queryBrowser', 'queries'], queries);
     }
+    case ActionType.QueryBrowserDismissNamespaceAlert:
+      return state.setIn(['queryBrowser', 'dismissNamespaceAlert'], true);
+
     case ActionType.QueryBrowserInsertText: {
       const { index, newText, replaceFrom, replaceTo } = action.payload;
       const oldText = state.getIn(['queryBrowser', 'queries', index, 'text'], '');
@@ -196,12 +204,13 @@ export default (state: UIState, action: UIAction): UIState => {
           : oldText + newText;
       return state.setIn(['queryBrowser', 'queries', index, 'text'], text);
     }
-    case ActionType.QueryBrowserPatchQuery:
-      return state.mergeIn(
-        ['queryBrowser', 'queries', action.payload.index],
-        ImmutableMap(action.payload.patch),
-      );
-
+    case ActionType.QueryBrowserPatchQuery: {
+      const { index, patch } = action.payload;
+      const query = state.hasIn(['queryBrowser', 'queries', index])
+        ? ImmutableMap(patch)
+        : newQueryBrowserQuery().merge(patch);
+      return state.mergeIn(['queryBrowser', 'queries', index], query);
+    }
     case ActionType.QueryBrowserRunQueries: {
       const queries = state.getIn(['queryBrowser', 'queries']).map((q) => {
         const isEnabled = q.get('isEnabled');
@@ -271,6 +280,12 @@ export default (state: UIState, action: UIAction): UIState => {
 
     case ActionType.SetConsoleLinks:
       return state.set('consoleLinks', action.payload.consoleLinks);
+
+    case ActionType.SetPodMetrics:
+      return state.setIn(['metrics', 'pod'], action.payload.podMetrics);
+
+    case ActionType.SetNamespaceMetrics:
+      return state.setIn(['metrics', 'namespace'], action.payload.namespaceMetrics);
 
     default:
       break;

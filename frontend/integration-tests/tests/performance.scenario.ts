@@ -1,9 +1,7 @@
 import { browser, ExpectedConditions as until } from 'protractor';
-import { writeFileSync } from 'fs';
-import * as path from 'path';
 import { OrderedMap } from 'immutable';
 
-import { appHost, screenshotsDir } from '../protractor.conf';
+import { appHost } from '../protractor.conf';
 import * as sidenavView from '../views/sidenav.view';
 import * as crudView from '../views/crud.view';
 import * as yamlView from '../views/yaml.view';
@@ -35,41 +33,18 @@ const chunkedRoutes = OrderedMap<string, { section: string; name: string }>()
   .set('operator-hub', { section: 'Operators', name: 'OperatorHub' });
 
 describe('Performance test', () => {
-  it('checks bundle size using ResourceTiming API', async () => {
-    const resources = await browser.executeScript<string[]>(() =>
-      performance
-        .getEntriesByType('resource')
-        .filter(
-          ({ name }) =>
-            name.endsWith('.js') && name.indexOf('main') > -1 && name.indexOf('runtime') === -1,
-        )
-        .map(({ name, decodedBodySize }: PerformanceResourceTiming) => ({
-          name: name.split('/').slice(-1)[0],
-          size: Math.floor(decodedBodySize / 1024),
-        }))
-        .reduce((acc, val) => acc.concat(`${val.name.split('-')[0]}: ${val.size} KB, `), ''),
-    );
-
-    writeFileSync(
-      path.resolve(__dirname, `../../${screenshotsDir}/bundle-analysis.txt`),
-      resources,
-    );
-
-    expect(resources.length).not.toEqual(0);
-  });
-
   it('downloads new bundle for YAML editor route', async () => {
     await browser.get(`${appHost}/k8s/ns/openshift-console/configmaps`);
     await crudView.isLoaded();
 
-    const initialChunks = await browser.executeScript<{ name: string; size: number }[]>(() =>
+    const initialChunks = await browser.executeScript(() =>
       performance.getEntriesByType('resource').filter(({ name }) => name.endsWith('.js')),
     );
 
     await crudView.clickKebabAction('console-config', 'Edit Config Map');
     await yamlView.isLoaded();
 
-    const postChunks = await browser.executeScript<{ name: string; size: number }[]>(() =>
+    const postChunks = await browser.executeScript(() =>
       performance.getEntriesByType('resource').filter(({ name }) => name.endsWith('.js')),
     );
 
@@ -83,24 +58,25 @@ describe('Performance test', () => {
       const chunkName = arguments[0];
       return performance
         .getEntriesByType('resource')
-        .find(({ name }) => name.endsWith('.js') && name.indexOf(`/${chunkName}`) > -1);
+        .find(({ name }) => name.endsWith('.js') && name.indexOf(`/${chunkName}-chunk`) > -1);
     };
 
     it(`downloads new bundle for ${routeName}`, async () => {
-      await browser.get(`${appHost}/k8s/cluster/projects`);
+      await browser.get(`${appHost}/k8s/cluster/namespaces`);
+      await crudView.isLoaded();
       await browser.executeScript(() => performance.setResourceTimingBufferSize(1000));
-      await browser.wait(until.presenceOf(crudView.resourceTitle));
       // Avoid problems where the Operators nav section appears where Workloads was at the moment the tests try to click.
       await browser.wait(until.visibilityOf(sidenavView.navSectionFor('Operators')));
       await sidenavView.clickNavLink([route.section, route.name]);
       await browser.wait(crudView.untilNoLoadersPresent);
 
-      const routeChunk = await browser.executeScript<PerformanceEntry>(routeChunkFor, routeName);
+      const routeChunk = await browser.executeScript(routeChunkFor, routeName);
 
       expect(routeChunk).not.toBeNull();
       // FIXME: Really need to address this chunk size
-      if (routeName === 'catalog' || routeName === 'operator-hub') {
-        expect((routeChunk as any).decodedBodySize).toBeLessThan(100000);
+      // TODO(jtomasek): extract common node components to @console/shared to reduce node chunk size
+      if (['catalog', 'operator-hub', 'node'].includes(routeName)) {
+        expect((routeChunk as any).decodedBodySize).toBeLessThan(120000);
       } else {
         expect((routeChunk as any).decodedBodySize).toBeLessThan(chunkLimit);
       }

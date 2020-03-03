@@ -10,4 +10,31 @@ export const NetworkAttachmentDefinitionModel: K8sKind = {
   abbr: 'NAD',
   kind: 'NetworkAttachmentDefinition',
   id: 'network-attachment-definition',
+  crd: true,
+};
+
+export const SriovNetworkNodePolicyModel: K8sKind = {
+  label: 'SR-IOV Network Node Policy',
+  labelPlural: 'SR-IOV Network Node Policies',
+  apiVersion: 'v1',
+  apiGroup: 'sriovnetwork.openshift.io',
+  plural: 'sriovnetworknodepolicies',
+  namespaced: true,
+  abbr: 'SRNNPM', // TODO check on this
+  kind: 'SriovNetworkNodePolicy',
+  id: 'sriov-network-node-policy',
+  crd: true,
+};
+
+export const HyperConvergedModel: K8sKind = {
+  label: 'HyperConverged Cluster',
+  labelPlural: 'HyperConverged Clusters',
+  apiVersion: 'v1alpha1',
+  apiGroup: 'hco.kubevirt.io',
+  plural: 'hyperconvergeds',
+  namespaced: true,
+  abbr: 'HCO',
+  kind: 'HyperConverged',
+  id: 'hyperconverged',
+  crd: true,
 };

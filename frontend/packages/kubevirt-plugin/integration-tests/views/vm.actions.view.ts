@@ -1,6 +1,6 @@
 import { $, $$, browser, ExpectedConditions as until } from 'protractor';
-import { rowForName } from '../../../../integration-tests/views/crud.view';
-import { waitForCount, click } from '../../../console-shared/src/test-utils/utils';
+import { rowForName } from '@console/internal-integration-tests/views/crud.view';
+import { waitForCount, click } from '@console/shared/src/test-utils/utils';
 
 const disabledDropdownButtons = $$('.pf-m-disabled');
 
@@ -28,6 +28,7 @@ const selectDropdownItem = (getActionsDropdown) => async (action: string) => {
   await browser
     .wait(until.elementToBeClickable(getActionsDropdown()))
     .then(() => getActionsDropdown().click());
+  await browser.wait(until.presenceOf($('[data-test-id="action-items"]')));
   await browser.wait(waitForCount(disabledDropdownButtons, 0));
   await click($(`[data-test-action="${action}"]`));
 };

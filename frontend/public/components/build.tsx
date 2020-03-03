@@ -3,8 +3,10 @@ import * as _ from 'lodash-es';
 import { Link } from 'react-router-dom';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
+import { Alert } from '@patternfly/react-core';
 
 import { Status } from '@console/shared';
+import { ByteDataTypes } from '@console/shared/src/graph-helper/data-utils';
 import {
   K8sResourceKindReference,
   referenceFor,
@@ -19,9 +21,11 @@ import {
   AsyncComponent,
   BuildHooks,
   BuildStrategy,
+  DetailsItem,
+  ExternalLink,
   history,
+  humanizeBinaryBytes,
   humanizeCpuCores,
-  humanizeDecimalBytes,
   Kebab,
   KebabAction,
   navFactory,
@@ -56,7 +60,7 @@ const CloneBuildAction: KebabAction = (kind: K8sKind, build: K8sResourceKind) =>
   accessReview: {
     group: kind.apiGroup,
     resource: kind.plural,
-    subresource: 'instantiate',
+    subresource: 'clone',
     name: build.metadata.name,
     namespace: build.metadata.namespace,
     verb: 'create',
@@ -109,7 +113,7 @@ export const BuildLogLink = ({ build }) => {
   return isPipeline ? (
     <BuildPipelineLogLink obj={build} />
   ) : (
-    <Link to={`${resourcePath('Build', name, namespace)}/logs`}>View Logs</Link>
+    <Link to={`${resourcePath('Build', name, namespace)}/logs`}>View logs</Link>
   );
 };
 
@@ -132,12 +136,13 @@ const BuildGraphs = requirePrometheus(({ build }) => {
   const namespace = build.metadata.namespace;
 
   return (
-    <React.Fragment>
+    <>
       <div className="row">
         <div className="col-md-12 col-lg-4">
           <Area
             title="Memory Usage"
-            humanize={humanizeDecimalBytes}
+            humanize={humanizeBinaryBytes}
+            byteDataType={ByteDataTypes.BinaryBytes}
             namespace={namespace}
             query={`sum(container_memory_working_set_bytes{pod='${podName}',namespace='${namespace}',container=''}) BY (pod, namespace)`}
           />
@@ -153,16 +158,35 @@ const BuildGraphs = requirePrometheus(({ build }) => {
         <div className="col-md-12 col-lg-4">
           <Area
             title="Filesystem"
-            humanize={humanizeDecimalBytes}
+            humanize={humanizeBinaryBytes}
+            byteDataType={ByteDataTypes.BinaryBytes}
             namespace={namespace}
             query={`pod:container_fs_usage_bytes:sum{pod='${podName}',container='',namespace='${namespace}'}`}
           />
         </div>
       </div>
       <br />
-    </React.Fragment>
+    </>
   );
 });
+
+export const PipelineBuildStrategyAlert: React.FC<BuildsDetailsProps> = () => {
+  return (
+    <Alert isInline className="co-alert" variant="info" title="Pipeline build strategy deprecation">
+      With the release of{' '}
+      <ExternalLink
+        href="https://openshift.github.io/pipelines-docs/docs/"
+        text="OpenShift Pipelines based on Tekton"
+      />
+      , the pipelines build strategy has been deprecated. Users should either use Jenkins files
+      directly on Jenkins or use cloud-native CI/CD with Openshift Pipelines.
+      <ExternalLink
+        href="https://github.com/openshift/pipelines-tutorial/"
+        text="Try the OpenShift Pipelines tutorial"
+      />
+    </Alert>
+  );
+};
 
 export const BuildsDetails: React.SFC<BuildsDetailsProps> = ({ obj: build }) => {
   const { logSnippet, message, startTimestamp } = build.status;
@@ -171,8 +195,9 @@ export const BuildsDetails: React.SFC<BuildsDetailsProps> = ({ obj: build }) => 
   const hasPipeline = build.spec.strategy.type === BuildStrategyType.JenkinsPipeline;
 
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-pane__body">
+        {hasPipeline && <PipelineBuildStrategyAlert obj={build} />}
         <SectionHeading text="Build Overview" />
         <BuildGraphs build={build} />
         {hasPipeline && (
@@ -185,38 +210,34 @@ export const BuildsDetails: React.SFC<BuildsDetailsProps> = ({ obj: build }) => 
         <div className="row">
           <div className="col-sm-6">
             <ResourceSummary resource={build}>
-              {triggeredBy && <dt>Triggered By</dt>}
-              {triggeredBy && <dd>{triggeredBy}</dd>}
-              {startTimestamp && <dt>Started</dt>}
-              {startTimestamp && (
-                <dd>
-                  <Timestamp timestamp={startTimestamp} />
-                </dd>
-              )}
+              <DetailsItem label="Triggered By" obj={build} path="spec.triggeredBy" hideEmpty>
+                {triggeredBy}
+              </DetailsItem>
+              <DetailsItem label="Started" obj={build} path="status.startTimestamp" hideEmpty>
+                <Timestamp timestamp={startTimestamp} />
+              </DetailsItem>
             </ResourceSummary>
           </div>
           <div className="col-sm-6">
             <BuildStrategy resource={build}>
-              <dt>Status</dt>
-              <dd>
+              <DetailsItem label="Status" obj={build} path="status.phase">
                 <Status status={build.status.phase} />
-              </dd>
-              {logSnippet && <dt>Log Snippet</dt>}
-              {logSnippet && (
-                <dd>
-                  <pre>{logSnippet}</pre>
-                </dd>
-              )}
-              {message && <dt>Reason</dt>}
-              {message && <dd>{message}</dd>}
-              {duration && <dt>Duration</dt>}
-              {duration && <dd>{duration}</dd>}
+              </DetailsItem>
+              <DetailsItem label="Log Snippet" obj={build} path="status.logSnippet" hideEmpty>
+                <pre>{logSnippet}</pre>
+              </DetailsItem>
+              <DetailsItem label="Message" obj={build} path="status.message" hideEmpty>
+                {message}
+              </DetailsItem>
+              <DetailsItem label="Duration" obj={build} path="status.duration" hideEmpty>
+                {duration}
+              </DetailsItem>
             </BuildStrategy>
           </div>
         </div>
       </div>
       <BuildHooks resource={build} />
-    </React.Fragment>
+    </>
   );
 };
 

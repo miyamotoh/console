@@ -6,17 +6,14 @@ import { RootState } from '@console/internal/redux';
 import { connect } from 'react-redux';
 import { ALL_APPLICATIONS_KEY } from '@console/internal/const';
 import { K8sResourceKind } from '@console/internal/module/k8s';
-import { DeployImageFormData } from './import-types';
+import { DeployImageFormData, FirehoseList, Resources } from './import-types';
 import { createResources } from './deployImage-submit-utils';
 import { deployValidationSchema } from './deployImage-validation-utils';
 import DeployImageForm from './DeployImageForm';
 
 export interface DeployImageProps {
   namespace: string;
-  projects?: {
-    loaded: boolean;
-    data: [];
-  };
+  projects?: FirehoseList;
 }
 
 interface StateProps {
@@ -39,6 +36,13 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }
     },
     name: '',
     searchTerm: '',
+    registry: 'external',
+    imageStream: {
+      image: '',
+      tag: '',
+      namespace: '',
+      grantAccess: true,
+    },
     isi: {
       name: '',
       image: {},
@@ -55,7 +59,6 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }
     },
     isSearchingForImage: false,
     serverless: {
-      enabled: false,
       scaling: {
         minpods: 0,
         maxpods: '',
@@ -64,6 +67,7 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }
       },
     },
     route: {
+      show: true,
       create: true,
       targetPort: '',
       unknownTargetPort: '',
@@ -80,6 +84,7 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }
         privateKey: '',
       },
     },
+    resources: Resources.Kubernetes,
     build: {
       env: [],
       triggers: {
@@ -103,14 +108,18 @@ const DeployImage: React.FC<Props> = ({ namespace, projects, activeApplication }
       cpu: {
         request: '',
         requestUnit: 'm',
+        defaultRequestUnit: 'm',
         limit: '',
         limitUnit: 'm',
+        defaultLimitUnit: 'm',
       },
       memory: {
         request: '',
         requestUnit: 'Mi',
+        defaultRequestUnit: 'Mi',
         limit: '',
         limitUnit: 'Mi',
+        defaultLimitUnit: 'Mi',
       },
     },
   };

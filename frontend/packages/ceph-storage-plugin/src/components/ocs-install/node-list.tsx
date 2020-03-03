@@ -9,9 +9,15 @@ import {
   TableVariant,
   TableGridBreakpoint,
 } from '@patternfly/react-table';
-import { getInfrastructurePlatform, getNodeRoles } from '@console/shared';
+import {
+  getInfrastructurePlatform,
+  getName,
+  getNodeRoles,
+  getNodeCPUCapacity,
+  getNodeAllocatableMemory,
+} from '@console/shared';
+import { Alert, ActionGroup, Button } from '@patternfly/react-core';
 import { tableFilters } from '@console/internal/components/factory/table-filters';
-import { ActionGroup, Button } from '@patternfly/react-core';
 import { ButtonBar } from '@console/internal/components/utils/button-bar';
 import { history } from '@console/internal/components/utils/router';
 import {
@@ -29,13 +35,19 @@ import {
   NodeKind,
   referenceForModel,
   StorageClassResourceKind,
+  Taint,
 } from '@console/internal/module/k8s';
 import { NodeModel, InfrastructureModel, StorageClassModel } from '@console/internal/models';
 import { isDefaultClass } from '@console/internal/components/storage-class';
 import { OCSServiceModel } from '../../models';
-import { infraProvisionerMap, minSelectedNode, ocsRequestData } from '../../constants/ocs-install';
-
+import {
+  infraProvisionerMap,
+  minSelectedNode,
+  ocsRequestData,
+  ocsTaint,
+} from '../../constants/ocs-install';
 import './ocs-install.scss';
+import { hasLabel } from '../../../../console-shared/src/selectors/common';
 
 const ocsLabel = 'cluster.ocs.openshift.io/openshift-storage';
 
@@ -77,36 +89,52 @@ const getColumns = () => {
   ];
 };
 
+const hasTaints = (node: NodeKind) => {
+  return !_.isEmpty(node.spec.taints);
+};
+
+const hasOCSTaint = (node: NodeKind) => {
+  const taints: Taint[] = node.spec.taints || [];
+  return taints.some((taint: Taint) => _.isEqual(taint, ocsTaint));
+};
+
 // return an empty array when there is no data
 const getRows = (nodes: NodeKind[]) => {
-  return nodes.map((node) => {
-    const roles = getNodeRoles(node).sort();
-    const obj = {
-      cells: [],
-      selected: false,
-      id: node.metadata.name,
-      metadata: _.clone(node.metadata),
-      spec: _.clone(node.spec),
-    };
-    obj.cells = [
-      {
-        title: <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />,
-      },
-      {
-        title: roles.join(', ') || '-',
-      },
-      {
-        title: _.get(node.metadata.labels, 'failure-domain.beta.kubernetes.io/zone') || '-',
-      },
-      {
-        title: `${humanizeCpuCores(_.get(node.status, 'capacity.cpu')).string || '-'}`,
-      },
-      {
-        title: `${getConvertedUnits(_.get(node.status, 'allocatable.memory'))}`,
-      },
-    ];
-    return obj;
-  });
+  return nodes
+    .filter((node) => hasOCSTaint(node) || !hasTaints(node))
+    .map((node) => {
+      const roles = getNodeRoles(node).sort();
+      const cpuCapacity: string = getNodeCPUCapacity(node);
+      const allocatableMemory: string = getNodeAllocatableMemory(node);
+      const cells = [
+        {
+          title: <ResourceLink kind="Node" name={node.metadata.name} title={node.metadata.uid} />,
+        },
+        {
+          title: roles.join(', ') || '-',
+        },
+        {
+          title: _.get(node.metadata.labels, 'failure-domain.beta.kubernetes.io/zone') || '-',
+        },
+        {
+          title: `${humanizeCpuCores(cpuCapacity).string || '-'}`,
+        },
+        {
+          title: `${getConvertedUnits(allocatableMemory)}`,
+        },
+      ];
+      const obj = {
+        cells,
+        selected: false,
+        id: node.metadata.name,
+        metadata: _.clone(node.metadata),
+        spec: _.clone(node.spec),
+        cpuCapacity,
+        allocatableMemory,
+      };
+
+      return obj;
+    });
 };
 
 const getFilteredRows = (filters: {}, objects: any[]) => {
@@ -137,41 +165,79 @@ const stateToProps = (obj, { data = [], filters = {}, staticFilters = [{}] }) =>
   const newData = getFilteredRows(allFilters, data);
   return {
     data: newData,
+    unfilteredData: data,
+    isFiltered: !!_.get(filters, 'name'),
   };
 };
-
-const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProps }) => {
+const CustomNodeTable: React.FC<CustomNodeTableProps> = ({
+  data,
+  unfilteredData,
+  isFiltered,
+  loaded,
+  ocsProps,
+}) => {
   const columns = getColumns();
   const [nodes, setNodes] = React.useState([]);
+  const [unfilteredNodes, setUnfilteredNodes] = React.useState([]);
   const [error, setError] = React.useState('');
   const [inProgress, setProgress] = React.useState(false);
   const [selectedNodesCnt, setSelectedNodesCnt] = React.useState(0);
+  const [nodesWarningMsg, setNodesWarningMsg] = React.useState('');
 
   let storageClass = '';
 
-  React.useEffect(() => {
-    const selectedNode = _.filter(nodes, 'selected').length;
-    setSelectedNodesCnt(selectedNode);
-  }, [nodes]);
+  // pre-selection of nodes
+  if (loaded && !unfilteredNodes.length) {
+    const formattedNodes: formattedNodeType[] = getRows(unfilteredData);
+    const preSelectedNodes = getPreSelectedNodes(formattedNodes);
+    setUnfilteredNodes(preSelectedNodes);
+    setNodes(preSelectedNodes);
+  }
 
-  React.useEffect(() => {
-    let formattedNodes = getRows(data);
+  const hasMinimumCPU = (node: formattedNodeType): boolean => {
+    return convertToBaseValue(node.cpuCapacity) >= 16;
+  };
 
-    // pre-selection of nodes
-    if (loaded && !nodes.length) {
-      formattedNodes = getPreSelectedNodes(formattedNodes);
-      setNodes(formattedNodes);
+  const hasMinimumMemory = (node: formattedNodeType): boolean => {
+    return convertToBaseValue(node.allocatableMemory) >= convertToBaseValue('64 Gi');
+  };
+
+  const validateNodes = React.useCallback((selectedNodes: formattedNodeType[]): void => {
+    let invalidNodesCount = 0;
+    let nodeName = '';
+    selectedNodes.forEach((node: formattedNodeType) => {
+      if (!hasMinimumCPU(node) || !hasMinimumMemory(node)) {
+        invalidNodesCount += 1;
+        nodeName = node.id;
+      }
+    });
+
+    if (invalidNodesCount > 0) {
+      const msg =
+        invalidNodesCount > 1
+          ? `${invalidNodesCount} of the selected nodes do not meet minimum requirements of 16 cores and 64 GiB Memory`
+          : `Node ${nodeName} does not meet minimum requirements of 16 cores and 64 GiB memory.`;
+      setNodesWarningMsg(msg);
+    } else {
+      setNodesWarningMsg('');
     }
-    // for getting nodes
-    else if (formattedNodes.length) {
-      const nodesByID = _.keyBy(nodes, 'id');
-      _.each(formattedNodes, (n) => {
-        n.selected = _.get(nodesByID, [n.id, 'selected']);
+  }, []);
+
+  React.useEffect(() => {
+    const selectedNodes = _.filter(unfilteredNodes, 'selected');
+    setSelectedNodesCnt(selectedNodes.length);
+    validateNodes(selectedNodes);
+  }, [nodes, unfilteredNodes, validateNodes]);
+
+  React.useEffect(() => {
+    if (isFiltered || nodes.length !== data.length) {
+      const unfilteredNodesByID = _.keyBy(unfilteredNodes, 'metadata.name');
+      const filterData = _.each(getRows(data), (n) => {
+        n.selected = _.get(unfilteredNodesByID, [n.id, 'selected'], false);
       });
-      setNodes(formattedNodes);
+      setNodes(filterData);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, loaded]);
+  }, [data, isFiltered, nodes.length, unfilteredNodes]);
 
   const onSelect = (
     event: React.MouseEvent<HTMLButtonElement>,
@@ -190,19 +256,32 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
       formattedNodes[index].selected = isSelected;
     }
     setNodes(formattedNodes);
+    const nodesByID = _.keyBy(nodes, 'id');
+    const setSelectedUnfilteredNodes = _.each(unfilteredNodes, (n) => {
+      if (_.get(nodesByID, [n.id, 'id']) === n.metadata.name) {
+        n.selected = _.get(nodesByID, [getName(n), 'selected'], false);
+      }
+    });
+    setUnfilteredNodes(setSelectedUnfilteredNodes);
   };
 
   const makeLabelNodesRequest = (selectedNodes: NodeKind[]): Promise<NodeKind>[] => {
-    return selectedNodes.map((node: NodeKind) => {
-      const patch = [
-        {
-          op: 'add',
-          path: '/metadata/labels/cluster.ocs.openshift.io~1openshift-storage',
-          value: '',
-        },
-      ];
-      return k8sPatch(NodeModel, node, patch);
-    });
+    const patch = [
+      {
+        op: 'add',
+        path: '/metadata/labels/cluster.ocs.openshift.io~1openshift-storage',
+        value: '',
+      },
+    ];
+    return _.reduce(
+      selectedNodes,
+      (accumulator, node) => {
+        return hasLabel(node, ocsLabel)
+          ? accumulator
+          : [...accumulator, k8sPatch(NodeModel, node, patch)];
+      },
+      [],
+    );
   };
 
   // tainting the selected nodes
@@ -230,17 +309,17 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
 
   const makeOCSRequest = () => {
     const selectedData: NodeKind[] = _.filter(nodes, 'selected');
-    const promises = [];
-
-    promises.push(...makeLabelNodesRequest(selectedData));
+    const promises = makeLabelNodesRequest(selectedData);
     // intentionally keeping the taint logic as its required in 4.3 and will be handled with checkbox selection
     // promises.push(...makeTaintNodesRequest(selectedData));
 
     const ocsObj = _.cloneDeep(ocsRequestData);
     ocsObj.spec.storageDeviceSets[0].dataPVCTemplate.spec.storageClassName = storageClass;
-    promises.push(k8sCreate(OCSServiceModel, ocsObj));
 
     Promise.all(promises)
+      .then(() => {
+        return k8sCreate(OCSServiceModel, ocsObj);
+      })
       .then(() => {
         history.push(
           `/k8s/ns/${ocsProps.namespace}/clusterserviceversions/${
@@ -270,12 +349,16 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
       .then((storageClasses: StorageClassResourceKind[]) => {
         // find all storageclass with the given provisioner
         const scList = _.filter(storageClasses, (sc) => sc.provisioner === provisioner);
-        // take the default storageclass
+        // take the provisioner based storageclass
         _.forEach(scList, (sc) => {
           if (isDefaultClass(sc)) {
             storageClass = sc.metadata.name;
           }
         });
+        // take the first storageclass if default not set
+        if (!storageClass && storageClass.length > 0) {
+          storageClass = getName(_.get(scList, '0'));
+        }
         makeOCSRequest();
       })
       .catch((err) => {
@@ -286,7 +369,7 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
 
   return (
     <>
-      <div className="node-list__max-height">
+      <div className="ceph-node-list__max-height">
         <Table
           aria-label="node list table"
           onSelect={onSelect}
@@ -302,6 +385,14 @@ const CustomNodeTable: React.FC<CustomNodeTableProps> = ({ data, loaded, ocsProp
       <p className="control-label help-block" id="nodes-selected">
         {selectedNodesCnt} node(s) selected
       </p>
+      {nodesWarningMsg.length > 0 && (
+        <Alert
+          className="co-alert ceph-ocs-install__alert"
+          variant="warning"
+          title={nodesWarningMsg}
+          isInline
+        />
+      )}
       <ButtonBar errorMessage={error} inProgress={inProgress}>
         <ActionGroup className="pf-c-form">
           <Button
@@ -325,13 +416,19 @@ export const NodeList = connect<{}, CustomNodeTableProps>(stateToProps)(CustomNo
 
 type CustomNodeTableProps = {
   data: NodeKind[];
+  unfilteredData: UnfilteredDataType[];
   loaded: boolean;
   ocsProps: ocsPropsType;
+  isFiltered: boolean;
 };
 
 type ocsPropsType = {
   namespace: string;
   clusterServiceVersion: K8sResourceKind;
+};
+
+type UnfilteredDataType = NodeKind & {
+  selected: boolean;
 };
 
 type formattedNodeType = {
@@ -340,4 +437,6 @@ type formattedNodeType = {
   id: string;
   metadata: {};
   spec: {};
+  cpuCapacity: string;
+  allocatableMemory: string;
 };

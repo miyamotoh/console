@@ -14,16 +14,16 @@ const SearchStatus: React.FC = () => {
         {values.isSearchingForImage && <Loading className="co-m-loader--inline" />}
         {!values.isSearchingForImage && !isiError && (
           <h2 className="h3 co-image-name-results__loading-heading">
-            {/* Select an image stream tag or e */}Enter an image name.
+            Enter an image name OR select an image stream tag.
           </h2>
         )}
         {!values.isSearchingForImage && isiError && (
-          <React.Fragment>
+          <>
             <h2 className="h3 co-image-name-results__loading-heading">
               <RedExclamationCircleIcon /> Could not load image metadata.
             </h2>
             <p className="co-image-name-results__loading-error">{isiError}</p>
-          </React.Fragment>
+          </>
         )}
       </div>
     </div>

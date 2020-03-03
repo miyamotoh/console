@@ -1,14 +1,11 @@
-import { HealthState } from '@console/shared/src/components/dashboard/health-card/states';
+import { HealthState } from '@console/shared/src/components/dashboard/status-card/states';
 import { GridPosition } from '@console/shared/src/components/dashboard/DashboardGrid';
-import { FirehoseResource, Humanize, FirehoseResult } from '@console/internal/components/utils';
+import { FirehoseResource, FirehoseResult } from '@console/internal/components/utils';
 import { K8sKind, K8sResourceKind } from '@console/internal/module/k8s';
 import {
   StatusGroupMapper,
   ExpandedComponentProps,
 } from '@console/shared/src/components/dashboard/inventory-card/InventoryItem';
-import { OverviewQuery } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/queries';
-import { ConsumerMutator } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/top-consumers-card';
-import { MetricType } from '@console/shared/src/components/dashboard/top-consumers-card/metric-type';
 import { PrometheusResponse } from '@console/internal/components/graphs';
 import { Extension } from './extension';
 import { LazyLoader } from './types';
@@ -44,6 +41,17 @@ namespace ExtensionProperties {
 
     /** Resolve the subsystem's health */
     healthHandler: URLHealthHandler<R>;
+
+    /**
+     * Loader for popup content. If defined health item will be represented as link
+     * which opens popup with given content.
+     */
+    popupComponent?: LazyLoader<any>;
+
+    /**
+     * Popup title
+     */
+    popupTitle?: string;
   }
 
   export interface DashboardsOverviewHealthPrometheusSubsystem
@@ -91,46 +99,18 @@ namespace ExtensionProperties {
     span?: DashboardCardSpan;
   }
 
-  export interface DashboardsOverviewQuery extends DashboardsExtensionProperties {
-    /** The original Prometheus query key to replace */
-    queryKey: OverviewQuery;
-
-    /** The Prometheus query */
-    query: string;
-  }
-
-  export interface DashboardsOverviewTopConsumerItem extends DashboardsExtensionProperties {
-    /** The k8s model of top consumer item */
+  export interface DashboardsOverviewInventoryItem extends DashboardsExtensionProperties {
+    /** The model for `resource` which will be fetched. The model is used for getting model's label or abbr. */
     model: K8sKind;
 
-    /** The name of the top consumer item */
-    name: string;
-
-    /** The name of the metric */
-    metric: string;
-
-    /** The queries which will be used to query prometheus */
-    queries: { [key in MetricType]?: string };
-
-    /** Function which can mutate results of parsed prometheus data */
-    mutator?: ConsumerMutator;
-  }
-
-  export interface DashboardsOverviewInventoryItem extends DashboardsExtensionProperties {
-    /** Resource which will be fetched and grouped by `mapper` function. */
-    resource: FirehoseResource;
+    /** Function which will map various statuses to groups. */
+    mapper?: StatusGroupMapper;
 
     /** Additional resources which will be fetched and passed to `mapper` function. */
     additionalResources?: FirehoseResource[];
 
-    /** The model for `resource` which will be fetched. The model is used for getting model's label or abbr. */
-    model: K8sKind;
-
     /** Defines whether model's label or abbr should be used when rendering the item. Defaults to false (label). */
     useAbbr?: boolean;
-
-    /** Function which will map various statuses to groups. */
-    mapper: StatusGroupMapper;
 
     /** Loader for the component which will be used when item is expanded. */
     expandedComponent?: LazyLoader<ExpandedComponentProps>;
@@ -145,19 +125,19 @@ namespace ExtensionProperties {
   }
 
   export interface DashboardsOverviewUtilizationItem extends DashboardsExtensionProperties {
-    /** The utilization item title */
-    title: string;
+    /** The utilization item to be replaced */
+    id: string;
 
     /** The Prometheus utilization query */
     query: string;
 
-    /** Function which will be used to format data from prometheus */
-    humanizeValue: Humanize;
+    /** The Prometheus total query */
+    totalQuery: string;
   }
 
   export interface DashboardsOverviewResourceActivity extends DashboardsExtensionProperties {
     /** Resource to watch */
-    k8sResource: FirehoseResource;
+    k8sResource: FirehoseResource & { isList: true };
 
     /**
      * Function which will determine if given resource represents the action.
@@ -166,7 +146,7 @@ namespace ExtensionProperties {
     isActivity?: (resource: K8sResourceKind) => boolean;
 
     /** Timestamp for given action, which will be used for ordering */
-    getTimestamp: (resource: K8sResourceKind) => Date;
+    getTimestamp?: (resource: K8sResourceKind) => Date;
 
     /** Loader for corresponding action component */
     loader: LazyLoader<K8sActivityProps>;
@@ -181,6 +161,20 @@ namespace ExtensionProperties {
 
     /** Loader for corresponding action component */
     loader: LazyLoader<PrometheusActivityProps>;
+  }
+
+  export interface ProjectDashboardInventoryItem extends DashboardsExtensionProperties {
+    /** The K8s model which will be scoped to project, fetched and passed to `mapper` function. */
+    model: K8sKind;
+
+    /** Additional resources which will be fetched and passed to `mapper` function. */
+    additionalResources?: FirehoseResource[];
+
+    /** Defines whether model's label or abbr should be used when rendering the item. Defaults to false (label). */
+    useAbbr?: boolean;
+
+    /** Function which will map various statuses to groups. */
+    mapper: StatusGroupMapper;
   }
 }
 
@@ -224,14 +218,6 @@ export interface DashboardsCard extends Extension<ExtensionProperties.Dashboards
 
 export const isDashboardsCard = (e: Extension): e is DashboardsCard => e.type === 'Dashboards/Card';
 
-export interface DashboardsOverviewQuery
-  extends Extension<ExtensionProperties.DashboardsOverviewQuery> {
-  type: 'Dashboards/Overview/Query';
-}
-
-export const isDashboardsOverviewQuery = (e: Extension): e is DashboardsOverviewQuery =>
-  e.type === 'Dashboards/Overview/Query';
-
 export interface DashboardsOverviewUtilizationItem
   extends Extension<ExtensionProperties.DashboardsOverviewUtilizationItem> {
   type: 'Dashboards/Overview/Utilization/Item';
@@ -258,15 +244,6 @@ export interface DashboardsInventoryItemGroup
 export const isDashboardsInventoryItemGroup = (e: Extension): e is DashboardsInventoryItemGroup =>
   e.type === 'Dashboards/Inventory/Item/Group';
 
-export interface DashboardsOverviewTopConsumerItem
-  extends Extension<ExtensionProperties.DashboardsOverviewTopConsumerItem> {
-  type: 'Dashboards/Overview/TopConsumers/Item';
-}
-
-export const isDashboardsOverviewTopConsumerItem = (
-  e: Extension,
-): e is DashboardsOverviewTopConsumerItem => e.type === 'Dashboards/Overview/TopConsumers/Item';
-
 export interface DashboardsOverviewResourceActivity
   extends Extension<ExtensionProperties.DashboardsOverviewResourceActivity> {
   type: 'Dashboards/Overview/Activity/Resource';
@@ -285,6 +262,24 @@ export const isDashboardsOverviewPrometheusActivity = (
   e: Extension,
 ): e is DashboardsOverviewPrometheusActivity =>
   e.type === 'Dashboards/Overview/Activity/Prometheus';
+
+export interface ProjectDashboardInventoryItem
+  extends Extension<ExtensionProperties.ProjectDashboardInventoryItem> {
+  type: 'Project/Dashboard/Inventory/Item';
+}
+
+export const isProjectDashboardInventoryItem = (e: Extension): e is ProjectDashboardInventoryItem =>
+  e.type === 'Project/Dashboard/Inventory/Item';
+
+export interface DashboardsOverviewInventoryItemReplacement
+  extends Extension<ExtensionProperties.DashboardsOverviewInventoryItem> {
+  type: 'Dashboards/Overview/Inventory/Item/Replacement';
+}
+
+export const isDashboardsOverviewInventoryItemReplacement = (
+  e: Extension,
+): e is DashboardsOverviewInventoryItemReplacement =>
+  e.type === 'Dashboards/Overview/Inventory/Item/Replacement';
 
 export type DashboardCardSpan = 4 | 6 | 12;
 

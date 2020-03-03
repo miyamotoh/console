@@ -6,6 +6,9 @@ import {
   k8sKill,
   K8sResourceKind,
   modelFor,
+  k8sCreate,
+  LabelSelector,
+  referenceFor,
 } from '@console/internal/module/k8s';
 import {
   ImageStreamModel,
@@ -19,15 +22,19 @@ import {
   StatefulSetModel,
 } from '@console/internal/models';
 import {
-  RevisionModel,
-  ConfigurationModel,
   ServiceModel as KnativeServiceModel,
   RouteModel as KnativeRouteModel,
+  EventSourceCronJobModel,
+  EventSourceContainerModel,
+  EventSourceApiServerModel,
+  EventSourceCamelModel,
+  EventSourceKafkaModel,
 } from '@console/knative-plugin';
 import { checkAccess } from '@console/internal/components/utils';
 import { TopologyDataObject } from '../components/topology/topology-types';
 import { detectGitType } from '../components/import/import-validation-utils';
 import { GitTypes } from '../components/import/import-types';
+import { ServiceBindingRequestModel } from '../models';
 
 export const edgesFromAnnotations = (annotations): string[] => {
   let edges: string[] = [];
@@ -42,6 +49,31 @@ export const edgesFromAnnotations = (annotations): string[] => {
   }
 
   return edges;
+};
+
+export const edgesFromServiceBinding = (
+  source: K8sResourceKind,
+  sbrs: K8sResourceKind[],
+): K8sResourceKind[] => {
+  const sourceBindings = [];
+  _.forEach(sbrs, (sbr) => {
+    let edgeExists = false;
+    if (_.get(sbr, 'spec.applicationSelector.resource') === modelFor(referenceFor(source)).plural) {
+      if (_.get(sbr, 'spec.applicationSelector.resourceRef') === source.metadata.name) {
+        edgeExists = true;
+      } else {
+        const matchLabels = _.has(sbr, 'spec.applicationSelector.matchLabels');
+        if (matchLabels) {
+          const sbrSelector = new LabelSelector(sbr.spec.applicationSelector);
+          if (sbrSelector.matches(source)) {
+            edgeExists = true;
+          }
+        }
+      }
+    }
+    edgeExists && sourceBindings.push(sbr);
+  });
+  return sourceBindings;
 };
 
 const listInstanceResources = (
@@ -103,7 +135,12 @@ export const updateResourceApplication = (
   application: string,
 ): Promise<any> => {
   if (!resource) {
-    return Promise.reject();
+    return Promise.reject(new Error('Error: no resource provided to update application for.'));
+  }
+  if (!resourceKind) {
+    return Promise.reject(
+      new Error('Error: invalid resource kind provided for updating application.'),
+    );
   }
 
   const instanceName = _.get(resource, ['metadata', 'labels', 'app.kubernetes.io/instance']);
@@ -147,7 +184,7 @@ const updateItemAppConnectTo = (
   connectValue: string,
   oldValue: string = undefined,
 ) => {
-  const model = modelFor(item.kind);
+  const model = modelFor(referenceFor(item));
 
   if (!model) {
     return Promise.reject();
@@ -192,6 +229,56 @@ const updateItemAppConnectTo = (
   const patch = [{ path: '/metadata/annotations', op, value: _.fromPairs(tags) }];
 
   return k8sPatch(model, item, patch);
+};
+
+export const createServiceBinding = (
+  source: K8sResourceKind,
+  target: K8sResourceKind,
+): Promise<any> => {
+  if (!source || !target || source === target) {
+    return Promise.reject();
+  }
+
+  const targetName = _.get(target, 'metadata.name');
+  const sourceName = _.get(source, 'metadata.name');
+  const namespace = _.get(source, 'metadata.namespace');
+  const sourceGroup = _.split(_.get(source, 'apiVersion'), '/');
+  const targetResourceGroup = _.split(_.get(target, 'metadata.ownerReferences[0].apiVersion'), '/');
+  const targetResourceKind = _.get(target, 'metadata.ownerReferences[0].kind');
+  const targetResourceRefName = _.get(target, 'metadata.ownerReferences[0].name');
+  const sbrName = `${sourceName}-${modelFor(referenceFor(source)).abbr}-${targetName}-${
+    modelFor(target.kind).abbr
+  }`;
+
+  const serviceBindingRequest = {
+    apiVersion: 'apps.openshift.io/v1alpha1',
+    kind: 'ServiceBindingRequest',
+    metadata: {
+      name: sbrName,
+      namespace,
+    },
+    spec: {
+      applicationSelector: {
+        resourceRef: sourceName,
+        group: sourceGroup[0],
+        version: sourceGroup[1],
+        resource: modelFor(referenceFor(source)).plural,
+      },
+      backingServiceSelector: {
+        group: targetResourceGroup[0],
+        version: targetResourceGroup[1],
+        kind: targetResourceKind,
+        resourceRef: targetResourceRefName,
+      },
+      detectBindingResources: true,
+    },
+  };
+
+  return k8sCreate(ServiceBindingRequestModel, serviceBindingRequest);
+};
+
+export const removeServiceBinding = (sbr: K8sResourceKind): Promise<any> => {
+  return k8sKill(ServiceBindingRequestModel, sbr);
 };
 
 // Create a connection from the source to the target replacing the connection to replacedTarget if provided
@@ -274,11 +361,9 @@ export const cleanUpWorkload = (
 ): Promise<K8sResourceKind[]> => {
   const reqs = [];
   const webhooks = [];
-  let webhooksAvailable = true;
-  const deleteModels = [BuildConfigModel, DeploymentConfigModel, ServiceModel, RouteModel];
+  let webhooksAvailable = false;
+  const deleteModels = [BuildConfigModel, ServiceModel, RouteModel];
   const knativeDeleteModels = [
-    ConfigurationModel,
-    RevisionModel,
     KnativeServiceModel,
     KnativeRouteModel,
     BuildConfigModel,
@@ -308,36 +393,32 @@ export const cleanUpWorkload = (
   const batchDeleteRequests = (models: K8sKind[], resourceObj: K8sResourceKind): void => {
     models.forEach((model) => deleteRequest(model, resourceObj));
   };
-  if (isKnativeResource) {
-    // delete knative resources
-    const knativeService = _.find(workload.resources.ksservices, { kind: 'Service' });
-    resourceData.metadata.name = _.get(knativeService, 'metadata.name', '');
-    batchDeleteRequests(knativeDeleteModels, resourceData);
-  } else {
-    // delete non knative resources
-    switch (resource.kind) {
-      case DeploymentModel.kind:
-        deleteRequest(DeploymentModel, resource);
-        webhooksAvailable = false;
-        break;
-      case DeploymentConfigModel.kind:
-        batchDeleteRequests(deleteModels, resource);
-        deleteRequest(ImageStreamModel, resource); // delete imageStream
-        break;
-      case DaemonSetModel.kind:
-        deleteRequest(DaemonSetModel, resource);
-        webhooksAvailable = false;
-        break;
-      case StatefulSetModel.kind:
-        deleteRequest(StatefulSetModel, resource);
-        webhooksAvailable = false;
-        break;
-      default:
-        webhooksAvailable = false;
-        break;
-    }
+  switch (resource.kind) {
+    case DaemonSetModel.kind:
+    case StatefulSetModel.kind:
+      deleteRequest(modelFor(resource.kind), resource);
+      break;
+    case DeploymentModel.kind:
+    case DeploymentConfigModel.kind:
+      deleteRequest(modelFor(resource.kind), resource);
+      batchDeleteRequests(deleteModels, resource);
+      deleteRequest(ImageStreamModel, resource); // delete imageStream
+      webhooksAvailable = true;
+      break;
+    case EventSourceCronJobModel.kind:
+    case EventSourceApiServerModel.kind:
+    case EventSourceContainerModel.kind:
+    case EventSourceKafkaModel.kind:
+    case EventSourceCamelModel.kind:
+      deleteRequest(modelFor(referenceFor(resource)), resource);
+      break;
+    case KnativeServiceModel.kind:
+      batchDeleteRequests(knativeDeleteModels, resourceData);
+      webhooksAvailable = true;
+      break;
+    default:
+      break;
   }
-  // Delete webhook secrets for both knative and non-knative resources
   if (webhooksAvailable) {
     webhooks.push('generic');
     if (!isKnativeResource && gitType !== GitTypes.unsure) {

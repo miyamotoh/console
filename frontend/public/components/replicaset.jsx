@@ -42,17 +42,17 @@ const Details = ({ obj: replicaSet }) => {
     'deployment.kubernetes.io/revision',
   ]);
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-pane__body">
         <SectionHeading text="Replica Set Overview" />
         <div className="row">
           <div className="col-md-6">
             <ResourceSummary resource={replicaSet} showPodSelector showNodeSelector showTolerations>
               {revision && (
-                <React.Fragment>
+                <>
                   <dt>Deployment Revision</dt>
                   <dd>{revision}</dd>
-                </React.Fragment>
+                </>
               )}
             </ResourceSummary>
           </div>
@@ -68,7 +68,7 @@ const Details = ({ obj: replicaSet }) => {
       <div className="co-m-pane__body">
         <VolumesTable resource={replicaSet} heading="Volumes" />
       </div>
-    </React.Fragment>
+    </>
   );
 };
 
@@ -107,12 +107,12 @@ const ReplicaSetsDetailsPage = (props) => (
 const kind = 'ReplicaSet';
 
 const tableColumnClasses = [
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'col-md-3', 'col-sm-4', 'col-xs-6'),
-  classNames('col-lg-2', 'col-md-2', 'col-sm-4', 'hidden-xs'),
-  classNames('col-lg-2', 'col-md-2', 'hidden-sm', 'hidden-xs'),
-  classNames('col-lg-2', 'col-md-2', 'hidden-sm', 'hidden-xs'),
-  classNames('col-lg-2', 'hidden-md', 'hidden-sm', 'hidden-xs'),
+  '',
+  '',
+  classNames('pf-m-hidden', 'pf-m-visible-on-sm', 'pf-u-w-16-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-lg'),
+  classNames('pf-m-hidden', 'pf-m-visible-on-xl'),
   Kebab.columnClass,
 ];
 
@@ -135,15 +135,15 @@ const ReplicaSetTableRow = ({ obj, index, key, style }) => {
         />
       </TableData>
       <TableData className={tableColumnClasses[2]}>
-        <LabelList kind={kind} labels={obj.metadata.labels} />
-      </TableData>
-      <TableData className={tableColumnClasses[3]}>
         <Link
           to={`${resourcePath(kind, obj.metadata.name, obj.metadata.namespace)}/pods`}
           title="pods"
         >
           {obj.status.replicas || 0} of {obj.spec.replicas} pods
         </Link>
+      </TableData>
+      <TableData className={tableColumnClasses[3]}>
+        <LabelList kind={kind} labels={obj.metadata.labels} />
       </TableData>
       <TableData className={tableColumnClasses[4]}>
         <OwnerReferences resource={obj} />
@@ -174,14 +174,14 @@ const ReplicaSetTableHeader = () => {
       props: { className: tableColumnClasses[1] },
     },
     {
-      title: 'Labels',
-      sortField: 'metadata.labels',
+      title: 'Status',
+      sortFunc: 'numReplicas',
       transforms: [sortable],
       props: { className: tableColumnClasses[2] },
     },
     {
-      title: 'Status',
-      sortFunc: 'numReplicas',
+      title: 'Labels',
+      sortField: 'metadata.labels',
       transforms: [sortable],
       props: { className: tableColumnClasses[3] },
     },

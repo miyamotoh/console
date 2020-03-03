@@ -9,18 +9,17 @@ import {
   DashboardItemProps,
   withDashboardResources,
 } from '@console/internal/components/dashboard/with-dashboard-resources';
-import { getName, getMachineNode } from '@console/shared';
+import { getName } from '@console/shared';
 import { MachineKind, NodeKind } from '@console/internal/module/k8s';
-import { getHostMachine } from '../../../selectors';
 import NodeLink from '../NodeLink';
 import BareMetalHostRole from '../BareMetalHostRole';
 import { BareMetalHostKind } from '../../../types';
+import { BareMetalHostDashboardContext } from './BareMetalHostDashboardContext';
 
-const DetailsCard: React.FC<DetailsCardProps> = ({ obj, machines, nodes }) => {
-  const machine = getHostMachine(obj, machines);
-  const node = getMachineNode(machine, nodes);
+const DetailsCard: React.FC<DetailsCardProps> = () => {
+  const { obj, machine, node } = React.useContext(BareMetalHostDashboardContext);
   const hostName = getName(obj);
-  const nodeCell = <NodeLink nodeName={hostName} />;
+  const nodeCell = <NodeLink nodeName={getName(node)} />;
   const hostRole = <BareMetalHostRole machine={machine} node={node} />;
 
   return (

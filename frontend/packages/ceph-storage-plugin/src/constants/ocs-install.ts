@@ -1,11 +1,12 @@
-import { K8sResourceKind } from '@console/internal/module/k8s';
+import { K8sResourceKind, Taint } from '@console/internal/module/k8s';
 
 export const minSelectedNode = 3;
-export const taintObj = {
+export const ocsTaint: Taint = {
   key: 'node.ocs.openshift.io/storage',
   value: 'true',
   effect: 'NoSchedule',
 };
+Object.freeze(ocsTaint);
 
 export const ocsRequestData: K8sResourceKind = {
   apiVersion: 'ocs.openshift.io/v1',
@@ -15,11 +16,12 @@ export const ocsRequestData: K8sResourceKind = {
     namespace: 'openshift-storage',
   },
   spec: {
-    managedNodes: false,
+    manageNodes: false,
     storageDeviceSets: [
       {
         name: 'ocs-deviceset',
-        count: 3,
+        count: 1,
+        replica: 3,
         resources: {},
         placement: {},
         portable: true,
@@ -30,7 +32,7 @@ export const ocsRequestData: K8sResourceKind = {
             volumeMode: 'Block',
             resources: {
               requests: {
-                storage: '1Ti',
+                storage: '2Ti',
               },
             },
           },

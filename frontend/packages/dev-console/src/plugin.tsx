@@ -12,6 +12,10 @@ import {
   ResourceDetailsPage,
   Perspective,
   RoutePage,
+  OverviewCRD,
+  YAMLTemplate,
+  OverviewTabSection,
+  ReduxReducer,
 } from '@console/plugin-sdk';
 import { NamespaceRedirect } from '@console/internal/components/utils/namespace-redirect';
 import { CodeIcon } from '@patternfly/react-icons';
@@ -19,8 +23,28 @@ import { FLAGS } from '@console/internal/const';
 import { referenceForModel } from '@console/internal/module/k8s';
 import * as models from './models';
 import { getKebabActionsForKind } from './utils/kebab-actions';
+import {
+  tknPipelineAndPipelineRunsResources,
+  getPipelinesAndPipelineRunsForResource,
+} from './utils/pipeline-plugin-utils';
+import { FLAG_OPENSHIFT_PIPELINE, ALLOW_SERVICE_BINDING } from './const';
+import {
+  newPipelineTemplate,
+  newTaskTemplate,
+  newTaskRunTemplate,
+  newPipelineResourceTemplate,
+  newClusterTaskTemplate,
+} from './templates';
+import reducer from './utils/reducer';
 
-const { PipelineModel, PipelineRunModel } = models;
+const {
+  ClusterTaskModel,
+  PipelineModel,
+  PipelineResourceModel,
+  PipelineRunModel,
+  TaskModel,
+  TaskRunModel,
+} = models;
 
 type ConsumedExtensions =
   | ModelDefinition
@@ -32,9 +56,11 @@ type ConsumedExtensions =
   | ResourceDetailsPage
   | Perspective
   | RoutePage
-  | KebabActions;
-
-const SHOW_PIPELINE = 'SHOW_PIPELINE';
+  | ReduxReducer
+  | KebabActions
+  | OverviewCRD
+  | YAMLTemplate
+  | OverviewTabSection;
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -47,7 +73,14 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'FeatureFlag/Model',
     properties: {
       model: models.PipelineModel,
-      flag: SHOW_PIPELINE,
+      flag: FLAG_OPENSHIFT_PIPELINE,
+    },
+  },
+  {
+    type: 'FeatureFlag/Model',
+    properties: {
+      model: models.ServiceBindingRequestModel,
+      flag: ALLOW_SERVICE_BINDING,
     },
   },
   {
@@ -90,10 +123,22 @@ const plugin: Plugin<ConsumedExtensions> = [
     properties: {
       perspective: 'dev',
       componentProps: {
-        name: 'Pipelines',
+        name: PipelineModel.labelPlural,
         resource: referenceForModel(PipelineModel),
-        required: SHOW_PIPELINE,
+        required: FLAG_OPENSHIFT_PIPELINE,
         testID: 'pipeline-header',
+      },
+    },
+  },
+  {
+    type: 'NavItem/Href',
+    properties: {
+      perspective: 'dev',
+      componentProps: {
+        name: 'Monitoring',
+        href: '/dev-monitoring',
+        required: FLAGS.OPENSHIFT,
+        testID: 'monitoring-header',
       },
     },
   },
@@ -123,18 +168,6 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'NavItem/ResourceNS',
-    properties: {
-      section: 'Advanced',
-      perspective: 'dev',
-      componentProps: {
-        name: 'Events',
-        resource: 'events',
-        testID: 'advanced-events-header',
-      },
-    },
-  },
-  {
     type: 'NavItem/Href',
     properties: {
       section: 'Advanced',
@@ -160,13 +193,105 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Page/Resource/List',
+    type: 'NavItem/ResourceNS',
     properties: {
-      model: PipelineModel,
-      loader: async () =>
-        (await import(
-          './components/pipelines/PipelinesPage' /* webpackChunkName: "pipeline-list" */
-        )).default,
+      section: 'Advanced',
+      perspective: 'dev',
+      componentProps: {
+        name: 'Events',
+        resource: 'events',
+        testID: 'advanced-events-header',
+      },
+    },
+  },
+  {
+    type: 'Overview/CRD',
+    properties: {
+      resources: tknPipelineAndPipelineRunsResources,
+      required: FLAG_OPENSHIFT_PIPELINE,
+      utils: getPipelinesAndPipelineRunsForResource,
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: PipelineModel.labelPlural,
+        resource: referenceForModel(PipelineModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: PipelineRunModel.labelPlural,
+        resource: referenceForModel(PipelineRunModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: PipelineResourceModel.labelPlural,
+        resource: referenceForModel(PipelineResourceModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: TaskModel.labelPlural,
+        resource: referenceForModel(TaskModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: TaskRunModel.labelPlural,
+        resource: referenceForModel(TaskRunModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'NavItem/ResourceCluster',
+    properties: {
+      perspective: 'admin',
+      section: 'Pipelines',
+      componentProps: {
+        name: ClusterTaskModel.labelPlural,
+        resource: referenceForModel(ClusterTaskModel),
+        required: FLAG_OPENSHIFT_PIPELINE,
+      },
+    },
+  },
+  {
+    type: 'Overview/Section',
+    properties: {
+      key: 'pipelines',
+      loader: () =>
+        import(
+          './components/pipelines/pipeline-overview/PipelineOverview' /* webpackChunkName: "pipeline-overview-list" */
+        ).then((m) => m.default),
     },
   },
   {
@@ -180,22 +305,42 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Page/Resource/List',
-    properties: {
-      model: PipelineRunModel,
-      loader: async () =>
-        (await import(
-          './components/pipelineruns/PipelineRunResourceList' /* webpackChunkName: "pipelinerun-list" */
-        )).default,
-    },
-  },
-  {
     type: 'Page/Resource/Details',
     properties: {
       model: PipelineRunModel,
       loader: async () =>
         (await import(
           './components/pipelineruns/PipelineRunDetailsPage' /* webpackChunkName: "pipelinerun-details" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/Details',
+    properties: {
+      model: TaskRunModel,
+      loader: async () =>
+        (await import(
+          './components/taskruns/TaskRunDetailsPage' /* webpackChunkName: "taskrun-details" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: PipelineModel,
+      loader: async () =>
+        (await import(
+          './components/pipelines/PipelinesResourceList' /* webpackChunkName: "pipeline-resource-list" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: PipelineRunModel,
+      loader: async () =>
+        (await import(
+          './components/pipelineruns/PipelineRunsResourceList' /* webpackChunkName: "pipelinerun-resource-list" */
         )).default,
     },
   },
@@ -214,7 +359,15 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'Page/Route',
     properties: {
       exact: true,
-      path: ['/add', '/import', '/topology', '/deploy-image', '/metrics', '/project-access'],
+      path: [
+        '/add',
+        '/import',
+        '/topology',
+        '/deploy-image',
+        '/metrics',
+        '/project-access',
+        '/dev-monitoring',
+      ],
       component: NamespaceRedirect,
     },
   },
@@ -231,7 +384,12 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'Page/Route',
     properties: {
       exact: true,
-      path: ['/topology/all-namespaces', '/topology/ns/:ns'],
+      path: [
+        '/topology/all-namespaces',
+        '/topology/ns/:name',
+        '/topology/all-namespaces/list',
+        '/topology/ns/:name/list',
+      ],
       loader: async () =>
         (await import(
           './components/topology/TopologyPage' /* webpackChunkName: "dev-console-topology" */
@@ -275,6 +433,36 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'Page/Route',
     properties: {
+      perspective: 'dev',
+      exact: true,
+      path: [
+        `/k8s/all-namespaces/${referenceForModel(PipelineModel)}`,
+        `/k8s/ns/:ns/${referenceForModel(PipelineModel)}`,
+      ],
+      loader: async () =>
+        (await import(
+          './components/pipelines/PipelinesPage' /* webpackChunkName: "pipeline-page" */
+        )).PipelinesPage,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      perspective: 'dev',
+      exact: true,
+      path: [
+        `/k8s/all-namespaces/${referenceForModel(PipelineRunModel)}`,
+        `/k8s/ns/:ns/${referenceForModel(PipelineRunModel)}`,
+      ],
+      loader: async () =>
+        (await import(
+          './components/pipelineruns/PipelineRunsPage' /* webpackChunkName: "pipelinerun-page" */
+        )).default,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
       exact: true,
       path: ['/deploy-image/all-namespaces', '/deploy-image/ns/:ns'],
       loader: async () =>
@@ -299,7 +487,7 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'Page/Route',
     properties: {
       perspective: 'dev',
-      path: ['/k8s/cluster/projects/:ns'],
+      path: ['/k8s/cluster/projects/:name'],
       loader: async () =>
         (await import(
           './components/projects/details/ProjectDetailsPage' /* webpackChunkName: "project-details" */
@@ -328,9 +516,63 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
+    type: 'Page/Route',
+    properties: {
+      perspective: 'dev',
+      exact: false,
+      path: ['/dev-monitoring/all-namespaces', '/dev-monitoring/ns/:ns'],
+      loader: async () =>
+        (await import(
+          './components/monitoring/MonitoringPage' /* webpackChunkName: "dev-console-monitoring" */
+        )).default,
+    },
+  },
+  {
+    type: 'ReduxReducer',
+    properties: {
+      namespace: 'devconsole',
+      reducer,
+    },
+  },
+  {
     type: 'KebabActions',
     properties: {
       getKebabActionsForKind,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: PipelineModel,
+      template: newPipelineTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: TaskModel,
+      template: newTaskTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: TaskRunModel,
+      template: newTaskRunTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: PipelineResourceModel,
+      template: newPipelineResourceTemplate,
+    },
+  },
+  {
+    type: 'YAMLTemplate',
+    properties: {
+      model: ClusterTaskModel,
+      template: newClusterTaskTemplate,
     },
   },
 ];

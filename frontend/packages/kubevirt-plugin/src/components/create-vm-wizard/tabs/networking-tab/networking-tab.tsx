@@ -63,6 +63,7 @@ const NetworkingTabComponent: React.FC<NetworkingTabComponentProps> = ({
     onClick: () =>
       withProgress(
         vmWizardNicModalEnhanced({
+          blocking: true,
           wizardReduxID,
         }).result,
       ),
@@ -87,22 +88,19 @@ const NetworkingTabComponent: React.FC<NetworkingTabComponentProps> = ({
       </Split>
       {showNetworks && (
         <>
-          <div className="kubevirt-create-vm-modal__networking-tab-main">
-            <VMNicsTable
-              columnClasses={nicTableColumnClasses}
-              data={getNicsData(networks)}
-              customData={{ isDisabled: isLocked, withProgress, removeNIC, wizardReduxID }}
-              row={VMWizardNicRow}
-            />
-          </div>
+          <VMNicsTable
+            columnClasses={nicTableColumnClasses}
+            data={getNicsData(networks)}
+            customData={{ isDisabled: isLocked, withProgress, removeNIC, wizardReduxID }}
+            row={VMWizardNicRow}
+          />
           {isBootNICRequired && (
-            <footer className="kubevirt-create-vm-modal__networking-tab-pxe">
-              <NetworkBootSource
-                isDisabled={isLocked}
-                networks={networks}
-                onBootOrderChanged={onBootOrderChanged}
-              />
-            </footer>
+            <NetworkBootSource
+              className="kubevirt-create-vm-modal__networking-tab-pxe"
+              isDisabled={isLocked}
+              networks={networks}
+              onBootOrderChanged={onBootOrderChanged}
+            />
           )}
         </>
       )}

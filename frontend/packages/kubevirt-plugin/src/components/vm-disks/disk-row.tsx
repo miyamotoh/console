@@ -34,6 +34,7 @@ const menuActionEdit = (
     withProgress(
       diskModalEnhanced({
         vmLikeEntity,
+        isEditing: true,
         disk: disk.diskWrapper.asResource(),
         volume: disk.volumeWrapper.asResource(),
         dataVolume: disk.dataVolumeWrapper && disk.dataVolumeWrapper.asResource(),
@@ -78,7 +79,7 @@ const getActions = (
   }
 
   const isTemplate = vmLikeEntity && !isVM(vmLikeEntity);
-  if (isTemplate || disk.isEditingSupported()) {
+  if (disk.isEditingSupported(isTemplate)) {
     actions.push(menuActionEdit);
   }
 
@@ -96,7 +97,7 @@ export type VMDiskSimpleRowProps = {
 };
 
 export const DiskSimpleRow: React.FC<VMDiskSimpleRowProps> = ({
-  data: { name, size, diskInterface, storageClass },
+  data: { name, source, size, diskInterface, storageClass },
   validation = {},
   columnClasses,
   actionsComponent,
@@ -111,6 +112,9 @@ export const DiskSimpleRow: React.FC<VMDiskSimpleRowProps> = ({
     <TableRow id={name} index={index} trKey={name} style={style}>
       <TableData className={dimensify()}>
         <ValidationCell validation={validation.name}>{name}</ValidationCell>
+      </TableData>
+      <TableData className={dimensify()}>
+        <ValidationCell validation={validation.source}>{source || DASH}</ValidationCell>
       </TableData>
       <TableData className={dimensify()}>
         {isSizeLoading && <LoadingInline />}

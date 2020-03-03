@@ -1,21 +1,13 @@
-import { K8sResourceKind, PodKind } from '@console/internal/module/k8s';
-import { PodControllerOverviewItem } from './resource';
-
-export interface Pod extends PodKind {
-  id?: string;
-  name?: string;
-}
-
-export interface Resource {
-  data: K8sResourceKind[];
-}
+import { DeploymentKind, K8sResourceKind, PodKind, PodPhase } from '@console/internal/module/k8s';
+import { FirehoseResult } from '@console/internal/components/utils';
+import { AllPodStatus } from '../constants';
 
 export interface PodDataResources {
-  replicationControllers: Resource;
-  replicaSets: Resource;
-  pods: Resource;
-  deploymentConfigs?: Resource;
-  deployments?: Resource;
+  replicationControllers: FirehoseResult;
+  replicaSets: FirehoseResult;
+  pods: FirehoseResult<PodKind[]>;
+  deploymentConfigs?: FirehoseResult;
+  deployments?: FirehoseResult<DeploymentKind[]>;
 }
 
 export interface PodRCData {
@@ -23,22 +15,55 @@ export interface PodRCData {
   previous: PodControllerOverviewItem;
   obj?: K8sResourceKind;
   isRollingOut: boolean;
-  pods: PodKind[];
+  pods: ExtPodKind[];
 }
 
 export interface PodRingResources {
-  pods: Resource;
-  replicaSets: Resource;
-  replicationControllers: Resource;
-  deployments?: Resource;
-  deploymentConfigs?: Resource;
+  pods: FirehoseResult<PodKind[]>;
+  replicaSets: FirehoseResult;
+  replicationControllers: FirehoseResult;
+  deployments?: FirehoseResult<DeploymentKind[]>;
+  deploymentConfigs?: FirehoseResult;
 }
 
 export interface PodRingData {
   [key: string]: {
-    pods: PodKind[];
+    pods: ExtPodKind[];
     current: PodControllerOverviewItem;
     previous: PodControllerOverviewItem;
     isRollingOut: boolean;
   };
 }
+
+export type ExtPodPhase =
+  | AllPodStatus.Empty
+  | AllPodStatus.Warning
+  | AllPodStatus.Idle
+  | AllPodStatus.NotReady
+  | AllPodStatus.ScaledTo0
+  | AllPodStatus.AutoScaledTo0
+  | AllPodStatus.Terminating
+  | AllPodStatus.ScalingUp;
+
+export type ExtPodStatus = {
+  phase: ExtPodPhase | PodPhase;
+};
+
+export type ExtPodKind = {
+  status: ExtPodStatus;
+} & K8sResourceKind;
+
+export type OverviewItemAlerts = {
+  [key: string]: {
+    message: string;
+    severity: string;
+  };
+};
+
+export type PodControllerOverviewItem = {
+  alerts: OverviewItemAlerts;
+  revision: number;
+  obj: K8sResourceKind;
+  phase?: string;
+  pods: ExtPodKind[];
+};

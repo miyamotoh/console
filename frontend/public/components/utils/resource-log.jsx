@@ -35,6 +35,19 @@ const streamStatusMessages = {
   [STREAM_ACTIVE]: 'Log streaming...',
 };
 
+const replaceVariables = (template, values) => {
+  return _.reduce(
+    values,
+    (result, value, name) => {
+      // Replace all occurrences of template expressions like "${name}" with the URL-encoded value.
+      // eslint-disable-next-line prefer-template
+      const pattern = _.escapeRegExp('${' + name + '}');
+      return result.replace(new RegExp(pattern, 'g'), encodeURIComponent(value));
+    },
+    template,
+  );
+};
+
 // Component for log stream controls
 const LogControls = ({
   dropdown,
@@ -53,10 +66,10 @@ const LogControls = ({
       <div className="co-toolbar__group co-toolbar__group--left">
         <div className="co-toolbar__item">
           {status === STREAM_LOADING && (
-            <React.Fragment>
+            <>
               <LoadingInline />
               &nbsp;
-            </React.Fragment>
+            </>
           )}
           {[STREAM_ACTIVE, STREAM_PAUSED].includes(status) && (
             <TogglePlay active={status === STREAM_ACTIVE} onClick={toggleStreaming} />
@@ -82,13 +95,14 @@ const LogControls = ({
                 return null;
               }
             }
-            const url = link.spec.hrefTemplate
-              .replace('${resourceName}', encodeURIComponent(resource.metadata.name))
-              .replace('${resourceUID}', encodeURIComponent(resource.metadata.uid))
-              .replace('${containerName}', encodeURIComponent(containerName))
-              .replace('${resourceNamespace}', encodeURIComponent(namespace))
-              .replace('${resourceNamespaceUID}', encodeURIComponent(namespaceUID))
-              .replace('${podLabels}', JSON.stringify(resource.metadata.labels));
+            const url = replaceVariables(link.spec.hrefTemplate, {
+              resourceName: resource.metadata.name,
+              resourceUID: resource.metadata.uid,
+              containerName,
+              resourceNamespace: namespace,
+              resourceNamespaceUID: namespaceUID,
+              podLabels: JSON.stringify(resource.metadata.labels),
+            });
             return (
               <React.Fragment key={link.metadata.uid}>
                 <ExternalLink
@@ -107,22 +121,26 @@ const LogControls = ({
           <DownloadIcon className="co-icon-space-r" />
           Download
         </Button>
-        <span aria-hidden="true" className="co-action-divider hidden-xs">
-          |
-        </span>
-        <Button variant="link" className="pf-m-link--align-right" onClick={toggleFullscreen}>
-          {isFullscreen ? (
-            <React.Fragment>
-              <CompressIcon className="co-icon-space-r" />
-              Collapse
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              <ExpandIcon className="co-icon-space-r" />
-              Expand
-            </React.Fragment>
-          )}
-        </Button>
+        {screenfull.enabled && (
+          <>
+            <span aria-hidden="true" className="co-action-divider hidden-xs">
+              |
+            </span>
+            <Button variant="link" className="pf-m-link--align-right" onClick={toggleFullscreen}>
+              {isFullscreen ? (
+                <>
+                  <CompressIcon className="co-icon-space-r" />
+                  Collapse
+                </>
+              ) : (
+                <>
+                  <ExpandIcon className="co-icon-space-r" />
+                  Expand
+                </>
+              )}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -214,8 +232,10 @@ class ResourceLog_ extends React.Component {
 
   componentWillUnmount() {
     this._wsDestroy();
-    screenfull.off('change');
-    screenfull.off('error');
+    if (screenfull.enabled) {
+      screenfull.off('change');
+      screenfull.off('error');
+    }
   }
 
   // Download currently displayed log content
@@ -359,7 +379,7 @@ class ResourceLog_ extends React.Component {
     const bufferFull = lines.length === bufferSize;
 
     return (
-      <React.Fragment>
+      <>
         {error && (
           <Alert
             isInline
@@ -403,7 +423,7 @@ class ResourceLog_ extends React.Component {
             updateStatus={this._updateStatus}
           />
         </div>
-      </React.Fragment>
+      </>
     );
   }
 }

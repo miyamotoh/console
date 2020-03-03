@@ -3,14 +3,14 @@ import * as React from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
 import { ActionGroup, Button } from '@patternfly/react-core';
-
+import { filterScOnProvisioner, isCephProvisioner } from '@console/shared/src/utils';
 import { k8sCreate, K8sResourceKind, referenceFor } from '../../module/k8s';
 import { AsyncComponent, ButtonBar, RequestSizeInput, history, resourceObjPath } from '../utils';
 import { StorageClassDropdown } from '../utils/storage-class-dropdown';
 import { RadioInput } from '../radio';
 import { Checkbox } from '../checkbox';
 import { PersistentVolumeClaimModel } from '../../models';
-import { isCephProvisioner } from '@console/ceph-storage-plugin/src/selectors';
+import { StorageClass } from '../storage-class-form';
 
 const NameValueEditorComponent = (props) => (
   <AsyncComponent
@@ -18,6 +18,8 @@ const NameValueEditorComponent = (props) => (
     {...props}
   />
 );
+
+const cephRBDProvisionerSuffix = 'rbd.csi.ceph.com';
 
 //See https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes for more details
 const provisionerAccessModeMapping = {
@@ -52,6 +54,7 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
   const [requestSizeUnit, setRequestSizeUnit] = React.useState('Gi');
   const [useSelector, setUseSelector] = React.useState(false);
   const [nameValuePairs, setNameValuePairs] = React.useState([['', '']]);
+  const [storageProvisioner, setStorageProvisioner] = React.useState('');
   const accessModeRadios = [
     {
       value: 'ReadWriteOnce',
@@ -67,9 +70,9 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
     },
   ];
   const dropdownUnits = {
-    Mi: 'Mi',
-    Gi: 'Gi',
-    Ti: 'Ti',
+    Mi: 'MiB',
+    Gi: 'GiB',
+    Ti: 'TiB',
   };
   const { namespace, onChange } = props;
 
@@ -115,6 +118,14 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
 
       if (storageClass) {
         obj.spec.storageClassName = storageClass;
+
+        // should set block only for RBD + RWX
+        if (
+          _.endsWith(storageProvisioner, cephRBDProvisionerSuffix) &&
+          accessMode === 'ReadWriteMany'
+        ) {
+          obj.spec.volumeMode = 'Block';
+        }
       }
 
       return obj;
@@ -130,6 +141,7 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
     requestSizeValue,
     requestSizeUnit,
     useSelector,
+    storageProvisioner,
   ]);
 
   const handleNameValuePairs = ({ nameValuePairs: updatedNameValuePairs }) => {
@@ -162,6 +174,10 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
     //setting accessMode to default with the change to Storage Class selection
     setAllowedAccessModes(modes);
     setStorageClass(_.get(updatedStorageClass, 'metadata.name'));
+
+    if (updatedStorageClass) {
+      setStorageProvisioner(updatedStorageClass.provisioner);
+    }
   };
 
   const handleRequestSizeInputChange = (obj) => {
@@ -181,6 +197,11 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
     setAccessMode(event.currentTarget.value);
   };
 
+  const onlyPvcSCs = React.useCallback(
+    (sc: StorageClass) => !filterScOnProvisioner(sc, 'noobaa.io/obc'),
+    [],
+  );
+
   return (
     <div>
       <div className="form-group">
@@ -190,6 +211,7 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
           describedBy="storageclass-dropdown-help"
           required={false}
           name="storageClass"
+          filter={onlyPvcSCs}
         />
       </div>
       <label className="control-label co-required" htmlFor="pvc-name">
@@ -204,7 +226,6 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
           aria-describedby="pvc-name-help"
           id="pvc-name"
           name="pvcName"
-          pattern="[a-z0-9](?:[-a-z0-9]*[a-z0-9])?"
           required
         />
         <p className="help-block" id="pvc-name-help">
@@ -246,7 +267,7 @@ export const CreatePVCForm: React.FC<CreatePVCFormProps> = (props) => {
       </label>
       <RequestSizeInput
         name="requestSize"
-        required={false}
+        required
         onChange={handleRequestSizeInputChange}
         defaultRequestSizeUnit={requestSizeUnit}
         defaultRequestSizeValue={requestSizeValue}
@@ -297,8 +318,8 @@ export const CreatePVCPage: React.FC<CreatePVCPageProps> = (props) => {
         setInProgress(false);
         history.push(resourceObjPath(resource, referenceFor(resource)));
       },
-      (err) => {
-        setError(err);
+      ({ message }: { message: string }) => {
+        setError(message || 'Could not create persistent volume claim.');
         setInProgress(false);
       },
     );

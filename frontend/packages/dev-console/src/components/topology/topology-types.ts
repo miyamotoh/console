@@ -1,31 +1,45 @@
 import { ComponentType } from 'react';
-import { KebabOption } from '@console/internal/components/utils';
-import { Pod, Resource, OverviewItem, PodControllerOverviewItem } from '@console/shared';
-import { K8sResourceKind } from '@console/internal/module/k8s';
-import { Point } from '../../utils/svg-utils';
+import { FirehoseResult, KebabOption } from '@console/internal/components/utils';
+import { ExtPodKind, OverviewItem, PodControllerOverviewItem } from '@console/shared';
+import { DeploymentKind, K8sResourceKind, PodKind } from '@console/internal/module/k8s';
+import { ClusterServiceVersionKind } from '@console/operator-lifecycle-manager';
+import { Pipeline, PipelineRun } from '../../utils/pipeline-augment';
+
+export type Point = [number, number];
 
 export interface TopologyDataResources {
-  replicationControllers: Resource;
-  pods: Resource;
-  deploymentConfigs: Resource;
-  services: Resource;
-  routes: Resource;
-  deployments: Resource;
-  replicaSets: Resource;
-  buildConfigs: Resource;
-  builds: Resource;
-  daemonSets?: Resource;
-  ksroutes?: Resource;
-  configurations?: Resource;
-  revisions?: Resource;
-  ksservices?: Resource;
-  statefulSets?: Resource;
+  replicationControllers: FirehoseResult;
+  pods: FirehoseResult<PodKind[]>;
+  deploymentConfigs: FirehoseResult;
+  services: FirehoseResult;
+  routes: FirehoseResult;
+  deployments: FirehoseResult<DeploymentKind[]>;
+  replicaSets: FirehoseResult;
+  buildConfigs: FirehoseResult;
+  builds: FirehoseResult;
+  daemonSets?: FirehoseResult;
+  ksroutes?: FirehoseResult;
+  configurations?: FirehoseResult;
+  revisions?: FirehoseResult;
+  ksservices?: FirehoseResult;
+  statefulSets?: FirehoseResult;
+  pipelines?: FirehoseResult;
+  pipelineRuns?: FirehoseResult;
+  eventSourceCronjob?: FirehoseResult;
+  eventSourceContainers?: FirehoseResult;
+  eventSourceApiServer?: FirehoseResult;
+  eventSourceCamel?: FirehoseResult;
+  eventSourceKafka?: FirehoseResult;
+  clusterServiceVersions?: FirehoseResult;
+  serviceBindingRequests?: FirehoseResult;
 }
 
 export interface Node {
   id: string;
   type?: string;
   name?: string;
+  children?: string[];
+  data?: {};
 }
 
 export interface Edge {
@@ -33,6 +47,7 @@ export interface Edge {
   type?: string;
   source: string;
   target: string;
+  data?: { sbr?: K8sResourceKind };
 }
 
 export interface Group {
@@ -57,13 +72,19 @@ export interface TopologyDataModel {
   topology: TopologyDataMap;
 }
 
+export type TopologyOverviewItem = OverviewItem & {
+  pipelines?: Pipeline[];
+  pipelineRuns?: PipelineRun[];
+};
+
 export interface TopologyDataObject<D = {}> {
   id: string;
   name: string;
   type: string;
   resources: OverviewItem;
-  pods: Pod[];
+  pods?: ExtPodKind[];
   data: D;
+  operatorBackedService: boolean;
 }
 
 export interface TopologyApplicationObject {
@@ -72,23 +93,35 @@ export interface TopologyApplicationObject {
   resources: TopologyDataObject[];
 }
 
+export interface ConnectedWorkloadPipeline {
+  pipeline: Pipeline;
+  pipelineRuns: PipelineRun[];
+}
+
 export interface WorkloadData {
   url?: string;
   editUrl?: string;
+  cheEnabled?: boolean;
   builderImage?: string;
   kind?: string;
   isKnativeResource?: boolean;
   build: K8sResourceKind;
   donutStatus: DonutStatusData;
+  connectedPipeline: ConnectedWorkloadPipeline;
+  showPodCount?: boolean;
 }
 
 export interface DonutStatusData {
-  pods: Pod[];
+  pods: ExtPodKind[];
   current: PodControllerOverviewItem;
   previous: PodControllerOverviewItem;
   dc: K8sResourceKind;
   isRollingOut: boolean;
 }
+
+export type OperatorBackedServiceKindMap = {
+  [name: string]: ClusterServiceVersionKind;
+};
 
 export interface GraphApi {
   zoomIn(): void;

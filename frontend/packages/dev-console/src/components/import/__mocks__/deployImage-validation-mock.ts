@@ -1,4 +1,4 @@
-import { DeployImageFormData } from '../import-types';
+import { DeployImageFormData, Resources } from '../import-types';
 
 export const mockDeployImageFormData: DeployImageFormData = {
   project: {
@@ -13,6 +13,12 @@ export const mockDeployImageFormData: DeployImageFormData = {
   },
   name: 'test-app',
   searchTerm: 'test-app',
+  registry: 'external',
+  imageStream: {
+    image: '',
+    tag: '',
+    namespace: '',
+  },
   isi: {
     image: {
       dockerImageLayers: [
@@ -67,8 +73,8 @@ export const mockDeployImageFormData: DeployImageFormData = {
     ports: [],
   },
   isSearchingForImage: false,
+  resources: Resources.OpenShift,
   serverless: {
-    enabled: false,
     scaling: {
       minpods: 0,
       maxpods: '',
@@ -114,14 +120,18 @@ export const mockDeployImageFormData: DeployImageFormData = {
     cpu: {
       request: null,
       requestUnit: 'm',
+      defaultRequestUnit: 'm',
       limit: null,
       limitUnit: 'm',
+      defaultLimitUnit: 'm',
     },
     memory: {
       request: null,
       requestUnit: 'Mi',
+      defaultRequestUnit: 'Mi',
       limit: null,
       limitUnit: 'Mi',
+      defaultLimitUnit: 'Mi',
     },
   },
 };

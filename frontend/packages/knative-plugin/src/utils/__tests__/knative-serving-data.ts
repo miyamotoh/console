@@ -1,6 +1,9 @@
-import { DeployImageFormData } from '@console/dev-console/src/components/import/import-types';
+import {
+  DeployImageFormData,
+  Resources,
+} from '@console/dev-console/src/components/import/import-types';
 import { K8sResourceKind } from '@console/internal/module/k8s';
-import { RevisionModel } from '@console/knative-plugin';
+import { RevisionModel, EventSourceCronJobModel } from '@console/knative-plugin';
 
 export const defaultData: DeployImageFormData = {
   project: {
@@ -15,6 +18,12 @@ export const defaultData: DeployImageFormData = {
   },
   name: '',
   searchTerm: '',
+  registry: 'external',
+  imageStream: {
+    image: '',
+    tag: '',
+    namespace: '',
+  },
   isi: {
     name: '',
     image: {},
@@ -30,8 +39,8 @@ export const defaultData: DeployImageFormData = {
     ports: [],
   },
   isSearchingForImage: false,
+  resources: Resources.OpenShift,
   serverless: {
-    enabled: false,
     scaling: {
       minpods: 1,
       maxpods: 5,
@@ -79,14 +88,18 @@ export const defaultData: DeployImageFormData = {
     cpu: {
       request: '',
       requestUnit: 'm',
+      defaultRequestUnit: 'm',
       limit: '',
       limitUnit: 'm',
+      defaultLimitUnit: 'm',
     },
     memory: {
       request: '',
       requestUnit: 'Mi',
+      defaultRequestUnit: 'Mi',
       limit: '',
       limitUnit: 'Mi',
+      defaultLimitUnit: 'Mi',
     },
   },
 };
@@ -245,5 +258,61 @@ export const deploymentKnativeData: K8sResourceKind = {
         message: 'Deployment has minimum availability.',
       },
     ],
+  },
+};
+
+export const deploymentKnativeEventData: K8sResourceKind = {
+  kind: 'Deployment',
+  apiVersion: 'apps/v1',
+  metadata: {
+    annotations: { 'deployment.kubernetes.io/revision': '1' },
+    selfLink: '/apis/apps/v1/namespaces/testproject3/deployments/overlayimage',
+    resourceVersion: '471849',
+    name: 'overlayimage',
+    uid: '64b34874-debd-11e9-8cdf-0a0700ae5e38',
+    creationTimestamp: '2019-09-24T11:21:03Z',
+    generation: 4,
+    namespace: 'testproject3',
+    ownerReferences: [
+      {
+        apiVersion: `${EventSourceCronJobModel.apiGroup}/${EventSourceCronJobModel.apiVersion}`,
+        kind: EventSourceCronJobModel.kind,
+        name: 'overlayimage-fdqsffg',
+        uid: '1317f615-9636-11e9-b134-06a61d886b689',
+        controller: true,
+        blockOwnerDeletion: true,
+      },
+    ],
+  },
+  spec: {
+    replicas: 6,
+    selector: { matchLabels: { app: 'hello-openshift' } },
+    template: {
+      metadata: { creationTimestamp: null, labels: { app: 'hello-openshift' } },
+      spec: {
+        containers: [
+          {
+            name: 'hello-openshift',
+            image: 'openshift/hello-openshift',
+            ports: [{ containerPort: 8080, protocol: 'TCP' }],
+            resources: {},
+            terminationMessagePath: '/dev/termination-log',
+            terminationMessagePolicy: 'File',
+            imagePullPolicy: 'Always',
+          },
+        ],
+        restartPolicy: 'Always',
+        terminationGracePeriodSeconds: 30,
+        dnsPolicy: 'ClusterFirst',
+        securityContext: {},
+        schedulerName: 'default-scheduler',
+      },
+    },
+    strategy: {
+      type: 'RollingUpdate',
+      rollingUpdate: { maxUnavailable: '25%', maxSurge: '25%' },
+    },
+    revisionHistoryLimit: 10,
+    progressDeadlineSeconds: 600,
   },
 };

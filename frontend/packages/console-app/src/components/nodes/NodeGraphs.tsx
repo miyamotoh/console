@@ -3,23 +3,24 @@ import * as _ from 'lodash';
 import { requirePrometheus } from '@console/internal/components/graphs';
 import { Area } from '@console/internal/components/graphs/area';
 import {
-  humanizeDecimalBytes,
+  humanizeBinaryBytes,
   humanizeCpuCores,
   humanizeDecimalBytesPerSec,
 } from '@console/internal/components/utils';
 import { NodeKind } from '@console/internal/module/k8s';
 import { getNodeAddresses } from '@console/shared';
+import { ByteDataTypes } from '@console/shared/src/graph-helper/data-utils';
 
 type NodeGraphsProps = {
   node: NodeKind;
 };
 
 const NodeGraphs: React.FC<NodeGraphsProps> = ({ node }) => {
-  const instanceQuery = `{instance='${node.metadata.name}'}`;
+  const instanceQuery = `{instance="${node.metadata.name}"}`;
   const nodeIp = _.find(getNodeAddresses(node), {
     type: 'InternalIP',
   });
-  const ipQuery = nodeIp && `{instance=~'${nodeIp.address}:.*'}`;
+  const ipQuery = nodeIp && `{instance=~"${nodeIp.address}:.*"}`;
 
   return (
     <>
@@ -27,8 +28,9 @@ const NodeGraphs: React.FC<NodeGraphsProps> = ({ node }) => {
         <div className="col-md-12 col-lg-4">
           <Area
             title="Memory Usage"
-            humanize={humanizeDecimalBytes}
-            query={`node_memory_Active_bytes${instanceQuery}`}
+            humanize={humanizeBinaryBytes}
+            byteDataType={ByteDataTypes.BinaryBytes}
+            query={`node_memory_MemTotal_bytes${instanceQuery} - node_memory_MemAvailable_bytes${instanceQuery}`}
           />
         </div>
         <div className="col-md-12 col-lg-4">
@@ -60,7 +62,8 @@ const NodeGraphs: React.FC<NodeGraphsProps> = ({ node }) => {
         <div className="col-md-12 col-lg-4">
           <Area
             title="Filesystem"
-            humanize={humanizeDecimalBytes}
+            humanize={humanizeBinaryBytes}
+            byteDataType={ByteDataTypes.BinaryBytes}
             query={`instance:node_filesystem_usage:sum${instanceQuery}`}
           />
         </div>

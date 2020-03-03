@@ -7,9 +7,21 @@ import {
   DashboardsOverviewResourceActivity,
   DashboardsOverviewHealthURLSubsystem,
   DashboardsOverviewHealthPrometheusSubsystem,
+  DashboardsOverviewInventoryItem,
 } from '@console/plugin-sdk';
-import { ClusterVersionModel } from '@console/internal/models';
+import {
+  ClusterVersionModel,
+  NodeModel,
+  PodModel,
+  StorageClassModel,
+  PersistentVolumeClaimModel,
+} from '@console/internal/models';
 import { referenceForModel } from '@console/internal/module/k8s';
+import {
+  getNodeStatusGroups,
+  getPodStatusGroups,
+  getPVCStatusGroups,
+} from '@console/shared/src/components/dashboard/inventory-card/utils';
 import {
   isClusterUpdateActivity,
   getClusterUpdateTimestamp,
@@ -30,7 +42,8 @@ type ConsumedExtensions =
   | Perspective
   | DashboardsOverviewResourceActivity
   | DashboardsOverviewHealthURLSubsystem<any>
-  | DashboardsOverviewHealthPrometheusSubsystem;
+  | DashboardsOverviewHealthPrometheusSubsystem
+  | DashboardsOverviewInventoryItem;
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -41,7 +54,7 @@ const plugin: Plugin<ConsumedExtensions> = [
       icon: <CogsIcon />,
       getLandingPageURL: (flags) =>
         flags[FLAGS.CAN_LIST_NS] ? '/dashboards' : '/k8s/cluster/projects',
-      getK8sLandingPageURL: () => '/dashboards',
+      getK8sLandingPageURL: () => '/search',
       default: true,
       getImportRedirectURL: (project) => `/k8s/cluster/projects/${project}/workloads`,
     },
@@ -61,7 +74,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/dashboards-page/ClusterUpdateActivity' /* webpackChunkName: "console-app" */
         ).then((m) => m.default),
-      required: FLAGS.OPENSHIFT,
+      required: FLAGS.CLUSTER_VERSION,
     },
   },
   {
@@ -77,6 +90,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         name: 'version',
         isList: false,
         prop: 'cv',
+        optional: true,
       },
     },
   },
@@ -91,6 +105,34 @@ const plugin: Plugin<ConsumedExtensions> = [
           './components/dashboards-page/ControlPlaneStatus' /* webpackChunkName: "console-app" */
         ).then((m) => m.default),
       popupTitle: 'Control Plane status',
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Inventory/Item',
+    properties: {
+      model: NodeModel,
+      mapper: getNodeStatusGroups,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Inventory/Item',
+    properties: {
+      model: PodModel,
+      mapper: getPodStatusGroups,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Inventory/Item',
+    properties: {
+      model: StorageClassModel,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Inventory/Item',
+    properties: {
+      model: PersistentVolumeClaimModel,
+      mapper: getPVCStatusGroups,
+      useAbbr: true,
     },
   },
 ];

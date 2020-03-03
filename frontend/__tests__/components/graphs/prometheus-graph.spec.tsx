@@ -1,13 +1,18 @@
 import * as React from 'react';
+import { Provider } from 'react-redux';
+import { Link, Router } from 'react-router-dom';
 import { mount, shallow } from 'enzyme';
 
+import { setFlag } from '@console/internal/actions/features';
+import * as UIActions from '@console/internal/actions/ui';
+import { history } from '@console/internal/components/utils/router';
+import { FLAGS } from '@console/internal/const';
 import {
   PrometheusGraph,
   PrometheusGraphLink,
   getPrometheusExpressionBrowserURL,
 } from '@console/internal/components/graphs/prometheus-graph';
 import store from '@console/internal/redux';
-import { Provider } from 'react-redux';
 
 describe('<PrometheusGraph />', () => {
   it('should render a title', () => {
@@ -30,30 +35,55 @@ describe('<PrometheusGraph />', () => {
 });
 
 describe('<PrometheusGraphLink />', () => {
-  it('should render an anchor element', () => {
-    // Need full mount with redux store since this is a redux-connected compoenent
-    const wrapper = mount(
-      <Provider store={store}>
-        <PrometheusGraphLink query="test">
-          <p className="test-class" />
-        </PrometheusGraphLink>
-      </Provider>,
-    );
-    expect(wrapper.find('a').exists()).toBe(true);
-    expect(wrapper.find('p.test-class').exists()).toBe(true);
-  });
+  it('should only render with a link if query is set', () => {
+    window.SERVER_FLAGS.prometheusBaseURL = 'prometheusBaseURL';
 
-  it('should not render an anchor element', () => {
-    // Need full mount with redux store since this is a redux-connected compoenent
-    const wrapper = mount(
-      <Provider store={store}>
-        <PrometheusGraphLink query="">
-          <p className="test-class" />
-        </PrometheusGraphLink>
-      </Provider>,
-    );
-    expect(wrapper.find('a').exists()).toBe(false);
-    expect(wrapper.find('p.test-class').exists()).toBe(true);
+    // Need full mount with redux store since this is a redux-connected component
+    const getWrapper = (query: string) => {
+      const wrapper = mount(
+        <Router history={history}>
+          <Provider store={store}>
+            <PrometheusGraphLink query={query}>
+              <p className="test-class" />
+            </PrometheusGraphLink>
+          </Provider>
+        </Router>,
+      );
+      expect(wrapper.find('p.test-class').exists()).toBe(true);
+      return wrapper;
+    };
+
+    let wrapper;
+
+    store.dispatch(setFlag(FLAGS.CAN_GET_NS, false));
+    store.dispatch(UIActions.setActivePerspective('dev'));
+    wrapper = getWrapper('');
+    expect(wrapper.find(Link).exists()).toBe(false);
+    wrapper = getWrapper('test');
+    expect(wrapper.find(Link).exists()).toBe(true);
+    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+
+    store.dispatch(UIActions.setActivePerspective('admin'));
+    wrapper = getWrapper('');
+    expect(wrapper.find(Link).exists()).toBe(false);
+    wrapper = getWrapper('test');
+    expect(wrapper.find(Link).exists()).toBe(true);
+    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+
+    store.dispatch(setFlag(FLAGS.CAN_GET_NS, true));
+    store.dispatch(UIActions.setActivePerspective('dev'));
+    wrapper = getWrapper('');
+    expect(wrapper.find(Link).exists()).toBe(false);
+    wrapper = getWrapper('test');
+    expect(wrapper.find(Link).exists()).toBe(true);
+    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+
+    store.dispatch(UIActions.setActivePerspective('admin'));
+    wrapper = getWrapper('');
+    expect(wrapper.find(Link).exists()).toBe(false);
+    wrapper = getWrapper('test');
+    expect(wrapper.find(Link).exists()).toBe(true);
+    expect(wrapper.find(Link).props().to).toEqual('/monitoring/query-browser?query0=test');
   });
 });
 

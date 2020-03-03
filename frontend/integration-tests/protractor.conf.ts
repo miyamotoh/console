@@ -82,7 +82,6 @@ const testSuites = {
   crdExtensions: suite(['tests/crd-extensions.scenario.ts']),
   oauth: suite(['tests/oauth.scenario.ts']),
   e2e: suite([
-    /* HM
     'tests/crud.scenario.ts',
     'tests/filter.scenario.ts',
     'tests/secrets.scenario.ts',
@@ -99,7 +98,6 @@ const testSuites = {
     'tests/devconsole/pipeline.scenario.ts',
     'tests/dashboards/cluster-dashboard.scenario.ts',
     'tests/dashboards/project-dashboard.scenario.ts',
-    */
     'tests/event.scenario.ts',
   ]),
   release: suite([
@@ -158,7 +156,7 @@ export const config = {
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
-    browserName: 'firefox',
+    browserName: 'chrome',
     acceptInsecureCerts: true,
     chromeOptions: {
       // A path to chrome binary, if undefined will use system chrome browser.

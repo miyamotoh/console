@@ -12,10 +12,16 @@
   flex-flow: row-reverse;
 }
 
-.co-required:after {
-  color: $color-pf-red-200;
-  content: '*';
-  padding-left: 3px;
+.co-required {
+  position: relative;
+  &:after {
+    color: $color-pf-red-200;
+    content: '*';
+    font-size: $font-size-base;
+    padding-left: 3px;
+    position: absolute;
+    top: 0;
+  }
 }
 
 .co-form-section__label {
@@ -31,7 +37,6 @@
 .co-form-subsection {
   margin-left: 20px;
 }
-
 
 // Restrict form widths
 .co-m-pane__form {
@@ -70,3 +75,4 @@
 .pf-c-form__group--no-top-margin {
   margin-top: 0 !important;
 }
+

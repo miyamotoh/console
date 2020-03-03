@@ -5,7 +5,7 @@
 // IMPORTANT: Please put non-variable/mixin external dependency imports in vendor.scss!
 // Patternfly variables must be imported before Bootstrap
 @import '~patternfly/dist/sass/patternfly/variables';
-@import '~patternfly-react-extensions/dist/sass/variables';
+@import '~@patternfly/react-catalog-view-extension/dist/sass/variables';
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/variables";
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/mixins";
 @import "~@fortawesome/fontawesome-free/scss/variables";
@@ -37,6 +37,7 @@
 @import "components/utils/copy-to-clipboard";
 @import "components/utils/disabled";
 @import "components/utils/file-input";
+@import "components/utils/kebab";
 @import "components/utils/label";
 @import "components/utils/number-spinner";
 @import "components/utils/status-box";
@@ -50,7 +51,6 @@
 @import "components/image-stream";
 @import "components/about-modal";
 @import "components/build-pipeline";
-@import "components/group";
 @import "components/configure-ports";
 @import "components/detail-table";
 @import "components/dropdown";
@@ -85,8 +85,8 @@
 @import "components/cluster-service-instance";
 @import "components/overview/build-overview";
 @import "components/overview/overview";
+@import "components/overview/list-view/list-view";
 @import "components/overview/project-overview";
-@import "components/list-view";
 @import "components/deploy-image";
 @import "components/instantiate-template";
 @import "components/routes/create-route";
@@ -94,8 +94,6 @@
 @import "components/quota";
 @import "components/cluster-settings/cluster-settings";
 
-@import "components/dashboard/dashboards-page/overview-dashboard/top-consumers-card";
-@import "components/dashboard/dashboards-page/overview-dashboard/capacity-card";
 @import "components/dashboard/dashboards-page/overview-dashboard/status-card";
 
 @import "components/dashboard/project-dashboard/activity-card";

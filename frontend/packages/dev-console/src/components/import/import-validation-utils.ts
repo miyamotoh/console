@@ -13,7 +13,8 @@ import {
   gitValidationSchema,
   dockerValidationSchema,
   buildValidationSchema,
-  urlRegex,
+  gitUrlRegex,
+  resourcesValidationSchema,
 } from './validation-schema';
 
 export const validationSchema = yup.object().shape({
@@ -28,20 +29,25 @@ export const validationSchema = yup.object().shape({
   route: routeValidationSchema,
   limits: limitsValidationSchema,
   build: buildValidationSchema,
+  resources: resourcesValidationSchema,
 });
 
+const hasDomain = (url: string, domain: string): boolean => {
+  return url.includes(`https://${domain}/`) || url.includes(`@${domain}:`);
+};
+
 export const detectGitType = (url: string): string => {
-  if (!urlRegex.test(url)) {
+  if (!gitUrlRegex.test(url)) {
     // Not a URL
     return GitTypes.invalid;
   }
-  if (url.includes('github.com')) {
+  if (hasDomain(url, 'github.com')) {
     return GitTypes.github;
   }
-  if (url.includes('bitbucket.org')) {
+  if (hasDomain(url, 'bitbucket.org')) {
     return GitTypes.bitbucket;
   }
-  if (url.includes('gitlab.com')) {
+  if (hasDomain(url, 'gitlab.com')) {
     return GitTypes.gitlab;
   }
   // Not a known URL
@@ -49,7 +55,7 @@ export const detectGitType = (url: string): string => {
 };
 
 export const detectGitRepoName = (url: string): string | undefined => {
-  if (!urlRegex.test(url)) {
+  if (!gitUrlRegex.test(url)) {
     return undefined;
   }
 

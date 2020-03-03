@@ -1,6 +1,5 @@
 import * as React from 'react';
 import * as _ from 'lodash-es';
-import { ListGroup } from 'patternfly-react';
 import { LongArrowAltRightIcon } from '@patternfly/react-icons';
 
 import { K8sResourceKind, RouteKind } from '../../module/k8s';
@@ -35,11 +34,11 @@ const ServicesOverviewListItem: React.SFC<ServiceOverviewListItemProps> = ({ ser
 };
 
 const ServicesOverviewList: React.SFC<ServiceOverviewListProps> = ({ services }) => (
-  <ListGroup componentClass="ul">
+  <ul className="list-group">
     {_.map(services, (service) => (
       <ServicesOverviewListItem key={service.metadata.uid} service={service} />
     ))}
-  </ListGroup>
+  </ul>
 );
 
 const RoutesOverviewListItem: React.SFC<RoutesOverviewListItemProps> = ({ route }) => {
@@ -54,16 +53,16 @@ const RoutesOverviewListItem: React.SFC<RoutesOverviewListItemProps> = ({ route 
 };
 
 const RoutesOverviewList: React.SFC<RoutesOverviewListProps> = ({ routes }) => (
-  <ListGroup componentClass="ul">
+  <ul className="list-group">
     {_.map(routes, (route) => (
       <RoutesOverviewListItem key={route.metadata.uid} route={route} />
     ))}
-  </ListGroup>
+  </ul>
 );
 
 export const NetworkingOverview: React.SFC<NetworkingOverviewProps> = ({ routes, services }) => {
   return (
-    <React.Fragment>
+    <>
       <SidebarSectionHeading text="Services" />
       {_.isEmpty(services) ? (
         <span className="text-muted">No Services found for this resource.</span>
@@ -77,7 +76,7 @@ export const NetworkingOverview: React.SFC<NetworkingOverviewProps> = ({ routes,
       ) : (
         <RoutesOverviewList routes={routes} />
       )}
-    </React.Fragment>
+    </>
   );
 };
 

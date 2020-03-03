@@ -1,6 +1,8 @@
 import {
   CloudInitField,
+  VMImportProvider,
   VMSettingsField,
+  VMWareProviderField,
   VMWizardNetwork,
   VMWizardStorage,
   VMWizardTab,
@@ -45,12 +47,14 @@ export const vmWizardInternalActions: VMWizardInternalActions = {
     tab: VMWizardTab,
     isValid: boolean,
     hasAllRequiredFilled: boolean,
+    error: string,
   ) => ({
     payload: {
       id,
       tab,
       isValid,
       hasAllRequiredFilled,
+      error,
     },
     type: InternalActionType.SetTabValidity,
   }),
@@ -69,6 +73,29 @@ export const vmWizardInternalActions: VMWizardInternalActions = {
       value,
     },
     type: InternalActionType.SetVmSettingsFieldValue,
+  }),
+  [InternalActionType.UpdateVMSettingsProviderField]: (
+    id,
+    provider: VMImportProvider,
+    key: VMWareProviderField,
+    value: any,
+  ) => ({
+    payload: {
+      id,
+      provider,
+      key,
+      value,
+    },
+    type: InternalActionType.UpdateVMSettingsProviderField,
+  }),
+
+  [InternalActionType.UpdateVMSettingsProvider]: (id, provider: VMImportProvider, value: any) => ({
+    payload: {
+      id,
+      provider,
+      value,
+    },
+    type: InternalActionType.UpdateVMSettingsProvider,
   }),
   [InternalActionType.SetCloudInitFieldValue]: (id, key: CloudInitField, value: any) => ({
     payload: {

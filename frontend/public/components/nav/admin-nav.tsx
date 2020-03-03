@@ -16,6 +16,7 @@ import {
   MachineAutoscalerModel,
   MachineConfigModel,
   MachineConfigPoolModel,
+  MachineHealthCheckModel,
   MachineModel,
   MachineSetModel,
   UserModel,
@@ -27,10 +28,12 @@ import { NavSection } from './section';
 import { formatNamespacedRouteForResource } from '../../actions/ui';
 
 type SeparatorProps = {
+  name: string;
   required?: string;
 };
+
 // Wrap `NavItemSeparator` so we can use `required` without prop type errors.
-const Separator: React.FC<SeparatorProps> = () => <NavItemSeparator />;
+const Separator: React.FC<SeparatorProps> = ({ name }) => <NavItemSeparator name={name} />;
 
 const searchStartsWith = ['search'];
 const provisionedServicesStartsWith = ['serviceinstances', 'servicebindings'];
@@ -43,9 +46,14 @@ const monitoringAlertsStartsWith = [
   'monitoring/alerts',
   'monitoring/alertrules',
   'monitoring/silences',
+];
+const clusterSettingsStartsWith = [
+  'settings/cluster',
+  'settings/idp',
+  'config.openshift.io',
+  'monitoring/alertmanagerconfig',
   'monitoring/alertmanageryaml',
 ];
-const clusterSettingsStartsWith = ['settings/cluster', 'settings/idp', 'config.openshift.io'];
 const meteringStartsWith = ['metering.openshift.io'];
 const apiExplorerStartsWith = ['api-explorer', 'api-resource'];
 
@@ -68,7 +76,13 @@ const MonitoringNavSection_ = ({ grafanaURL, canAccess, kibanaURL }) => {
           startsWith={monitoringAlertsStartsWith}
         />
       )}
-      {showAlerts && <HrefLink href="/monitoring/query-browser?query0=" name="Metrics" />}
+      {showAlerts && (
+        <HrefLink
+          href="/monitoring/query-browser?query0="
+          name="Metrics"
+          startsWith={['monitoring/query-browser']}
+        />
+      )}
       {showGrafana && <ExternalLink href={grafanaURL} name="Dashboards" />}
       {kibanaURL && <ExternalLink href={kibanaURL} name="Logging" />}
     </NavSection>
@@ -77,13 +91,13 @@ const MonitoringNavSection_ = ({ grafanaURL, canAccess, kibanaURL }) => {
 const MonitoringNavSection = connect(monitoringNavSectionStateToProps)(MonitoringNavSection_);
 
 const AdminNav = () => (
-  <React.Fragment>
+  <>
     <NavSection title="Home">
       <HrefLink
         href="/dashboards"
         activePath="/dashboards/"
         name="Dashboards"
-        required={FLAGS.CAN_LIST_NS}
+        required={[FLAGS.CAN_LIST_NS, FLAGS.OPENSHIFT]}
       />
       <ResourceClusterLink resource="projects" name="Projects" required={FLAGS.OPENSHIFT} />
       <HrefLink href="/search" name="Search" startsWith={searchStartsWith} />
@@ -104,7 +118,7 @@ const AdminNav = () => (
       <ResourceNSLink resource="statefulsets" name="Stateful Sets" />
       <ResourceNSLink resource="secrets" name="Secrets" />
       <ResourceNSLink resource="configmaps" name="Config Maps" />
-      <Separator />
+      <Separator name="WorkloadsSeparator" />
       <ResourceNSLink resource="cronjobs" name="Cron Jobs" />
       <ResourceNSLink resource="jobs" name="Jobs" />
       <ResourceNSLink resource="daemonsets" name="Daemon Sets" />
@@ -114,7 +128,7 @@ const AdminNav = () => (
     </NavSection>
 
     {/* Temporary addition of Knative Serverless section until extensibility allows for section ordering
-         and admin-nav gets contributed through extensions. */}
+        and admin-nav gets contributed through extensions. */}
     <NavSection title="Serverless" />
 
     <NavSection title="Networking">
@@ -143,6 +157,10 @@ const AdminNav = () => (
         startsWith={imagestreamsStartsWith}
       />
     </NavSection>
+
+    {/* Temporary addition of Tekton Pipelines section until extensibility allows for section ordering
+        and admin-nav gets contributed through extensions. */}
+    <NavSection title="Pipelines" />
 
     <NavSection title="Service Catalog" required={FLAGS.SERVICE_CATALOG}>
       <HrefLink
@@ -187,7 +205,15 @@ const AdminNav = () => (
         name="Machine Autoscalers"
         required={FLAGS.MACHINE_AUTOSCALER}
       />
-      <Separator required={FLAGS.MACHINE_CONFIG} />
+      <HrefLink
+        href={formatNamespacedRouteForResource(
+          referenceForModel(MachineHealthCheckModel),
+          'openshift-machine-api',
+        )}
+        name="Machine Health Checks"
+        required={FLAGS.MACHINE_HEALTH_CHECK}
+      />
+      <Separator required={FLAGS.MACHINE_CONFIG} name="ComputeSeparator" />
       <ResourceClusterLink
         resource={referenceForModel(MachineConfigModel)}
         name="Machine Configs"
@@ -250,7 +276,7 @@ const AdminNav = () => (
         required={FLAGS.CAN_LIST_CRD}
       />
     </NavSection>
-  </React.Fragment>
+  </>
 );
 
 export default AdminNav;

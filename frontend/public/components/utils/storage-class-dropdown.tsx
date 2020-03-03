@@ -119,11 +119,13 @@ export class StorageClassDropdownInner extends React.Component<
 
   onChange = (key) => {
     const storageClass = _.get(this.state, ['items', key], {});
-    this.setState({
-      selectedKey: key,
-      title: this.getTitle(storageClass),
-    });
-    this.props.onChange(storageClass.resource);
+    this.setState(
+      {
+        selectedKey: key,
+        title: this.getTitle(storageClass),
+      },
+      () => this.props.onChange(storageClass.resource),
+    );
   };
 
   render() {
@@ -144,7 +146,7 @@ export class StorageClassDropdownInner extends React.Component<
     // Only show the dropdown if 'no storage class' is not the only option which depends on defaultClass
     const itemsAvailableToShow = defaultClass || _.size(items) > 1;
     return (
-      <React.Fragment>
+      <>
         {loaded && itemsAvailableToShow && (
           <div>
             <label
@@ -176,7 +178,7 @@ export class StorageClassDropdownInner extends React.Component<
             )}
           </div>
         )}
-      </React.Fragment>
+      </>
     );
   }
 }

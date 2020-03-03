@@ -25,7 +25,7 @@ export class DiskWrapper extends ObjectWithTypePropertyWrapper<V1Disk, DiskType>
       },
       {
         initializeWithType: type,
-        initializeWithTypeData: type === DiskType.DISK && bus ? { bus: bus.getValue() } : undefined,
+        initializeWithTypeData: bus ? { bus: bus.getValue() } : undefined,
       },
     );
   };
@@ -41,7 +41,7 @@ export class DiskWrapper extends ObjectWithTypePropertyWrapper<V1Disk, DiskType>
 
   getName = () => this.get('name');
 
-  getDiskBus = (): DiskBus => DiskBus.fromString(this.getIn(['disk', 'bus']));
+  getDiskBus = (): DiskBus => DiskBus.fromString(this.getIn([this.getTypeValue(), 'bus']));
 
   getReadableDiskBus = () => {
     const diskBus = this.getDiskBus();

@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from './utils';
 import { NetworkPolicyModel } from '../models';
+import { getNetworkPolicyDocLink } from './utils/documentation';
 
 const { common } = Kebab.factory;
 const menuActions = [...Kebab.getExtensionsActionsForKind(NetworkPolicyModel), ...common];
@@ -173,11 +174,9 @@ const IngressRow = ({ ingress, namespace, podSelector }) => {
   );
 };
 
-const Details_ = ({ obj: np }) => {
-  const networkPolicyDocs =
-    'https://kubernetes.io/docs/concepts/services-networking/network-policies/';
+const Details_ = ({ obj: np, flags }) => {
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-pane__body">
         <SectionHeading text="Namespace Overview" />
         <ResourceSummary resource={np} podSelector={'spec.podSelector'} showPodSelector />
@@ -188,7 +187,11 @@ const Details_ = ({ obj: np }) => {
           Pods accept all traffic by default. They can be isolated via Network Policies which
           specify a whitelist of ingress rules. When a Pod is selected by a Network Policy, it will
           reject all traffic not explicitly allowed via a Network Policy. See more details in{' '}
-          <ExternalLink href={networkPolicyDocs} text="Network Policies Documentation" />.
+          <ExternalLink
+            href={getNetworkPolicyDocLink(flags[FLAGS.OPENSHIFT])}
+            text="Network Policies Documentation"
+          />
+          .
         </p>
         {_.isEmpty(_.get(np, 'spec.ingress[0]', [])) ? (
           `All traffic is allowed to Pods in ${np.metadata.namespace}.`
@@ -208,7 +211,7 @@ const Details_ = ({ obj: np }) => {
           </div>
         )}
       </div>
-    </React.Fragment>
+    </>
   );
 };
 

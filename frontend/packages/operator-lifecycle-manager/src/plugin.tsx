@@ -1,14 +1,32 @@
 import * as _ from 'lodash';
-import { Plugin, ModelDefinition, ModelFeatureFlag } from '@console/plugin-sdk';
+import {
+  Plugin,
+  ModelDefinition,
+  ModelFeatureFlag,
+  HrefNavItem,
+  ResourceNSNavItem,
+  ResourceListPage,
+  ResourceDetailsPage,
+  RoutePage,
+  DevCatalogModel,
+} from '@console/plugin-sdk';
 import { referenceForModel } from '@console/internal/module/k8s';
 import { normalizeClusterServiceVersions } from './dev-catalog';
 import * as models from './models';
 import { Flags } from './const';
 import './style.scss';
 
-type ConsumedExtensions = ModelDefinition | ModelFeatureFlag;
+type ConsumedExtensions =
+  | ModelDefinition
+  | ModelFeatureFlag
+  | HrefNavItem
+  | ResourceNSNavItem
+  | ResourceListPage
+  | ResourceDetailsPage
+  | RoutePage
+  | DevCatalogModel;
 
-export default [
+const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'ModelDefinition',
     properties: {
@@ -62,6 +80,10 @@ export default [
       componentProps: {
         name: 'Installed Operators',
         resource: referenceForModel(models.ClusterServiceVersionModel),
+        startsWith: [
+          models.ClusterServiceVersionModel.apiGroup,
+          models.ClusterServiceVersionModel.plural,
+        ],
       },
     },
   },
@@ -223,4 +245,24 @@ export default [
       loader: async () => (await import('./components/create-catalog-source')).CreateCatalogSource,
     },
   },
-] as Plugin<ConsumedExtensions>;
+  {
+    type: 'Page/Resource/Details',
+    properties: {
+      model: models.InstallPlanModel,
+      loader: async () =>
+        (await import('./components/install-plan' /* webpackChunkName: "install-plan" */))
+          .InstallPlanDetailsPage,
+    },
+  },
+  {
+    type: 'Page/Resource/List',
+    properties: {
+      model: models.InstallPlanModel,
+      loader: async () =>
+        (await import('./components/install-plan' /* webpackChunkName: "install-plan" */))
+          .InstallPlansPage,
+    },
+  },
+];
+
+export default plugin;

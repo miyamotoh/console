@@ -28,6 +28,17 @@ export const ModalSimpleErrorMessage: React.FC<ModalSimpleErrorMessageProps> = (
   <Alert isInline className="co-alert" variant="danger" title={message} />
 );
 
+type ModalInfoMessageProps = {
+  title: string;
+  children: React.ReactNode;
+};
+
+export const ModalInfoMessage: React.FC<ModalInfoMessageProps> = ({ title, children }) => (
+  <Alert isInline className="co-alert co-alert--scrollable" variant="info" title={title}>
+    {children}
+  </Alert>
+);
+
 type ModalFooterProps = {
   id?: string;
   errorMessage?: string;
@@ -35,39 +46,41 @@ type ModalFooterProps = {
   onSubmit: (e) => void;
   onCancel: (e) => void;
   isDisabled?: boolean;
+  inProgress?: boolean;
   submitButtonText?: string;
   cancelButtonText?: string;
+  infoTitle?: string;
+  infoMessage?: React.ReactNode;
 };
 
 export const ModalFooter: React.FC<ModalFooterProps> = ({
   id,
   errorMessage = null,
   isDisabled = false,
+  inProgress = false,
   isSimpleError = false,
   onSubmit,
   onCancel,
   submitButtonText = 'Add',
   cancelButtonText = 'Cancel',
+  infoMessage = null,
+  infoTitle = null,
 }) => (
   <footer className="co-m-btn-bar modal-footer kubevirt-create-nic-modal__buttons">
     {errorMessage && isSimpleError && <ModalSimpleErrorMessage message={errorMessage} />}
     {errorMessage && !isSimpleError && <ModalErrorMessage message={errorMessage} />}
+    {infoTitle && <ModalInfoMessage title={infoTitle}>{infoMessage}</ModalInfoMessage>}
     <Button
       variant={ButtonVariant.primary}
       onClick={onSubmit}
       id={prefixedID(id, 'submit')}
-      disabled={isDisabled}
+      isDisabled={isDisabled}
     >
       {submitButtonText}
     </Button>
-    <Button
-      variant={ButtonVariant.plain}
-      onClick={onCancel}
-      id={prefixedID(id, 'cancel')}
-      disabled={isDisabled}
-    >
+    <Button variant={ButtonVariant.link} onClick={onCancel} id={prefixedID(id, 'cancel')}>
       {cancelButtonText}
     </Button>
-    {isDisabled && <LoadingInline />}
+    {inProgress && <LoadingInline />}
   </footer>
 );

@@ -21,7 +21,6 @@ import {
 } from '../types';
 import * as operatorLogo from '../operator.svg';
 
-export const olmNamespace = 'operator-lifecycle-manager';
 export const visibilityLabel = 'olm-visibility';
 
 type ProvidedAPIsFor = (
@@ -114,15 +113,14 @@ export const OperandLink: React.SFC<OperandLinkProps> = (props) => {
           allParts[i - 1] === ClusterServiceVersionModel.plural,
       );
 
+  const reference = referenceFor(props.obj);
+  const to = namespace
+    ? `/k8s/ns/${namespace}/${ClusterServiceVersionModel.plural}/${csvName()}/${reference}/${name}`
+    : `/k8s/cluster/${reference}/${name}`;
   return (
     <span className="co-resource-item">
       <ResourceIcon kind={referenceFor(props.obj)} />
-      <Link
-        to={`/k8s/ns/${namespace}/${ClusterServiceVersionModel.plural}/${csvName()}/${referenceFor(
-          props.obj,
-        )}/${name}`}
-        className="co-resource-item__resource-name"
-      >
+      <Link to={to} className="co-resource-item__resource-name" data-test-operand-link={name}>
         {name}
       </Link>
     </span>

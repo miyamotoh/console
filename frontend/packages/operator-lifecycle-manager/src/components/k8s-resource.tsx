@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
 import { match } from 'react-router';
+import { Status } from '@console/shared';
 import {
   ResourceLink,
   Timestamp,
@@ -10,7 +11,13 @@ import {
   FirehoseResource,
 } from '@console/internal/components/utils';
 import { MultiListPage, Table, TableRow, TableData } from '@console/internal/components/factory';
-import { K8sResourceKind, GroupVersionKind, kindForReference } from '@console/internal/module/k8s';
+import {
+  K8sResourceKind,
+  GroupVersionKind,
+  kindForReference,
+  modelFor,
+  referenceForGroupVersionKind,
+} from '@console/internal/module/k8s';
 import { CRDDescription, ClusterServiceVersionKind } from '../types';
 import { referenceForProvidedAPI, providedAPIsFor, OperandLink } from './index';
 
@@ -36,6 +43,8 @@ export const ResourceTableHeader = () => [
   },
   {
     title: 'Status',
+    sortField: 'status.phase',
+    transforms: [sortable],
     props: { className: tableColumnClasses[2] },
   },
   {
@@ -55,7 +64,9 @@ export const ResourceTableRow: React.FC<ResourceTableRowProps> = ({
   <TableRow id={obj.metadata.uid} index={index} trKey={obj.metadata.uid} style={style}>
     <TableData className={tableColumnClasses[0]}>{linkFor(obj)}</TableData>
     <TableData className={tableColumnClasses[1]}>{obj.kind}</TableData>
-    <TableData className={tableColumnClasses[2]}>{_.get(obj.status, 'phase', 'Created')}</TableData>
+    <TableData className={tableColumnClasses[2]}>
+      <Status status={_.get(obj.status, 'phase', 'Created')} />
+    </TableData>
     <TableData className={tableColumnClasses[3]}>
       <Timestamp timestamp={obj.metadata.creationTimestamp} />
     </TableData>
@@ -87,7 +98,16 @@ export const Resources: React.FC<ResourcesProps> = (props) => {
   const firehoseResources = _.get(providedAPI, 'resources', defaultResources.map((kind) => ({
     kind,
   })) as CRDDescription['resources']).map(
-    (ref): FirehoseResource => ({ kind: ref.kind, namespaced: true, prop: ref.kind }),
+    ({ name, kind, version }): FirehoseResource => {
+      const group = name ? name.substring(name.indexOf('.') + 1) : '';
+      const reference = group ? referenceForGroupVersionKind(group)(version)(kind) : kind;
+      const model = modelFor(reference);
+      return {
+        kind: model && !model.crd ? kind : reference,
+        namespaced: model ? model.namespaced : true,
+        prop: kind,
+      };
+    },
   );
 
   // NOTE: This is us building the `ownerReferences` graph client-side
@@ -112,6 +132,7 @@ export const Resources: React.FC<ResourcesProps> = (props) => {
 
   // FIXME: Comparing `kind` is not enough to determine if an object is a custom resource
   const linkFor = (obj: K8sResourceKind) =>
+    obj.metadata.namespace &&
     _.get(providedAPI, 'resources', []).some(({ kind, name }) => name && kind === obj.kind) ? (
       <OperandLink obj={obj} />
     ) : (
@@ -130,8 +151,8 @@ export const Resources: React.FC<ResourcesProps> = (props) => {
       rowFilters={[
         {
           type: 'clusterserviceversion-resource-kind',
-          selected: firehoseResources.map(({ kind }) => kind),
-          reducer: ({ kind }) => kind,
+          selected: firehoseResources.map(({ kind }) => kindForReference(kind)),
+          reducer: ({ kind }) => kindForReference(kind),
           items: firehoseResources.map(({ kind }) => ({
             id: kindForReference(kind),
             title: kindForReference(kind),

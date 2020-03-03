@@ -1,7 +1,13 @@
 import * as React from 'react';
 import * as _ from 'lodash-es';
 import * as PropTypes from 'prop-types';
-import { FilterSidePanel, VerticalTabs } from 'patternfly-react-extensions';
+import {
+  FilterSidePanel,
+  FilterSidePanelCategory,
+  FilterSidePanelCategoryItem,
+  VerticalTabs,
+  VerticalTabsTab,
+} from '@patternfly/react-catalog-view-extension';
 import { FormControl } from 'patternfly-react';
 import {
   Button,
@@ -9,13 +15,18 @@ import {
   EmptyStateBody,
   EmptyStateSecondaryActions,
   EmptyStateVariant,
+  Gallery,
+  GalleryItem,
   Title,
 } from '@patternfly/react-core';
 
 import { history } from './router';
+import { Dropdown } from '../utils';
 
-const CATEGORY_URL_PARAM = 'category';
-const KEYWORD_URL_PARAM = 'keyword';
+export const FilterTypes = {
+  category: 'category',
+  keyword: 'keyword',
+};
 
 const filterSubcategories = (category, item) => {
   if (!category.subcategories) {
@@ -192,10 +203,9 @@ const filterByGroup = (items, filters) => {
   return _.reduce(
     filters,
     (filtered, group, key) => {
-      if (key === 'keyword') {
+      if (key === FilterTypes.keyword) {
         return filtered;
       }
-
       // Only apply active filters
       const activeFilters = _.filter(group, 'active');
       if (activeFilters.length) {
@@ -316,7 +326,7 @@ const getActiveFilters = (keywordFilter, groupFilters, activeFilters) => {
 };
 
 export const updateActiveFilters = (activeFilters, filterType, id, value) => {
-  if (filterType === 'keyword') {
+  if (filterType === FilterTypes.keyword) {
     _.set(activeFilters, 'keyword.value', value);
     _.set(activeFilters, 'keyword.active', !!value);
   } else {
@@ -391,13 +401,13 @@ const setURLParams = (params) => {
   history.replace(`${url.pathname}${searchParams}`);
 };
 
-export const updateURLParams = (filterName, value) => {
+export const updateURLParams = (paramName, value) => {
   const params = new URLSearchParams(window.location.search);
 
   if (value) {
-    params.set(filterName, Array.isArray(value) ? JSON.stringify(value) : value);
+    params.set(paramName, Array.isArray(value) ? JSON.stringify(value) : value);
   } else {
-    params.delete(filterName);
+    params.delete(paramName);
   }
   setURLParams(params);
 };
@@ -406,19 +416,21 @@ const clearFilterURLParams = (selectedCategoryId) => {
   const params = new URLSearchParams();
 
   if (selectedCategoryId) {
-    params.set(CATEGORY_URL_PARAM, selectedCategoryId);
+    params.set(FilterTypes.category, selectedCategoryId);
   }
 
   setURLParams(params);
 };
 
-const getActiveValuesFromURL = (availableFilters, filterGroups) => {
+const getActiveValuesFromURL = (availableFilters, filterGroups, groupByTypes) => {
   const searchParams = new URLSearchParams(window.location.search);
-  const categoryParam = searchParams.get(CATEGORY_URL_PARAM);
-  const keywordFilter = searchParams.get(KEYWORD_URL_PARAM);
-
+  const categoryParam = searchParams.get(FilterTypes.category);
+  const keywordFilter = searchParams.get(FilterTypes.keyword);
   const selectedCategoryId = categoryParam || 'all';
-
+  let groupBy = '';
+  if (groupByTypes) {
+    groupBy = searchParams.get('groupBy') || groupByTypes.None;
+  }
   const groupFilters = {};
 
   _.each(filterGroups, (filterGroup) => {
@@ -437,7 +449,7 @@ const getActiveValuesFromURL = (availableFilters, filterGroups) => {
 
   const activeFilters = getActiveFilters(keywordFilter, groupFilters, availableFilters);
 
-  return { selectedCategoryId, activeFilters };
+  return { selectedCategoryId, activeFilters, groupBy };
 };
 
 export const getFilterSearchParam = (groupFilter) => {
@@ -462,7 +474,7 @@ const defaultFilters = {
 export class TileViewPage extends React.Component {
   constructor(props) {
     super(props);
-    const { items, itemsSorter, getAvailableCategories } = this.props;
+    const { items, itemsSorter, getAvailableCategories, groupByTypes } = this.props;
 
     const categories = getAvailableCategories(items);
 
@@ -472,20 +484,22 @@ export class TileViewPage extends React.Component {
       activeFilters: defaultFilters,
       filterCounts: null,
       filterGroupsShowAll: {},
+      groupBy: groupByTypes ? groupByTypes.None : '',
     };
 
     this.onUpdateFilters = this.onUpdateFilters.bind(this);
     this.onFilterChange = this.onFilterChange.bind(this);
     this.renderFilterGroup = this.renderFilterGroup.bind(this);
     this.onShowAllToggle = this.onShowAllToggle.bind(this);
+    this.onGroupChange = this.onGroupChange.bind(this);
   }
 
   componentDidMount() {
-    const { items, filterGroups, getAvailableFilters } = this.props;
+    const { items, filterGroups, getAvailableFilters, groupByTypes } = this.props;
     const { categories } = this.state;
     const availableFilters = getAvailableFilters(defaultFilters, items, filterGroups);
 
-    const activeValues = getActiveValuesFromURL(availableFilters, filterGroups);
+    const activeValues = getActiveValuesFromURL(availableFilters, filterGroups, groupByTypes);
 
     this.setState({
       ...this.getUpdatedState(
@@ -493,6 +507,7 @@ export class TileViewPage extends React.Component {
         activeValues.selectedCategoryId,
         activeValues.activeFilters,
       ),
+      groupBy: activeValues.groupBy,
     });
     this.filterByKeywordInput.focus({ preventScroll: true });
   }
@@ -502,7 +517,7 @@ export class TileViewPage extends React.Component {
   }
 
   componentDidUpdate(prevProps) {
-    const { activeFilters, selectedCategoryId } = this.state;
+    const { activeFilters, selectedCategoryId, groupBy } = this.state;
     const {
       items,
       itemsSorter,
@@ -519,11 +534,10 @@ export class TileViewPage extends React.Component {
       const newActiveFilters = _.reduce(
         availableFilters,
         (updatedFilters, filterGroup, filterGroupName) => {
-          if (filterGroupName === 'keyword') {
+          if (filterGroupName === FilterTypes.keyword) {
             updatedFilters.keyword = activeFilters.keyword;
             return updatedFilters;
           }
-
           _.each(filterGroup, (filterItem, filterItemName) => {
             updatedFilters[filterGroupName][filterItemName].active = _.get(
               activeFilters,
@@ -539,6 +553,7 @@ export class TileViewPage extends React.Component {
 
       this.updateMountedState({
         ...this.getUpdatedState(categories, selectedCategoryId, newActiveFilters),
+        groupBy,
       });
     }
   }
@@ -597,7 +612,7 @@ export class TileViewPage extends React.Component {
   selectCategory(categoryId) {
     const { activeFilters, categories } = this.state;
 
-    updateURLParams(CATEGORY_URL_PARAM, categoryId);
+    updateURLParams(FilterTypes.category, categoryId);
     this.updateMountedState(this.getUpdatedState(categories, categoryId, activeFilters));
   }
 
@@ -609,8 +624,8 @@ export class TileViewPage extends React.Component {
   onFilterChange(filterType, id, value) {
     const { activeFilters, selectedCategoryId, categories } = this.state;
 
-    if (filterType === 'keyword') {
-      updateURLParams(KEYWORD_URL_PARAM, `${value}`);
+    if (filterType === FilterTypes.keyword) {
+      updateURLParams(FilterTypes.keyword, `${value}`);
     } else {
       const groupFilter = _.cloneDeep(activeFilters[filterType]);
       _.set(groupFilter, [id, 'active'], value);
@@ -633,6 +648,12 @@ export class TileViewPage extends React.Component {
     this.setState({ filterGroupsShowAll: updatedShow });
   }
 
+  onGroupChange(value) {
+    const { groupByTypes } = this.props;
+    updateURLParams('groupBy', value === groupByTypes.None ? `` : `${value}`);
+    this.updateMountedState({ groupBy: value });
+  }
+
   renderTabs(category, selectedCategoryId) {
     const { id, label, subcategories, numItems } = category;
     const active = id === selectedCategoryId;
@@ -640,7 +661,7 @@ export class TileViewPage extends React.Component {
 
     const tabClasses = `text-capitalize${!numItems ? ' co-catalog-tab__empty' : ''}`;
     return (
-      <VerticalTabs.Tab
+      <VerticalTabsTab
         key={id}
         title={label}
         active={active}
@@ -656,7 +677,7 @@ export class TileViewPage extends React.Component {
             )}
           </VerticalTabs>
         )}
-      </VerticalTabs.Tab>
+      </VerticalTabsTab>
     );
   }
 
@@ -684,7 +705,7 @@ export class TileViewPage extends React.Component {
     const { filterGroupsShowAll } = this.state;
 
     return (
-      <FilterSidePanel.Category
+      <FilterSidePanelCategory
         key={groupName}
         title={filterGroupNameMap[groupName] || groupName}
         onShowAllToggle={() => this.onShowAllToggle(groupName)}
@@ -694,19 +715,19 @@ export class TileViewPage extends React.Component {
         {_.map(filterGroup, (filter, filterName) => {
           const { label, active } = filter;
           return (
-            <FilterSidePanel.CategoryItem
+            <FilterSidePanelCategoryItem
               key={filterName}
               count={_.get(filterCounts, [groupName, filterName], 0)}
               checked={active}
-              onChange={(e) => onFilterChange(groupName, filterName, e.target.checked)}
+              onClick={(e) => onFilterChange(groupName, filterName, e.target.checked)}
               title={label}
               data-test={`${groupName}-${_.kebabCase(filterName)}`}
             >
               {label}
-            </FilterSidePanel.CategoryItem>
+            </FilterSidePanelCategoryItem>
           );
         })}
-      </FilterSidePanel.Category>
+      </FilterSidePanelCategory>
     );
   }
 
@@ -719,7 +740,7 @@ export class TileViewPage extends React.Component {
     return (
       <FilterSidePanel>
         {_.map(activeFilters, (filterGroup, groupName) => {
-          if (groupName === 'keyword') {
+          if (groupName === FilterTypes.keyword) {
             return;
           }
           return renderFilterGroup(
@@ -756,9 +777,37 @@ export class TileViewPage extends React.Component {
     );
   }
 
+  renderItems(items, renderTile) {
+    return (
+      <Gallery gutter="sm" className="catalog-tile-view-pf catalog-tile-view-pf-no-categories">
+        {_.map(items, (item) => (
+          <GalleryItem key={item.uid ? `gallery-${item.uid}` : `gallery-${item.obj.metadata.uid}`}>
+            {renderTile(item)}
+          </GalleryItem>
+        ))}
+      </Gallery>
+    );
+  }
+
+  renderGroupedItems(items, groupBy, renderTile, groupItems) {
+    const groupedItems = groupItems(items, groupBy);
+    return _.map(
+      groupedItems,
+      (value, key) =>
+        value.length > 0 && (
+          <div key={key} className="co-catalog-page__grouped-items">
+            <Title className="co-catalog-page__group-title" headingLevel="h2" size="lg">
+              {key} ({_.size(value)})
+            </Title>
+            {this.renderItems(value, renderTile)}
+          </div>
+        ),
+    );
+  }
+
   render() {
-    const { renderTile } = this.props;
-    const { activeFilters, selectedCategoryId, categories } = this.state;
+    const { renderTile, groupItems, groupByTypes } = this.props;
+    const { activeFilters, selectedCategoryId, categories, groupBy } = this.state;
     let activeCategory = findActiveCategory(selectedCategoryId, categories);
     if (!activeCategory) {
       activeCategory = findActiveCategory('all', categories);
@@ -774,21 +823,36 @@ export class TileViewPage extends React.Component {
           <div className="co-catalog-page__header">
             <div className="co-catalog-page__heading text-capitalize">{activeCategory.label}</div>
             <div className="co-catalog-page__filter">
-              <FormControl
-                className="co-catalog-page__input"
-                type="text"
-                inputRef={(ref) => (this.filterByKeywordInput = ref)}
-                placeholder="Filter by keyword..."
-                bsClass="pf-c-form-control"
-                value={activeFilters.keyword.value}
-                onChange={(e) => this.onKeywordChange(e.target.value)}
-              />
+              <div>
+                <FormControl
+                  className="co-catalog-page__input"
+                  type="text"
+                  inputRef={(ref) => (this.filterByKeywordInput = ref)}
+                  placeholder="Filter by keyword..."
+                  bsClass="pf-c-form-control"
+                  value={activeFilters.keyword.value}
+                  onChange={(e) => this.onKeywordChange(e.target.value)}
+                />
+                {groupItems && (
+                  <Dropdown
+                    className="co-catalog-page__btn-group__group-by"
+                    menuClassName="dropdown-menu--text-wrap"
+                    items={groupByTypes}
+                    onChange={(e) => this.onGroupChange(e)}
+                    titlePrefix="Group By"
+                    title={groupBy}
+                  />
+                )}
+              </div>
               <div className="co-catalog-page__num-items">{activeCategory.numItems} items</div>
             </div>
           </div>
+
           {activeCategory.numItems > 0 && (
-            <div className="catalog-tile-view-pf catalog-tile-view-pf-no-categories">
-              {_.map(activeCategory.items, (item) => renderTile(item))}
+            <div className="co-catalog-page__grid">
+              {groupItems && groupBy !== groupByTypes.None
+                ? this.renderGroupedItems(activeCategory.items, groupBy, renderTile, groupItems)
+                : this.renderItems(activeCategory.items, renderTile)}
             </div>
           )}
           {activeCategory.numItems === 0 && this.renderEmptyState()}
@@ -812,6 +876,8 @@ TileViewPage.propTypes = {
   renderTile: PropTypes.func.isRequired,
   emptyStateTitle: PropTypes.string,
   emptyStateInfo: PropTypes.string,
+  groupItems: PropTypes.func,
+  groupByTypes: PropTypes.object,
 };
 
 TileViewPage.defaultProps = {

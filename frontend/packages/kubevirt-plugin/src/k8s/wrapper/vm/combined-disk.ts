@@ -6,15 +6,22 @@ import { V1Disk } from '../../../types/vm/disk/V1Disk';
 import { V1Volume } from '../../../types/vm/disk/V1Volume';
 import { V1alpha1DataVolume } from '../../../types/vm/disk/V1alpha1DataVolume';
 import { getSimpleName } from '../../../selectors/utils';
-import { DiskType, VolumeType } from '../../../constants/vm/storage';
+import { VolumeType, DiskType } from '../../../constants/vm/storage';
 import { VMLikeEntityKind } from '../../../types';
-import { asVM, getDataVolumeTemplates, getDisks, getVolumes } from '../../../selectors/vm';
+import {
+  asVM,
+  getDataVolumeTemplates,
+  getDisks,
+  getVolumes,
+  isWinToolsImage,
+} from '../../../selectors/vm';
 import { getLoadedData, isLoaded } from '../../../utils';
-import { getPvcStorageClassName, getPvcStorageSize } from '../../../selectors/pvc/selectors';
 import { StorageUISource } from '../../../components/modals/disk-modal/storage-ui-source';
+import { DYNAMIC } from '../../../utils/strings';
 import { DiskWrapper } from './disk-wrapper';
 import { DataVolumeWrapper } from './data-volume-wrapper';
 import { VolumeWrapper } from './volume-wrapper';
+import { PersistentVolumeClaimWrapper } from './persistent-volume-claim-wrapper';
 
 export class CombinedDisk {
   private readonly dataVolumesLoading: boolean;
@@ -29,90 +36,157 @@ export class CombinedDisk {
 
   readonly dataVolumeWrapper?: DataVolumeWrapper;
 
-  readonly pvc?: K8sResourceKind;
+  readonly persistentVolumeClaimWrapper?: PersistentVolumeClaimWrapper;
 
   constructor({
     diskWrapper,
     volumeWrapper,
     dataVolumeWrapper,
-    pvc,
+    persistentVolumeClaimWrapper,
+    isNewPVC,
     dataVolumesLoading,
     pvcsLoading,
   }: {
     diskWrapper: DiskWrapper;
     volumeWrapper: VolumeWrapper;
     dataVolumeWrapper?: DataVolumeWrapper;
-    pvc?: K8sResourceKind;
+    persistentVolumeClaimWrapper?: PersistentVolumeClaimWrapper;
     dataVolumesLoading?: boolean;
     pvcsLoading?: boolean;
+    isNewPVC?: boolean;
   }) {
     this.diskWrapper = diskWrapper;
     this.volumeWrapper = volumeWrapper;
     this.dataVolumeWrapper = dataVolumeWrapper;
-    this.pvc = pvc;
+    this.persistentVolumeClaimWrapper = persistentVolumeClaimWrapper;
     this.dataVolumesLoading = dataVolumesLoading;
     this.pvcsLoading = pvcsLoading;
     this.source = StorageUISource.fromTypes(
       volumeWrapper.getType(),
       dataVolumeWrapper && dataVolumeWrapper.getType(),
+      !!persistentVolumeClaimWrapper && isNewPVC,
     );
   }
 
   getSource = () => this.source;
 
-  isEditingSupported = () => !!this.source && this.source.isEditingSupported();
+  getInitialSource = (isEditing) => {
+    if (this.diskWrapper.getType() === DiskType.CDROM) {
+      return this.source || StorageUISource.URL;
+    }
+    if (isEditing) {
+      return this.source || StorageUISource.OTHER;
+    }
+    return StorageUISource.BLANK;
+  };
+
+  getSourceValue = () => this.source && this.source.getValue();
+
+  isEditingSupported = (isTemplate: boolean) => {
+    if (isTemplate) {
+      // plain dataVolume creates dataVolumes on template creation
+      return this.source && this.source.isPlainDataVolume(isTemplate)
+        ? this.source.isEditingSupported()
+        : true;
+    }
+
+    return !!this.source && this.source.isEditingSupported();
+  };
 
   getName = () => this.diskWrapper.getName();
 
-  getDiskInterface = () =>
-    this.diskWrapper.getType() === DiskType.DISK
-      ? this.diskWrapper.getReadableDiskBus()
-      : undefined;
+  getType = () => this.diskWrapper.getType();
 
-  getSize = () =>
-    this.volumeTypeOperation(getPvcStorageSize, (dataVolumeWrapper) =>
-      dataVolumeWrapper.getReadabableSize(),
+  getTypeValue = () => this.diskWrapper.getTypeValue();
+
+  getDiskInterface = () => this.diskWrapper.getReadableDiskBus();
+
+  getReadableSize = (): string => {
+    let result = this.volumeTypeOperation(
+      (persistentVolumeClaimWrapper) => persistentVolumeClaimWrapper.getReadabableSize(),
+      (dataVolumeWrapper) => dataVolumeWrapper.getReadabableSize(),
+    );
+
+    if (result === null && this.source && this.source.hasDynamicSize()) {
+      result = DYNAMIC;
+    }
+
+    return result;
+  };
+
+  getSize = (): { value: number; unit: string } =>
+    this.volumeTypeOperation(
+      (persistentVolumeClaimWrapper) => persistentVolumeClaimWrapper.getSize(),
+      (dataVolumeWrapper) => dataVolumeWrapper.getSize(),
     );
 
   getStorageClassName = () =>
-    this.volumeTypeOperation(getPvcStorageClassName, (dataVolumeWrapper) =>
-      dataVolumeWrapper.getStorageClassName(),
+    this.volumeTypeOperation(
+      (persistentVolumeClaimWrapper) => persistentVolumeClaimWrapper.getStorageClassName(),
+      (dataVolumeWrapper) => dataVolumeWrapper.getStorageClassName(),
     );
 
   getPVCName = (source?: StorageUISource) => {
-    const resolvedSource =
-      source ||
-      StorageUISource.fromTypes(
-        this.volumeWrapper.getType(),
-        this.dataVolumeWrapper && this.dataVolumeWrapper.getType(),
-      );
+    const resolvedSource = source || this.source;
+    if (resolvedSource === StorageUISource.IMPORT_DISK) {
+      return this.persistentVolumeClaimWrapper && this.persistentVolumeClaimWrapper.getName();
+    }
     if (resolvedSource === StorageUISource.ATTACH_DISK) {
-      return this.volumeWrapper.getPersistentVolumeClaimName();
+      return this.volumeWrapper && this.volumeWrapper.getPersistentVolumeClaimName();
     }
     if (resolvedSource === StorageUISource.ATTACH_CLONED_DISK) {
-      return this.dataVolumeWrapper.getPesistentVolumeClaimName();
+      return this.dataVolumeWrapper && this.dataVolumeWrapper.getPesistentVolumeClaimName();
     }
 
     return null;
   };
 
+  getContent = () => {
+    switch (this.source) {
+      case StorageUISource.CONTAINER: {
+        return this.volumeWrapper.getContainerImage();
+      }
+      case StorageUISource.URL: {
+        return this.dataVolumeWrapper.getURL();
+      }
+      case StorageUISource.IMPORT_DISK: {
+        return this.getPVCName(this.source);
+      }
+      case StorageUISource.ATTACH_DISK: {
+        return this.getPVCName(this.source);
+      }
+      case StorageUISource.ATTACH_CLONED_DISK: {
+        return this.getPVCName(this.source);
+      }
+      default:
+        return null;
+    }
+  };
+
+  getCDROMSourceValue = () =>
+    isWinToolsImage(this.volumeWrapper.getContainerImage())
+      ? 'Windows Tools'
+      : this.getSourceValue();
+
   toString = () => {
     return _.compact([
       this.getName(),
-      this.getSize(),
+      this.getReadableSize(),
       this.getDiskInterface(),
       this.getStorageClassName(),
     ]).join(' - ');
   };
 
   private volumeTypeOperation = (
-    onPVC: (pvc: K8sResourceKind) => string,
-    onDataVolumeWrapper: (dataVolumeWrapper: DataVolumeWrapper) => string,
+    onPersistentVolumeClaimWrapper: (
+      persistentVolumeClaimWrapper: PersistentVolumeClaimWrapper,
+    ) => any,
+    onDataVolumeWrapper: (dataVolumeWrapper: DataVolumeWrapper) => any,
   ) => {
     const volumeType = this.volumeWrapper.getType();
     if (volumeType === VolumeType.PERSISTENT_VOLUME_CLAIM) {
-      if (this.pvc) {
-        return onPVC(this.pvc);
+      if (this.persistentVolumeClaimWrapper) {
+        return onPersistentVolumeClaimWrapper(this.persistentVolumeClaimWrapper);
       }
       if (this.pvcsLoading) {
         return undefined;
@@ -217,7 +291,7 @@ export class CombinedDiskFactory {
         diskWrapper,
         volumeWrapper,
         dataVolumeWrapper: dataVolume && DataVolumeWrapper.initialize(dataVolume),
-        pvc,
+        persistentVolumeClaimWrapper: pvc && PersistentVolumeClaimWrapper.initialize(pvc),
         dataVolumesLoading: this.dataVolumesLoading,
         pvcsLoading: this.pvcsLoading,
       });

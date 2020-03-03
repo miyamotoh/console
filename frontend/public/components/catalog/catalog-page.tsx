@@ -47,8 +47,10 @@ export class CatalogListPage extends React.Component<CatalogListPageProps, Catal
       projectTemplateMetadata,
       imageStreams,
       namespace,
+      loaded,
     } = this.props;
     if (
+      (!prevProps.loaded && loaded) ||
       !_.isEqual(namespace, prevProps.namespace) ||
       !_.isEqual(clusterServiceClasses, prevProps.clusterServiceClasses) ||
       !_.isEqual(templateMetadata, prevProps.templateMetadata) ||
@@ -104,16 +106,15 @@ export class CatalogListPage extends React.Component<CatalogListPageProps, Catal
       projectTemplateItems = this.normalizeTemplates(projectTemplateMetadata);
     }
 
-    return _.sortBy(
-      [
-        ...clusterServiceClassItems,
-        ...imageStreamItems,
-        ...templateItems,
-        ...extensionItems,
-        ...projectTemplateItems,
-      ],
-      'tileName',
-    );
+    const items = [
+      ...clusterServiceClassItems,
+      ...imageStreamItems,
+      ...templateItems,
+      ...extensionItems,
+      ...projectTemplateItems,
+    ];
+
+    return _.sortBy(items, 'tileName');
   }
 
   normalizeClusterServiceClasses(serviceClasses) {
@@ -338,33 +339,38 @@ export const Catalog = connectToFlags<CatalogProps>(
   ];
 
   return (
-    <Firehose resources={mock ? [] : resources}>
-      <CatalogListPage
-        namespace={namespace}
-        templateMetadata={templateMetadata}
-        projectTemplateMetadata={projectTemplateMetadata}
-        {...props as any}
-      />
-    </Firehose>
+    <div className="co-catalog__body">
+      <Firehose resources={mock ? [] : resources}>
+        <CatalogListPage
+          namespace={namespace}
+          templateMetadata={templateMetadata}
+          projectTemplateMetadata={projectTemplateMetadata}
+          {...props as any}
+        />
+      </Firehose>
+    </div>
   );
 });
 
 export const CatalogPage = withStartGuide(({ match, noProjectsAvailable }) => {
   const namespace = _.get(match, 'params.ns');
   return (
-    <React.Fragment>
+    <>
       <Helmet>
         <title>Developer Catalog</title>
       </Helmet>
-      <div className="co-catalog">
-        <PageHeading title="Developer Catalog" />
-        <p className="co-catalog-page__description">
-          Add shared apps, services, or source-to-image builders to your project from the Developer
-          Catalog. Cluster admins can install additional apps which will show up here automatically.
-        </p>
-        <Catalog namespace={namespace} mock={noProjectsAvailable} />
+      <div className="co-m-page__body">
+        <div className="co-catalog">
+          <PageHeading title="Developer Catalog" />
+          <p className="co-catalog-page__description">
+            Add shared apps, services, or source-to-image builders to your project from the
+            Developer Catalog. Cluster admins can install additional apps which will show up here
+            automatically.
+          </p>
+          <Catalog namespace={namespace} mock={noProjectsAvailable} />
+        </div>
       </div>
-    </React.Fragment>
+    </>
   );
 });
 

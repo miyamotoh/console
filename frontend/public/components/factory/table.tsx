@@ -8,16 +8,19 @@ import { ingressValidHosts } from '../ingress';
 import { alertStateOrder, silenceStateOrder } from '../../reducers/monitoring';
 import { EmptyBox, StatusBox, WithScrollContainer } from '../utils';
 import {
-  getJobTypeAndCompletions,
-  NodeKind,
-  planExternalName,
-  podPhase,
-  podReadiness,
-  serviceCatalogStatus,
-  serviceClassDisplayName,
   getClusterOperatorStatus,
   getClusterOperatorVersion,
+  getJobTypeAndCompletions,
   getTemplateInstanceStatus,
+  K8sResourceKind,
+  NodeKind,
+  planExternalName,
+  PodKind,
+  podPhase,
+  podReadiness,
+  podRestarts,
+  serviceCatalogStatus,
+  serviceClassDisplayName,
 } from '../../module/k8s';
 
 import {
@@ -100,8 +103,13 @@ const sorts = {
   },
   numReplicas: (resource) => _.toInteger(_.get(resource, 'status.replicas')),
   planExternalName,
+  namespaceCPU: (ns: K8sResourceKind): number => UIActions.getNamespaceMetric(ns, 'cpu'),
+  namespaceMemory: (ns: K8sResourceKind): number => UIActions.getNamespaceMetric(ns, 'memory'),
+  podCPU: (pod: PodKind): number => UIActions.getPodMetric(pod, 'cpu'),
+  podMemory: (pod: PodKind): number => UIActions.getPodMetric(pod, 'memory'),
   podPhase,
-  podReadiness,
+  podReadiness: (pod: PodKind): number => podReadiness(pod).readyCount,
+  podRestarts,
   serviceClassDisplayName,
   silenceStateOrder,
   string: (val) => JSON.stringify(val),
@@ -121,6 +129,7 @@ const stateToProps = (
     data = [],
     defaultSortField = 'metadata.name',
     defaultSortFunc = undefined,
+    defaultSortOrder = SortByDirection.asc,
     defaultSortAsNumber = false,
     filters = {},
     loaded = false,
@@ -141,7 +150,7 @@ const stateToProps = (
   );
   const currentSortFunc = UI.getIn(['listSorts', listId, 'func'], defaultSortFunc);
   const currentSortAsNumber = UI.getIn(['listSorts', listId, 'sortAsNumber'], defaultSortAsNumber);
-  const currentSortOrder = UI.getIn(['listSorts', listId, 'orderBy'], SortByDirection.asc);
+  const currentSortOrder = UI.getIn(['listSorts', listId, 'orderBy'], defaultSortOrder);
 
   if (loaded) {
     let sortBy: string | Function = 'metadata.name';
@@ -329,6 +338,7 @@ export type TableProps = {
   data?: any[];
   defaultSortFunc?: string;
   defaultSortField?: string;
+  defaultSortOrder?: SortByDirection;
   filters?: { [key: string]: any };
   Header: (...args) => any[];
   loadError?: string | Object;
@@ -336,7 +346,7 @@ export type TableProps = {
   Rows?: (...args) => any[];
   'aria-label': string;
   virtualize?: boolean;
-  AllItemsFilteredMsg?: React.ComponentType<{}>;
+  NoDataEmptyMsg?: React.ComponentType<{}>;
   EmptyMsg?: React.ComponentType<{}>;
   loaded?: boolean;
   reduxID?: string;
@@ -369,7 +379,7 @@ export const Table = connect<
       customData: PropTypes.any,
       data: PropTypes.array,
       unfilteredData: PropTypes.array,
-      AllItemsFilteredMsg: PropTypes.func,
+      NoDataEmptyMsg: PropTypes.func,
       EmptyMsg: PropTypes.func,
       expand: PropTypes.bool,
       fieldSelector: PropTypes.string,
@@ -590,7 +600,7 @@ export type TableInnerProps = {
   defaultSortField?: string;
   defaultSortFunc?: string;
   unfilteredData?: any[];
-  AllItemsFilteredMsg?: React.ComponentType<{}>;
+  NoDataEmptyMsg?: React.ComponentType<{}>;
   EmptyMsg?: React.ComponentType<{}>;
   expand?: boolean;
   fieldSelector?: string;

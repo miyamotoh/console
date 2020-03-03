@@ -44,7 +44,7 @@ export const ChargebackReportModel: K8sKind = {
   label: 'Report',
   labelPlural: 'Reports',
   apiGroup: 'metering.openshift.io',
-  apiVersion: 'v1alpha1',
+  apiVersion: 'v1',
   crd: true,
   plural: 'reports',
   abbr: 'R',
@@ -58,7 +58,7 @@ export const ReportQueryModel: K8sKind = {
   apiGroup: 'metering.openshift.io',
   apiVersion: 'v1',
   crd: true,
-  plural: 'report queries',
+  plural: 'reportqueries',
   abbr: 'RQ',
   namespaced: true,
 };
@@ -788,6 +788,19 @@ export const MachineAutoscalerModel: K8sKind = {
   crd: true,
 };
 
+export const MachineHealthCheckModel: K8sKind = {
+  label: 'Machine Health Check',
+  labelPlural: 'Machine Health Checks',
+  apiVersion: 'v1beta1',
+  apiGroup: 'machine.openshift.io',
+  plural: 'machinehealthchecks',
+  abbr: 'MHC',
+  namespaced: true,
+  kind: 'MachineHealthCheck',
+  id: 'machinehealthcheck',
+  crd: true,
+};
+
 // Openshift cluster resources
 export const ClusterOperatorModel: K8sKind = {
   label: 'Cluster Operator',
@@ -812,6 +825,19 @@ export const ClusterVersionModel: K8sKind = {
   namespaced: false,
   kind: 'ClusterVersion',
   id: 'clusterversion',
+  crd: true,
+};
+
+export const CSIDriverModel: K8sKind = {
+  label: 'CSIDriver',
+  labelPlural: 'CSIDrivers',
+  apiVersion: 'v1beta1',
+  apiGroup: 'storage.k8s.io',
+  plural: 'csidrivers',
+  abbr: 'CSI',
+  namespaced: false,
+  kind: 'CSIDriver',
+  id: 'csidriver',
   crd: true,
 };
 

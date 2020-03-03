@@ -1,21 +1,21 @@
 import * as React from 'react';
-import { LoadingInline } from '@console/internal/components/utils/status-box';
+import * as classNames from 'classnames';
 
-const DetailItem: React.FC<DetailItemProps> = React.memo(
-  ({ title, isLoading = false, children, error = false }) => {
+export const DetailItem: React.FC<DetailItemProps> = React.memo(
+  ({ title, isLoading = false, children, error = false, valueClassName }) => {
     let status: React.ReactNode;
     if (error) {
       status = <span className="text-secondary">Not available</span>;
     } else if (isLoading) {
-      status = <LoadingInline />;
+      status = <div className="skeleton-text" />;
     } else {
       status = children;
     }
     return (
-      <React.Fragment>
+      <>
         <dt className="co-details-card__item-title">{title}</dt>
-        <dd className="co-details-card__item-value">{status}</dd>
-      </React.Fragment>
+        <dd className={classNames('co-details-card__item-value', valueClassName)}>{status}</dd>
+      </>
     );
   },
 );
@@ -24,7 +24,8 @@ export default DetailItem;
 
 type DetailItemProps = {
   title: string;
+  children: React.ReactNode;
   isLoading?: boolean;
   error?: boolean;
-  children: React.ReactNode;
+  valueClassName?: string;
 };

@@ -29,8 +29,9 @@ import {
   SilenceStates,
 } from '../reducers/monitoring';
 import store from '../redux';
-import { ResourceRow, Table, TableData, TableRow, TextFilter } from './factory';
+import { Table, TableData, TableRow, TextFilter } from './factory';
 import { confirmModal } from './modals';
+import MonitoringDashboardsPage from './monitoring/dashboards';
 import { graphStateToProps, QueryBrowserPage, ToggleGraph } from './monitoring/metrics';
 import { Labels, QueryBrowser, QueryObj } from './monitoring/query-browser';
 import { CheckBoxes } from './row-filter';
@@ -172,9 +173,9 @@ const AlertState: React.SFC<AlertStateProps> = ({ state }) => {
     [AlertStates.Pending]: <OutlinedBellIcon className="alert-pending" />,
   }[state];
   return icon ? (
-    <React.Fragment>
+    <>
       {icon} {_.startCase(state)}
-    </React.Fragment>
+    </>
   ) : null;
 };
 
@@ -186,9 +187,9 @@ const SilenceState = ({ silence }) => {
     [SilenceStates.Expired]: <BanIcon className="text-muted" data-test-id="ban-icon" />,
   }[state];
   return icon ? (
-    <React.Fragment>
+    <>
       {icon} {_.startCase(state)}
-    </React.Fragment>
+    </>
   ) : null;
 };
 
@@ -211,10 +212,10 @@ const AlertStateDescription = ({ alert }) => {
 
 const Annotation = ({ children, title }) =>
   _.isNil(children) ? null : (
-    <React.Fragment>
+    <>
       <dt>{title}</dt>
       <dd>{children}</dd>
-    </React.Fragment>
+    </>
   );
 
 const Label = ({ k, v }) => (
@@ -297,7 +298,7 @@ const AlertsDetailsPage = withFallback(
     const state = alertState(alert);
 
     return (
-      <React.Fragment>
+      <>
         <Helmet>
           <title>{`${alertname} · Details`}</title>
         </Helmet>
@@ -345,10 +346,10 @@ const AlertsDetailsPage = withFallback(
                       )}
                     </dd>
                     {severity && (
-                      <React.Fragment>
+                      <>
                         <dt>Severity</dt>
                         <dd>{_.startCase(severity)}</dd>
-                      </React.Fragment>
+                      </>
                     )}
                     <dt>State</dt>
                     <dd>
@@ -404,7 +405,7 @@ const AlertsDetailsPage = withFallback(
             </div>
           )}
         </StatusBox>
-      </React.Fragment>
+      </>
     );
   }),
 );
@@ -419,7 +420,7 @@ const ActiveAlerts = ({ alerts, ruleID }) => (
     </div>
     <div className="co-m-table-grid__body">
       {_.sortBy(alerts, alertDescription).map((a, i) => (
-        <ResourceRow key={i} obj={a}>
+        <div className="row co-resource-list__item" key={i}>
           <div className="col-xs-6">
             <Link className="co-resource-item" to={alertURL(a, ruleID)}>
               {alertDescription(a)}
@@ -437,7 +438,7 @@ const ActiveAlerts = ({ alerts, ruleID }) => (
               <Kebab options={[silenceAlert(a)]} />
             </div>
           )}
-        </ResourceRow>
+        </div>
       ))}
     </div>
   </div>
@@ -458,7 +459,7 @@ const AlertRulesDetailsPage = withFallback(
     const { severity } = labels as any;
 
     return (
-      <React.Fragment>
+      <>
         <Helmet>
           <title>{`${name || AlertRuleResource.label} · Details`}</title>
         </Helmet>
@@ -490,10 +491,10 @@ const AlertRulesDetailsPage = withFallback(
                     <dt>Name</dt>
                     <dd>{name}</dd>
                     {severity && (
-                      <React.Fragment>
+                      <>
                         <dt>Severity</dt>
                         <dd>{_.startCase(severity)}</dd>
-                      </React.Fragment>
+                      </>
                     )}
                     <Annotation title="Description">{annotations.description}</Annotation>
                     <Annotation title="Summary">{annotations.summary}</Annotation>
@@ -503,10 +504,10 @@ const AlertRulesDetailsPage = withFallback(
                 <div className="col-sm-6">
                   <dl className="co-m-pane__details">
                     {_.isInteger(duration) && (
-                      <React.Fragment>
+                      <>
                         <dt>For</dt>
                         <dd>{formatPrometheusDuration(duration * 1000)}</dd>
-                      </React.Fragment>
+                      </>
                     )}
                     <dt>Expression</dt>
                     <dd>
@@ -540,7 +541,7 @@ const AlertRulesDetailsPage = withFallback(
             </div>
           </div>
         </StatusBox>
-      </React.Fragment>
+      </>
     );
   }),
 );
@@ -595,7 +596,7 @@ const SilencesDetailsPage = withFallback(
     } = silence || {};
 
     return (
-      <React.Fragment>
+      <>
         <Helmet>
           <title>{`${name || SilenceResource.label} · Details`}</title>
         </Helmet>
@@ -624,10 +625,10 @@ const SilencesDetailsPage = withFallback(
                 <div className="col-sm-6">
                   <dl className="co-m-pane__details">
                     {name && (
-                      <React.Fragment>
+                      <>
                         <dt>Name</dt>
                         <dd>{name}</dd>
-                      </React.Fragment>
+                      </>
                     )}
                     <dt>Matchers</dt>
                     <dd>
@@ -679,7 +680,7 @@ const SilencesDetailsPage = withFallback(
             </div>
           </div>
         </StatusBox>
-      </React.Fragment>
+      </>
     );
   }),
 );
@@ -860,7 +861,10 @@ const MonitoringListPage = connect(filtersToProps)(
       } = this.props;
 
       return (
-        <React.Fragment>
+        <>
+          <Helmet>
+            <title>Alerting</title>
+          </Helmet>
           <div className="co-m-nav-title">
             <PageDescription />
           </div>
@@ -903,7 +907,7 @@ const MonitoringListPage = connect(filtersToProps)(
               </div>
             </div>
           </div>
-        </React.Fragment>
+        </>
       );
     }
   },
@@ -960,7 +964,7 @@ const SilenceRow = ({ obj }) => {
   const state = silenceState(obj);
 
   return (
-    <ResourceRow obj={obj}>
+    <div className="row co-resource-list__item">
       <div className="col-sm-7 col-xs-8">
         <div className="co-resource-item">
           <MonitoringResourceIcon resource={SilenceResource} />
@@ -991,7 +995,7 @@ const SilenceRow = ({ obj }) => {
       <div className="dropdown-kebab-pf">
         <SilenceKebab silence={obj} />
       </div>
-    </ResourceRow>
+    </div>
   );
 };
 
@@ -1198,14 +1202,11 @@ class SilenceForm_ extends React.Component<SilenceFormProps, SilenceFormState> {
     const { data, error, inProgress } = this.state;
 
     return (
-      <div className="co-m-pane__body">
+      <div className="co-m-pane__body co-m-pane__form">
         <Helmet>
           <title>{title}</title>
         </Helmet>
-        <form
-          className="co-m-pane__body-group silence-form co-m-pane__form"
-          onSubmit={this.onSubmit}
-        >
+        <form className="co-m-pane__body-group silence-form" onSubmit={this.onSubmit}>
           <SectionHeading text={title} />
           <p className="co-m-pane__explanation">
             A silence is configured based on matchers (label selectors). No notification will be
@@ -1231,38 +1232,50 @@ class SilenceForm_ extends React.Component<SilenceFormProps, SilenceFormState> {
               label constraints, though they may have additional labels as well.
             </p>
             <div className="row monitoring-grid-head text-secondary text-uppercase">
-              <div className="col-xs-4">Name</div>
-              <div className="col-xs-4">Value</div>
+              <div className="col-xs-5">Name</div>
+              <div className="col-xs-6">Value</div>
             </div>
             {_.map(data.matchers, (matcher, i) => (
               <div className="row form-group" key={i}>
-                <div className="col-xs-4">
-                  <Text
-                    onChange={this.onFieldChange(`matchers[${i}].name`)}
-                    placeholder="Name"
-                    value={matcher.name}
-                    required
-                  />
+                <div className="col-xs-10">
+                  <div className="row">
+                    <div className="col-xs-6 pairs-list__name-field">
+                      <div className="form-group">
+                        <Text
+                          onChange={this.onFieldChange(`matchers[${i}].name`)}
+                          placeholder="Name"
+                          value={matcher.name}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="col-xs-6 pairs-list__value-field">
+                      <div className="form-group">
+                        <Text
+                          onChange={this.onFieldChange(`matchers[${i}].value`)}
+                          placeholder="Value"
+                          value={matcher.value}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="row">
+                    <div className="col-xs-12 col-sm-12">
+                      <div className="form-group">
+                        <label className="co-no-bold">
+                          <input
+                            type="checkbox"
+                            onChange={(e) => this.onIsRegexChange(e, i)}
+                            checked={matcher.isRegex}
+                          />
+                          &nbsp; Regular Expression
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-xs-4">
-                  <Text
-                    onChange={this.onFieldChange(`matchers[${i}].value`)}
-                    placeholder="Value"
-                    value={matcher.value}
-                    required
-                  />
-                </div>
-                <div className="col-xs-3">
-                  <label className="co-no-bold">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => this.onIsRegexChange(e, i)}
-                      checked={matcher.isRegex}
-                    />
-                    &nbsp; Regular Expression
-                  </label>
-                </div>
-                <div className="col-xs-1">
+                <div className="col-xs-2 pairs-list__action">
                   <Button
                     type="button"
                     onClick={() => this.removeMatcher(i)}
@@ -1397,7 +1410,7 @@ const AlertingPage: React.SFC<AlertingPageProps> = ({ match }) => {
   const YAMLPath = '/monitoring/alertmanageryaml';
   const ConfigPath = '/monitoring/alertmanagerconfig';
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-nav-title co-m-nav-title--detail">
         <h1 className="co-m-pane__heading">
           <div className="co-m-pane__name co-resource-item">
@@ -1408,46 +1421,51 @@ const AlertingPage: React.SFC<AlertingPageProps> = ({ match }) => {
           </div>
         </h1>
       </div>
-      <div className="co-m-horizontal-nav__menu">
-        <ul className="co-m-horizontal-nav__menu-primary">
-          <li
-            className={classNames('co-m-horizontal-nav__menu-item', {
-              'co-m-horizontal-nav-item--active': match.url === alertPath,
-            })}
-          >
-            <Link to={alertPath}>Alerts</Link>
-          </li>
-          <li
-            className={classNames('co-m-horizontal-nav__menu-item', {
-              'co-m-horizontal-nav-item--active': match.url === silencePath,
-            })}
-          >
-            <Link to={silencePath}>Silences</Link>
-          </li>
-          <li
-            className={classNames('co-m-horizontal-nav__menu-item', {
-              'co-m-horizontal-nav-item--active': match.url === ConfigPath,
-            })}
-          >
-            <Link to={ConfigPath}>Configuration</Link>
-          </li>
-          <li
-            className={classNames('co-m-horizontal-nav__menu-item', {
-              'co-m-horizontal-nav-item--active': match.url === YAMLPath,
-            })}
-          >
-            <Link to={YAMLPath}>YAML</Link>
-          </li>
-          <li className="co-m-horizontal-nav__menu-item co-m-horizontal-nav__menu-item--divider" />
-        </ul>
-      </div>
+      <ul className="co-m-horizontal-nav__menu">
+        {(match.url === alertPath || match.url === silencePath) && (
+          <>
+            <li
+              className={classNames('co-m-horizontal-nav__menu-item', {
+                'co-m-horizontal-nav-item--active': match.url === alertPath,
+              })}
+            >
+              <Link to={alertPath}>Alerts</Link>
+            </li>
+            <li
+              className={classNames('co-m-horizontal-nav__menu-item', {
+                'co-m-horizontal-nav-item--active': match.url === silencePath,
+              })}
+            >
+              <Link to={silencePath}>Silences</Link>
+            </li>
+          </>
+        )}
+        {(match.url === ConfigPath || match.url === YAMLPath) && (
+          <>
+            <li
+              className={classNames('co-m-horizontal-nav__menu-item', {
+                'co-m-horizontal-nav-item--active': match.url === ConfigPath,
+              })}
+            >
+              <Link to={ConfigPath}>Overview</Link>
+            </li>
+            <li
+              className={classNames('co-m-horizontal-nav__menu-item', {
+                'co-m-horizontal-nav-item--active': match.url === YAMLPath,
+              })}
+            >
+              <Link to={YAMLPath}>YAML</Link>
+            </li>
+          </>
+        )}
+      </ul>
       <Switch>
         <Route path="/monitoring/alerts" exact component={AlertsPage} />
         <Route path="/monitoring/silences" exact component={SilencesPage} />
         <Route path={ConfigPath} exact component={AlertManagerConfig} />
         <Route path="/monitoring/alertmanageryaml" exact component={AlertManagerYAML} />
       </Switch>
-    </React.Fragment>
+    </>
   );
 };
 
@@ -1541,6 +1559,7 @@ const PollerPages = () => {
 export const MonitoringUI = () => (
   <Switch>
     <Redirect from="/monitoring" exact to="/monitoring/alerts" />
+    <Route path="/monitoring/dashboards" exact component={MonitoringDashboardsPage} />
     <Route path="/monitoring/query-browser" exact component={QueryBrowserPage} />
     <Route path="/monitoring/silences/~new" exact component={CreateSilence} />
     <Route component={PollerPages} />

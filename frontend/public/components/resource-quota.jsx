@@ -39,10 +39,12 @@ const clusterResourceQuotaMenuActions = [
   ...common,
 ];
 
+const isClusterQuota = (quota) => !quota.metadata.namespace;
+
 const quotaKind = (quota) =>
-  quota.metadata.namespace
-    ? referenceForModel(ResourceQuotaModel)
-    : referenceForModel(ClusterResourceQuotaModel);
+  isClusterQuota(quota)
+    ? referenceForModel(ClusterResourceQuotaModel)
+    : referenceForModel(ResourceQuotaModel);
 const quotaActions = (quota) =>
   quota.metadata.namespace ? resourceQuotaMenuActions : clusterResourceQuotaMenuActions;
 const gaugeChartThresholds = [{ value: 90 }, { value: 101 }];
@@ -71,14 +73,20 @@ const quotaScopes = Object.freeze({
 });
 
 export const getQuotaResourceTypes = (quota) => {
-  const specHard = _.get(quota, 'spec.hard');
+  const specHard = isClusterQuota(quota)
+    ? _.get(quota, 'spec.quota.hard')
+    : _.get(quota, 'spec.hard');
   return _.keys(specHard).sort();
 };
 
 const getResourceUsage = (quota, resourceType) => {
+  const isCluster = isClusterQuota(quota);
+  const statusPath = isCluster ? ['status', 'total', 'hard'] : ['status', 'hard'];
+  const specPath = isCluster ? ['spec', 'quota', 'hard'] : ['spec', 'hard'];
+  const usedPath = isCluster ? ['status', 'total', 'used'] : ['status', 'used'];
   const max =
-    _.get(quota, ['status', 'hard', resourceType]) || _.get(quota, ['spec', 'hard', resourceType]);
-  const used = _.get(quota, ['status', 'used', resourceType]);
+    _.get(quota, [...statusPath, resourceType]) || _.get(quota, [...specPath, resourceType]);
+  const used = _.get(quota, [...usedPath, resourceType]);
   const percent = !max || !used ? 0 : (convertToBaseValue(used) / convertToBaseValue(max)) * 100;
   return {
     used,
@@ -175,11 +183,11 @@ export const ResourceUsageRow = ({ quota, resourceType }) => {
   );
 };
 
-const NoQuotaGuage = ({ title }) => (
-  <GaugeChart error="No Quota" thresholds={[{ value: 100 }]} title={title} />
+const NoQuotaGuage = ({ title, className }) => (
+  <GaugeChart error="No Quota" thresholds={[{ value: 100 }]} title={title} className={className} />
 );
 
-export const QuotaGaugeCharts = ({ quota, resourceTypes }) => {
+export const QuotaGaugeCharts = ({ quota, resourceTypes, chartClassName = null }) => {
   const resourceTypesSet = new Set(resourceTypes);
   return (
     <div className="co-resource-quota-chart-row">
@@ -194,6 +202,7 @@ export const QuotaGaugeCharts = ({ quota, resourceTypes }) => {
             }}
             thresholds={gaugeChartThresholds}
             title="CPU Request"
+            className={chartClassName}
           />
         </div>
       ) : (
@@ -207,11 +216,12 @@ export const QuotaGaugeCharts = ({ quota, resourceTypes }) => {
             data={{ y: getResourceUsage(quota, 'limits.cpu').percent }}
             thresholds={gaugeChartThresholds}
             title="CPU Limit"
+            className={chartClassName}
           />
         </div>
       ) : (
         <div className="co-resource-quota-gauge-chart">
-          <NoQuotaGuage title="CPU Limit" />
+          <NoQuotaGuage title="CPU Limit" className={chartClassName} />
         </div>
       )}
       {resourceTypesSet.has('requests.memory') || resourceTypesSet.has('memory') ? (
@@ -225,11 +235,12 @@ export const QuotaGaugeCharts = ({ quota, resourceTypes }) => {
             }}
             thresholds={gaugeChartThresholds}
             title="Memory Request"
+            className={chartClassName}
           />
         </div>
       ) : (
         <div className="co-resource-quota-gauge-chart">
-          <NoQuotaGuage title="Memory Request" />
+          <NoQuotaGuage title="Memory Request" className={chartClassName} />
         </div>
       )}
       {resourceTypesSet.has('limits.memory') ? (
@@ -238,11 +249,12 @@ export const QuotaGaugeCharts = ({ quota, resourceTypes }) => {
             data={{ y: getResourceUsage(quota, 'limits.memory').percent }}
             thresholds={gaugeChartThresholds}
             title="Memory Limit"
+            className={chartClassName}
           />
         </div>
       ) : (
         <div className="co-resource-quota-gauge-chart">
-          <NoQuotaGuage title="Memory Limit" />
+          <NoQuotaGuage title="Memory Limit" className={chartClassName} />
         </div>
       )}
     </div>
@@ -296,10 +308,11 @@ const Details = ({ obj: rq }) => {
   const resourceTypes = getQuotaResourceTypes(rq);
   const showChartRow = hasComputeResources(resourceTypes);
   const scopes = _.get(rq, ['spec', 'scopes']);
+  const label = isClusterQuota(rq) ? ClusterResourceQuotaModel.label : ResourceQuotaModel.label;
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-pane__body">
-        <SectionHeading text="Resource Quota Overview" />
+        <SectionHeading text={`${label} Overview`} />
         {showChartRow && <QuotaGaugeCharts quota={rq} resourceTypes={resourceTypes} />}
         <div className="row">
           <div className="col-sm-6">
@@ -317,7 +330,7 @@ const Details = ({ obj: rq }) => {
       </div>
       <div className="co-m-pane__body">
         <SectionHeading
-          text="Resource Quota Details"
+          text={`${label} Details`}
           style={{ display: 'block', marginBottom: '20px' }}
         >
           <FieldLevelHelp>
@@ -349,7 +362,7 @@ const Details = ({ obj: rq }) => {
           </div>
         </div>
       </div>
-    </React.Fragment>
+    </>
   );
 };
 

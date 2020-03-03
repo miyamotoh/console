@@ -9,8 +9,6 @@ import {
   StatefulSetModel,
 } from '@console/internal/models';
 import {
-  RevisionModel,
-  ConfigurationModel,
   ServiceModel as KnativeServiceModel,
   RouteModel as KnativeRouteModel,
 } from '@console/knative-plugin';
@@ -18,7 +16,7 @@ import * as utils from '@console/internal/components/utils';
 import { TopologyDataResources } from '../../components/topology/topology-types';
 import {
   transformTopologyData,
-  getResourceDeploymentObject,
+  getTopologyResourceObject,
 } from '../../components/topology/topology-utils';
 import { cleanUpWorkload } from '../application-utils';
 import { MockResources } from '../../components/topology/__tests__/topology-test-data';
@@ -37,7 +35,7 @@ const getTopologyData = (mockData: TopologyDataResources, transformByProp: strin
   const result = transformTopologyData(mockData, transformByProp);
   const topologyTransformedData = result.topology;
   const keys = Object.keys(topologyTransformedData);
-  const resource = getResourceDeploymentObject(topologyTransformedData[keys[0]]);
+  const resource = getTopologyResourceObject(topologyTransformedData[keys[0]]);
   return { resource, topologyTransformedData, keys };
 };
 describe('ApplicationUtils ', () => {
@@ -80,9 +78,7 @@ describe('ApplicationUtils ', () => {
       .then(() => {
         const allArgs = spy.calls.allArgs();
         const removedModels = allArgs.map((arg) => arg[0]);
-        expect(spy.calls.count()).toEqual(7);
-        expect(removedModels).toContain(ConfigurationModel);
-        expect(removedModels).toContain(RevisionModel);
+        expect(spy.calls.count()).toEqual(5);
         expect(removedModels).toContain(KnativeServiceModel);
         expect(removedModels).toContain(KnativeRouteModel);
         expect(removedModels).toContain(BuildConfigModel);

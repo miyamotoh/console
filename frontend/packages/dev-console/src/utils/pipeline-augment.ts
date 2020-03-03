@@ -6,8 +6,8 @@ import {
   chart_color_black_400 as skippedColor,
   chart_color_black_500 as cancelledColor,
 } from '@patternfly/react-tokens';
-import { K8sResourceKind, referenceForModel } from '@console/internal/module/k8s';
-import { PipelineRunModel } from '../models';
+import { K8sKind, K8sResourceKind, referenceForModel } from '@console/internal/module/k8s';
+import { ClusterTaskModel, PipelineRunModel, TaskModel } from '../models';
 import { pipelineRunFilterReducer } from './pipeline-filter-reducer';
 
 interface Metadata {
@@ -38,6 +38,7 @@ export interface PipelineTask {
   name: string;
   runAfter?: string[];
   taskRef: {
+    kind?: string;
     name: string;
   };
 }
@@ -68,21 +69,19 @@ export interface Pipeline extends K8sResourceKind {
     params?: PipelineParam[];
     resources?: PipelineResource[];
     tasks: PipelineTask[];
-    serviceAccount?: string;
+    serviceAccountName?: string;
   };
 }
 
 export interface PipelineRun extends K8sResourceKind {
   spec?: {
-    pipelineRef?: { name: string };
+    pipelineRef: { name: string };
     params?: PipelineRunParam[];
-    trigger: {
-      type: string;
-    };
     resources?: PipelineResource[];
-    serviceAccount?: string;
+    serviceAccountName?: string;
     // Odd status value that only appears in a single case - cancelling a pipeline
     status?: 'PipelineRunCancelled';
+    timeout?: string;
   };
   status?: {
     succeededCondition?: string;
@@ -91,7 +90,7 @@ export interface PipelineRun extends K8sResourceKind {
     startTime?: string;
     completionTime?: string;
     taskRuns?: {
-      [key: string]: K8sResourceKind;
+      [key: string]: { pipelineTaskName?: string } & K8sResourceKind;
     };
   };
 }
@@ -110,13 +109,14 @@ export interface Param {
 
 export interface PipelineParam extends Param {
   default?: string;
+  description?: string;
 }
 
 export interface PipelineRunParam extends Param {
+  value: string;
   input?: string;
   output?: string;
   resource?: object;
-  value?: string;
 }
 
 interface FirehoseResource {
@@ -277,12 +277,14 @@ export const getTaskStatus = (pipelinerun: PipelineRun, pipeline: Pipeline): Tas
         taskStatus[runStatus.Running]++;
       } else if (status === 'Failed') {
         taskStatus[runStatus.Failed]++;
+      } else if (status === 'Cancelled') {
+        taskStatus[runStatus.Cancelled]++;
       } else {
         taskStatus[runStatus.Pending]++;
       }
     });
-    taskStatus[runStatus.Failed] > 0
-      ? (taskStatus[runStatus.Cancelled] =
+    taskStatus[runStatus.Failed] > 0 || taskStatus[runStatus.Cancelled] > 0
+      ? (taskStatus[runStatus.Cancelled] +=
           totalTasks >= plrTaskLength ? totalTasks - plrTaskLength : totalTasks)
       : (taskStatus[runStatus.Pending] +=
           totalTasks >= plrTaskLength ? totalTasks - plrTaskLength : totalTasks);
@@ -297,4 +299,12 @@ export const getTaskStatus = (pipelinerun: PipelineRun, pipeline: Pipeline): Tas
     taskStatus[runStatus.PipelineNotStarted]++;
   }
   return taskStatus;
+};
+
+export const getResourceModelFromTask = (task: PipelineTask): K8sKind => {
+  const {
+    taskRef: { kind },
+  } = task;
+
+  return kind === ClusterTaskModel.kind ? ClusterTaskModel : TaskModel;
 };

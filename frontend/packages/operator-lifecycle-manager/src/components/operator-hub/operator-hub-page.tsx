@@ -29,10 +29,11 @@ export const OperatorHubList: React.SFC<OperatorHubListProps> = (props) => {
     'data',
     [] as PackageManifestKind[],
   );
-  const localItems = _.get(props.packageManifest, 'data', [] as PackageManifestKind[]);
+  const localItems = _.get(props, 'packageManifest.data', [] as PackageManifestKind[]);
   const items: OperatorHubItem[] = marketplaceItems.concat(localItems).map(
     (pkg): OperatorHubItem => {
-      const { currentCSVDesc } = _.get(pkg, 'status.channels[0]', {});
+      const { channels, defaultChannel } = _.get(pkg, 'status');
+      const { currentCSVDesc } = _.find(channels || [], { name: defaultChannel } as any);
       const currentCSVAnnotations: OperatorHubCSVAnnotations = _.get(
         currentCSVDesc,
         'annotations',
@@ -121,57 +122,59 @@ export const OperatorHubList: React.SFC<OperatorHubListProps> = (props) => {
 
 export const OperatorHubPage = withFallback(
   (props: OperatorHubPageProps) => (
-    <React.Fragment>
+    <>
       <Helmet>
         <title>OperatorHub</title>
       </Helmet>
-      <div className="co-catalog">
-        <PageHeading title="OperatorHub" />
-        <p className="co-catalog-page__description">
-          Discover Operators from the Kubernetes community and Red Hat partners, curated by Red Hat.
-          Operators can be installed on your clusters to provide optional add-ons and shared
-          services to your developers. Once installed, the capabilities provided by the Operator
-          appear in the <a href="/catalog">Developer Catalog</a>, providing a self-service
-          experience.
-        </p>
-        <div className="co-catalog-connect">
-          <Firehose
-            resources={[
-              {
-                isList: true,
-                kind: referenceForModel(OperatorGroupModel),
-                prop: 'operatorGroup',
-              },
-              {
-                isList: true,
-                kind: referenceForModel(PackageManifestModel),
-                namespace: props.match.params.ns,
-                selector: { 'openshift-marketplace': 'true' },
-                prop: 'marketplacePackageManifest',
-              },
-              {
-                isList: true,
-                kind: referenceForModel(PackageManifestModel),
-                namespace: props.match.params.ns,
-                selector: fromRequirements([
-                  { key: 'opsrc-owner-name', operator: 'DoesNotExist' },
-                  { key: 'csc-owner-name', operator: 'DoesNotExist' },
-                ]),
-                prop: 'packageManifest',
-              },
-              {
-                isList: true,
-                kind: referenceForModel(SubscriptionModel),
-                prop: 'subscription',
-              },
-            ]}
-          >
-            {/* FIXME(alecmerdler): Hack because `Firehose` injects props without TypeScript knowing about it */}
-            <OperatorHubList {...props as any} namespace={props.match.params.ns} />
-          </Firehose>
+      <div className="co-m-page__body">
+        <div className="co-catalog">
+          <PageHeading title="OperatorHub" />
+          <p className="co-catalog-page__description">
+            Discover Operators from the Kubernetes community and Red Hat partners, curated by Red
+            Hat. Operators can be installed on your clusters to provide optional add-ons and shared
+            services to your developers. Once installed, the capabilities provided by the Operator
+            appear in the <a href="/catalog">Developer Catalog</a>, providing a self-service
+            experience.
+          </p>
+          <div className="co-catalog__body">
+            <Firehose
+              resources={[
+                {
+                  isList: true,
+                  kind: referenceForModel(OperatorGroupModel),
+                  prop: 'operatorGroup',
+                },
+                {
+                  isList: true,
+                  kind: referenceForModel(PackageManifestModel),
+                  namespace: props.match.params.ns,
+                  selector: { 'openshift-marketplace': 'true' },
+                  prop: 'marketplacePackageManifest',
+                },
+                {
+                  isList: true,
+                  kind: referenceForModel(PackageManifestModel),
+                  namespace: props.match.params.ns,
+                  selector: fromRequirements([
+                    { key: 'opsrc-owner-name', operator: 'DoesNotExist' },
+                    { key: 'csc-owner-name', operator: 'DoesNotExist' },
+                  ]),
+                  prop: 'packageManifest',
+                },
+                {
+                  isList: true,
+                  kind: referenceForModel(SubscriptionModel),
+                  prop: 'subscription',
+                },
+              ]}
+            >
+              {/* FIXME(alecmerdler): Hack because `Firehose` injects props without TypeScript knowing about it */}
+              <OperatorHubList {...props as any} namespace={props.match.params.ns} />
+            </Firehose>
+          </div>
         </div>
       </div>
-    </React.Fragment>
+    </>
   ),
   ErrorBoundaryFallback,
 );

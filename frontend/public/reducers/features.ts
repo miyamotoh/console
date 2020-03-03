@@ -5,14 +5,15 @@ import * as _ from 'lodash-es';
 import {
   ChargebackReportModel,
   ClusterServiceClassModel,
-  MachineModel,
+  ConsoleCLIDownloadModel,
+  ConsoleExternalLogLinkModel,
+  ConsoleNotificationModel,
+  ConsoleYAMLSampleModel,
   MachineAutoscalerModel,
   MachineConfigModel,
+  MachineHealthCheckModel,
+  MachineModel,
   PrometheusModel,
-  ConsoleCLIDownloadModel,
-  ConsoleNotificationModel,
-  ConsoleExternalLogLinkModel,
-  ConsoleYAMLSampleModel,
 } from '../models';
 import { referenceForModel } from '../module/k8s';
 import { RootState } from '../redux';
@@ -26,16 +27,17 @@ export const defaults = _.mapValues(FLAGS, (flag) =>
 );
 
 export const baseCRDs = {
-  [referenceForModel(PrometheusModel)]: FLAGS.PROMETHEUS,
   [referenceForModel(ChargebackReportModel)]: FLAGS.CHARGEBACK,
   [referenceForModel(ClusterServiceClassModel)]: FLAGS.SERVICE_CATALOG,
-  [referenceForModel(MachineModel)]: FLAGS.CLUSTER_API,
-  [referenceForModel(MachineConfigModel)]: FLAGS.MACHINE_CONFIG,
-  [referenceForModel(MachineAutoscalerModel)]: FLAGS.MACHINE_AUTOSCALER,
   [referenceForModel(ConsoleCLIDownloadModel)]: FLAGS.CONSOLE_CLI_DOWNLOAD,
-  [referenceForModel(ConsoleNotificationModel)]: FLAGS.CONSOLE_NOTIFICATION,
   [referenceForModel(ConsoleExternalLogLinkModel)]: FLAGS.CONSOLE_EXTERNAL_LOG_LINK,
+  [referenceForModel(ConsoleNotificationModel)]: FLAGS.CONSOLE_NOTIFICATION,
   [referenceForModel(ConsoleYAMLSampleModel)]: FLAGS.CONSOLE_YAML_SAMPLE,
+  [referenceForModel(MachineAutoscalerModel)]: FLAGS.MACHINE_AUTOSCALER,
+  [referenceForModel(MachineConfigModel)]: FLAGS.MACHINE_CONFIG,
+  [referenceForModel(MachineHealthCheckModel)]: FLAGS.MACHINE_HEALTH_CHECK,
+  [referenceForModel(MachineModel)]: FLAGS.CLUSTER_API,
+  [referenceForModel(PrometheusModel)]: FLAGS.PROMETHEUS,
 };
 
 const CRDs = { ...baseCRDs };
@@ -64,7 +66,10 @@ export const featureReducer = (state: FeatureState, action: FeatureAction): Feat
         throw new Error(`unknown key for reducer ${action.payload.flag}`);
       }
       return state.merge({ [action.payload.flag]: action.payload.value });
-
+    case ActionType.ClearSSARFlags:
+      return state.withMutations((s) =>
+        action.payload.flags.reduce((acc, curr) => acc.remove(curr), s),
+      );
     case K8sActionType.ReceivedResources:
       // Flip all flags to false to signify that we did not see them
       _.each(CRDs, (v) => (state = state.set(v, false)));
@@ -88,7 +93,10 @@ export const stateToFlagsObject = (state: RootState): FlagsObject =>
   state[featureReducerName].toObject();
 
 export const stateToProps = (desiredFlags: string[], state: RootState): WithFlagsProps => ({
-  flags: _.pick(stateToFlagsObject(state), desiredFlags),
+  flags: desiredFlags.reduce(
+    (allFlags, f) => ({ ...allFlags, [f]: state[featureReducerName].get(f) }),
+    {},
+  ),
 });
 
 export type FlagsObject = { [key: string]: boolean };

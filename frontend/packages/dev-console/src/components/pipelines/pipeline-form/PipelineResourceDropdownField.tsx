@@ -2,10 +2,9 @@ import * as React from 'react';
 import cx from 'classnames';
 import { useField, useFormikContext, FormikValues } from 'formik';
 import { FormGroup } from '@patternfly/react-core';
+import { DropdownFieldProps, getFieldId } from '@console/shared';
 import PipelineResourceDropdown from '../../dropdown/PipelineResourceDropdown';
 import PipelineResourceForm from '../pipeline-resource/PipelineResourceForm';
-import { DropdownFieldProps } from '../../formik-fields/field-types';
-import { getFieldId } from '../../formik-fields/field-utils';
 
 export const CREATE_PIPELINE_RESOURCE = '#CREATE_PIPELINE_RESOURCE#';
 
@@ -51,7 +50,7 @@ const PipelineResourceDropdownField: React.FC<PipelineResourceDropdownFieldProps
   );
 
   return (
-    <React.Fragment>
+    <>
       <FormGroup
         fieldId={fieldId}
         label={label}
@@ -81,6 +80,7 @@ const PipelineResourceDropdownField: React.FC<PipelineResourceDropdownFieldProps
       {createMode && (
         <div style={{ marginTop: 'var(--pf-global--spacer--sm)' }}>
           <PipelineResourceForm
+            namespace={values.namespace}
             type={props.filterType}
             closeDisabled={isListEmpty}
             onClose={() => {
@@ -92,7 +92,7 @@ const PipelineResourceDropdownField: React.FC<PipelineResourceDropdownFieldProps
           />
         </div>
       )}
-    </React.Fragment>
+    </>
   );
 };
 

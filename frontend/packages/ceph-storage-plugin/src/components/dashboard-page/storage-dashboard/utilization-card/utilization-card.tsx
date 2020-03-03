@@ -11,19 +11,26 @@ import {
 } from '@console/internal/components/dashboard/with-dashboard-resources';
 import { getRangeVectorStats } from '@console/internal/components/graphs/utils';
 import {
-  humanizeBinaryBytesWithoutB,
+  humanizeBinaryBytes,
   humanizeDecimalBytesPerSec,
 } from '@console/internal/components/utils';
 import UtilizationBody from '@console/shared/src/components/dashboard/utilization-card/UtilizationBody';
 import UtilizationItem from '@console/shared/src/components/dashboard/utilization-card/UtilizationItem';
-import { PrometheusResponse } from '@console/internal/components/graphs';
 import {
   ONE_HR,
   SIX_HR,
   TWENTY_FOUR_HR,
   UTILIZATION_QUERY_HOUR_MAP,
 } from '@console/shared/src/components/dashboard/utilization-card/dropdown-value';
-import { StorageDashboardQuery, UTILIZATION_QUERY } from '../../../../constants/queries';
+import { ByteDataTypes } from '@console/shared/src/graph-helper/data-utils';
+import ConsumerPopover from '@console/shared/src/components/dashboard/utilization-card/TopConsumerPopover';
+import { getPrometheusQueryResponse } from '@console/internal/actions/dashboards';
+import {
+  StorageDashboardQuery,
+  UTILIZATION_QUERY,
+  utilizationPopoverQueryMap,
+  TOTAL_QUERY,
+} from '../../../../constants/queries';
 import { getLatestValue, humanizeIOPS, humanizeLatency } from './utils';
 
 const metricDurations = [ONE_HR, SIX_HR, TWENTY_FOUR_HR];
@@ -37,75 +44,58 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
   const [duration, setDuration] = React.useState(metricDurations[0]);
   React.useEffect(() => {
     Object.keys(UTILIZATION_QUERY).forEach((key) =>
-      watchPrometheus(UTILIZATION_QUERY[key] + UTILIZATION_QUERY_HOUR_MAP[duration]),
+      watchPrometheus(UTILIZATION_QUERY[key], null, UTILIZATION_QUERY_HOUR_MAP[duration]),
     );
+    Object.keys(TOTAL_QUERY).forEach((key) => watchPrometheus(TOTAL_QUERY[key]));
     return () => {
       Object.keys(UTILIZATION_QUERY).forEach((key) =>
-        stopWatchPrometheusQuery(UTILIZATION_QUERY[key] + UTILIZATION_QUERY_HOUR_MAP[duration]),
+        stopWatchPrometheusQuery(UTILIZATION_QUERY[key], UTILIZATION_QUERY_HOUR_MAP[duration]),
       );
+      Object.keys(TOTAL_QUERY).forEach((key) => stopWatchPrometheusQuery(TOTAL_QUERY[key]));
     };
   }, [watchPrometheus, stopWatchPrometheusQuery, duration]);
 
-  const capacityUtilization = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_USED] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const capacityUtilizationError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_USED] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
-  const totalCapacity = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_TOTAL] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const totalCapacityError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_TOTAL] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
-  const iopsUtilization = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_IOPS_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const iopsUtilizationError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_IOPS_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
-  const latencyUtilization = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_LATENCY_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const latencyUtilizationError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_LATENCY_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
-  const throughputUtilization = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_THROUGHPUT_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const throughputUtilizationError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_THROUGHPUT_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
-  const recoveryUtilization = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_RECOVERY_RATE_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'data',
-  ]) as PrometheusResponse;
-  const recoveryUtilizationError = prometheusResults.getIn([
-    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_RECOVERY_RATE_QUERY] +
-      UTILIZATION_QUERY_HOUR_MAP[duration],
-    'loadError',
-  ]);
+  const [capacityUtilization, capacityUtilizationError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_USED],
+    UTILIZATION_QUERY_HOUR_MAP[duration],
+  );
+  const [totalCapacity, totalCapacityError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_TOTAL],
+  );
+  const [iopsUtilization, iopsUtilizationError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_IOPS_QUERY],
+    UTILIZATION_QUERY_HOUR_MAP[duration],
+  );
+  const [latencyUtilization, latencyUtilizationError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_LATENCY_QUERY],
+    UTILIZATION_QUERY_HOUR_MAP[duration],
+  );
+  const [throughputUtilization, throughputUtilizationError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_THROUGHPUT_QUERY],
+    UTILIZATION_QUERY_HOUR_MAP[duration],
+  );
+  const [recoveryUtilization, recoveryUtilizationError] = getPrometheusQueryResponse(
+    prometheusResults,
+    UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_RECOVERY_RATE_QUERY],
+    UTILIZATION_QUERY_HOUR_MAP[duration],
+  );
+
+  const storagePopover = React.useCallback(
+    ({ current }) => (
+      <ConsumerPopover
+        title="Used Capacity"
+        current={current}
+        consumers={utilizationPopoverQueryMap}
+        humanize={humanizeBinaryBytes}
+      />
+    ),
+    [],
+  );
 
   const capacityStats = getRangeVectorStats(capacityUtilization);
   const maxCapacityStats = getLatestValue(getRangeVectorStats(totalCapacity));
@@ -130,14 +120,13 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
           <UtilizationItem
             title="Used Capacity"
             data={capacityStats}
-            humanizeValue={humanizeBinaryBytesWithoutB}
-            query={
-              UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_USED] +
-              UTILIZATION_QUERY_HOUR_MAP[duration]
-            }
+            humanizeValue={humanizeBinaryBytes}
+            byteDataType={ByteDataTypes.BinaryBytes}
+            query={UTILIZATION_QUERY[StorageDashboardQuery.CEPH_CAPACITY_USED]}
             error={capacityUtilizationError || totalCapacityError}
-            isLoading={!capacityUtilization || !totalCapacityError}
+            isLoading={!capacityUtilization && !totalCapacity}
             max={maxCapacityStats}
+            TopConsumerPopover={storagePopover}
           />
           <UtilizationItem
             title="IOPS"
@@ -145,10 +134,7 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
             error={iopsUtilizationError}
             isLoading={!iopsUtilization}
             humanizeValue={humanizeIOPS}
-            query={
-              UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_IOPS_QUERY] +
-              UTILIZATION_QUERY_HOUR_MAP[duration]
-            }
+            query={UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_IOPS_QUERY]}
           />
           <UtilizationItem
             title="Latency"
@@ -156,10 +142,7 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
             error={latencyUtilizationError}
             isLoading={!latencyUtilization}
             humanizeValue={humanizeLatency}
-            query={
-              UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_LATENCY_QUERY] +
-              UTILIZATION_QUERY_HOUR_MAP[duration]
-            }
+            query={UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_LATENCY_QUERY]}
           />
           <UtilizationItem
             title="Throughput"
@@ -167,10 +150,7 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
             error={throughputUtilizationError}
             isLoading={!throughputUtilization}
             humanizeValue={humanizeDecimalBytesPerSec}
-            query={
-              UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_THROUGHPUT_QUERY] +
-              UTILIZATION_QUERY_HOUR_MAP[duration]
-            }
+            query={UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_THROUGHPUT_QUERY]}
           />
           <UtilizationItem
             title="Recovery"
@@ -178,10 +158,7 @@ const UtilizationCard: React.FC<DashboardItemProps> = ({
             error={recoveryUtilizationError}
             isLoading={!recoveryUtilization}
             humanizeValue={humanizeDecimalBytesPerSec}
-            query={
-              UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_RECOVERY_RATE_QUERY] +
-              UTILIZATION_QUERY_HOUR_MAP[duration]
-            }
+            query={UTILIZATION_QUERY[StorageDashboardQuery.UTILIZATION_RECOVERY_RATE_QUERY]}
           />
         </UtilizationBody>
       </DashboardCardBody>

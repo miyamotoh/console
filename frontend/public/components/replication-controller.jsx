@@ -4,6 +4,7 @@ import * as classNames from 'classnames';
 
 import { Link } from 'react-router-dom';
 import { sortable } from '@patternfly/react-table';
+import { Status } from '@console/shared';
 import { ResourceEventStream } from './events';
 import { DetailsPage, ListPage, Table, TableData, TableRow } from './factory';
 import { replicaSetMenuActions } from './replicaset';
@@ -39,7 +40,7 @@ const Details = ({ obj: replicationController }) => {
     'openshift.io/deployment.phase',
   ]);
   return (
-    <React.Fragment>
+    <>
       <div className="co-m-pane__body">
         <SectionHeading text="Replication Controller Overview" />
         <div className="row">
@@ -51,19 +52,21 @@ const Details = ({ obj: replicationController }) => {
               showTolerations
             >
               {revision && (
-                <React.Fragment>
+                <>
                   <dt>Deployment Revision</dt>
                   <dd>{revision}</dd>
-                </React.Fragment>
+                </>
               )}
             </ResourceSummary>
           </div>
           <div className="col-md-6">
             {phase && (
-              <React.Fragment>
+              <>
                 <dt>Phase</dt>
-                <dd>{phase}</dd>
-              </React.Fragment>
+                <dd>
+                  <Status status={phase} />
+                </dd>
+              </>
             )}
             <ResourcePodCount resource={replicationController} />
           </div>
@@ -76,7 +79,7 @@ const Details = ({ obj: replicationController }) => {
       <div className="co-m-pane__body">
         <VolumesTable resource={replicationController} heading="Volumes" />
       </div>
-    </React.Fragment>
+    </>
   );
 };
 
@@ -133,6 +136,9 @@ const menuActions = [CancelAction, ...replicaSetMenuActions];
 export const ReplicationControllersDetailsPage = (props) => (
   <DetailsPage
     {...props}
+    getResourceStatus={(resource) =>
+      _.get(resource, ['metadata', 'annotations', 'openshift.io/deployment.phase'], null)
+    }
     menuActions={menuActions}
     pages={[
       details(Details),
@@ -184,7 +190,9 @@ const ReplicationControllerTableRow = ({ obj, index, key, style }) => {
           {obj.status.replicas || 0} of {obj.spec.replicas} pods
         </Link>
       </TableData>
-      <TableData className={tableColumnClasses[3]}>{phase}</TableData>
+      <TableData className={tableColumnClasses[3]}>
+        <Status status={phase} />
+      </TableData>
       <TableData className={tableColumnClasses[4]}>
         <OwnerReferences resource={obj} />
       </TableData>

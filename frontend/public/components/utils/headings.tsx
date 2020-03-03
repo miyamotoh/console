@@ -2,7 +2,15 @@ import * as React from 'react';
 import * as classNames from 'classnames';
 import * as _ from 'lodash-es';
 import { Link } from 'react-router-dom';
-import { Breadcrumb, BreadcrumbItem, Button, SplitItem, Split } from '@patternfly/react-core';
+import {
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  Button,
+  SplitItem,
+  Split,
+} from '@patternfly/react-core';
+import { Status } from '@console/shared';
 import {
   ActionsMenu,
   ResourceIcon,
@@ -12,7 +20,12 @@ import {
   KebabOption,
 } from './index';
 import { connectToModel } from '../../kinds';
-import { K8sKind, K8sResourceKind, K8sResourceKindReference } from '../../module/k8s';
+import {
+  K8sKind,
+  K8sResourceKind,
+  K8sResourceKindReference,
+  referenceForModel,
+} from '../../module/k8s';
 import { ResourceItemDeleting } from '../overview/project-overview';
 
 export const BreadCrumbs: React.SFC<BreadCrumbsProps> = ({ breadcrumbs }) => (
@@ -72,6 +85,8 @@ export const PageHeading = connectToModel((props: PageHeadingProps) => {
     style,
     customData,
     badge,
+    getResourceStatus = (resource: K8sResourceKind): string =>
+      _.get(resource, ['status', 'phase'], null),
   } = props;
   const extraResources = _.reduce(
     props.resourceKeys,
@@ -82,8 +97,10 @@ export const PageHeading = connectToModel((props: PageHeadingProps) => {
   const resourceTitle = titleFunc && data ? titleFunc(data) : title;
   const hasButtonActions = !_.isEmpty(buttonActions);
   const hasMenuActions = _.isFunction(menuActions) || !_.isEmpty(menuActions);
+  const hasData = !_.isEmpty(data);
   const showActions =
-    (hasButtonActions || hasMenuActions) && !_.isEmpty(data) && !_.get(data, 'deletionTimestamp');
+    (hasButtonActions || hasMenuActions) && hasData && !_.get(data, 'metadata.deletionTimestamp');
+  const resourceStatus = hasData && getResourceStatus ? getResourceStatus(data) : null;
   return (
     <div
       className={classNames(
@@ -111,6 +128,13 @@ export const PageHeading = connectToModel((props: PageHeadingProps) => {
             <span data-test-id="resource-title" className="co-resource-item__resource-name">
               {resourceTitle}
             </span>
+            {resourceStatus && (
+              <span className="co-resource-item__resource-status hidden-xs">
+                <Badge className="co-resource-item__resource-status-badge" isRead>
+                  <Status status={resourceStatus} />
+                </Badge>
+              </span>
+            )}
           </div>
         )}
         {!breadcrumbsFor && badge}
@@ -137,7 +161,7 @@ export const PageHeading = connectToModel((props: PageHeadingProps) => {
 });
 
 export const SectionHeading: React.SFC<SectionHeadingProps> = ({ text, children, style }) => (
-  <h2 className="co-section-heading" style={style}>
+  <h2 className="co-section-heading" style={style} data-test-section-heading={text}>
     {text}
     {children}
   </h2>
@@ -147,8 +171,9 @@ export const SidebarSectionHeading: React.SFC<SidebarSectionHeadingProps> = ({
   text,
   children,
   style,
+  className,
 }) => (
-  <h2 className="sidebar__section-heading" style={style}>
+  <h2 className={`sidebar__section-heading ${className}`} style={style}>
     {text}
     {children}
   </h2>
@@ -164,9 +189,16 @@ export const ResourceOverviewHeading: React.SFC<ResourceOverviewHeadingProps> = 
     <div className="overview__sidebar-pane-head resource-overview__heading">
       <h1 className="co-m-pane__heading">
         <div className="co-m-pane__name co-resource-item">
-          <ResourceIcon className="co-m-resource-icon--lg" kind={kindObj.kind} />
+          <ResourceIcon
+            className="co-m-resource-icon--lg"
+            kind={kindObj.crd ? referenceForModel(kindObj) : resource.kind}
+          />
           <Link
-            to={resourcePath(resource.kind, resource.metadata.name, resource.metadata.namespace)}
+            to={resourcePath(
+              kindObj.crd ? referenceForModel(kindObj) : resource.kind,
+              resource.metadata.name,
+              resource.metadata.namespace,
+            )}
             className="co-resource-item__resource-name"
           >
             {resource.metadata.name}
@@ -214,6 +246,7 @@ export type PageHeadingProps = {
   customData?: any;
   badge?: React.ReactNode;
   icon?: React.ComponentType<{ obj?: K8sResourceKind }>;
+  getResourceStatus?: (resource: K8sResourceKind) => string;
 };
 
 export type ResourceOverviewHeadingProps = {
@@ -231,6 +264,7 @@ export type SectionHeadingProps = {
 export type SidebarSectionHeadingProps = {
   children?: any;
   style?: any;
+  className?: string;
   text: string;
 };
 

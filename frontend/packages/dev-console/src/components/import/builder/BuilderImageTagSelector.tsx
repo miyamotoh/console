@@ -4,12 +4,12 @@ import { useFormikContext, FormikValues } from 'formik';
 import { ResourceName } from '@console/internal/components/utils';
 import { K8sResourceKind } from '@console/internal/module/k8s';
 import { ImageStreamTagModel } from '@console/internal/models';
+import { DropdownField } from '@console/shared';
 import {
   BuilderImage,
   getTagDataWithDisplayName,
   getPorts,
 } from '../../../utils/imagestream-utils';
-import { DropdownField } from '../../formik-fields';
 import { useSafeK8s } from '../../../utils/safe-k8s-hook';
 import ImageStreamInfo from './ImageStreamInfo';
 
@@ -57,7 +57,7 @@ const BuilderImageTagSelector: React.FC<BuilderImageTagSelectorProps> = ({
   }, [selectedImageTag, setFieldValue, setFieldError, imageName, imageStreamNamespace, imageTag]);
 
   return (
-    <React.Fragment>
+    <>
       <DropdownField
         name="image.tag"
         label="Builder Image Version"
@@ -67,7 +67,7 @@ const BuilderImageTagSelector: React.FC<BuilderImageTagSelectorProps> = ({
         required
       />
       {imageTag && <ImageStreamInfo displayName={displayName} tag={imageTag} />}
-    </React.Fragment>
+    </>
   );
 };
 

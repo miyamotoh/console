@@ -1,3 +1,4 @@
+import { pipelineTestData, DataState, PipelineExampleNames } from '../../test/pipeline-data';
 import {
   getResources,
   augmentRunsToData,
@@ -6,13 +7,10 @@ import {
   Pipeline,
   getRunStatusColor,
   runStatus,
+  getResourceModelFromTask,
 } from '../pipeline-augment';
-import {
-  testData,
-  taskStatusData,
-  DataState,
-  PipelineExampleNames,
-} from './pipeline-augment-test-data';
+import { ClusterTaskModel, TaskModel } from '../../models';
+import { testData } from './pipeline-augment-test-data';
 
 describe('PipelineAugment test getResources create correct resources for firehose', () => {
   it('expect resources to be null for no data', () => {
@@ -125,7 +123,7 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
   describe('Successfully completed Pipelines', () => {
     // Simply put, when a pipeline run is finished successfully, all tasks must have succeeded
     it('expect a simple pipeline to have task-count equal to Succeeded states', () => {
-      const simpleTestData = taskStatusData[PipelineExampleNames.SIMPLE_PIPELINE];
+      const simpleTestData = pipelineTestData[PipelineExampleNames.SIMPLE_PIPELINE];
 
       const taskCount = getExpectedTaskCount(simpleTestData.pipeline);
       const taskStatus = getTaskStatus(
@@ -138,7 +136,7 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
     });
 
     it('expect a complex pipeline to have task-count equal to Succeeded states', () => {
-      const complexTestData = taskStatusData[PipelineExampleNames.COMPLEX_PIPELINE];
+      const complexTestData = pipelineTestData[PipelineExampleNames.COMPLEX_PIPELINE];
 
       const taskCount = getExpectedTaskCount(complexTestData.pipeline);
       const taskStatus = getTaskStatus(
@@ -160,7 +158,7 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
       status.Succeeded + status.Running + status.Pending;
 
     it('expect a simple pipeline to have task-count equal to Pending, Running and Succeeded states', () => {
-      const simpleTestData = taskStatusData[PipelineExampleNames.SIMPLE_PIPELINE];
+      const simpleTestData = pipelineTestData[PipelineExampleNames.SIMPLE_PIPELINE];
 
       const taskCount = getExpectedTaskCount(simpleTestData.pipeline);
       const taskStatus = getTaskStatus(
@@ -173,7 +171,7 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
     });
 
     it('expect a complex pipeline to have task-count equal to Pending, Running and Succeeded states', () => {
-      const complexTestData = taskStatusData[PipelineExampleNames.COMPLEX_PIPELINE];
+      const complexTestData = pipelineTestData[PipelineExampleNames.COMPLEX_PIPELINE];
 
       const taskCount = getExpectedTaskCount(complexTestData.pipeline);
       const taskStatus = getTaskStatus(
@@ -188,10 +186,13 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
 
   describe('Failed / Cancelled pipelines', () => {
     // When a pipeline run fails or is cancelled - all not-started tasks are cancelled and any on-going tasks fail
-    const sumFailedTaskStatus = (status: TaskStatus): number => status.Failed + status.Cancelled;
+    const sumFailedTaskStatus = (status: TaskStatus): number => status.Failed;
+    const sumCancelledTaskStatus = (status: TaskStatus): number => status.Cancelled;
+    const sumSuccededTaskStatus = (status: TaskStatus): number => status.Succeeded;
+    const complexTestData = pipelineTestData[PipelineExampleNames.COMPLEX_PIPELINE];
 
     it('expect a partial pipeline to have task-count equal to Failed and Cancelled states', () => {
-      const partialTestData = taskStatusData[PipelineExampleNames.PARTIAL_PIPELINE];
+      const partialTestData = pipelineTestData[PipelineExampleNames.PARTIAL_PIPELINE];
 
       const taskCount = getExpectedTaskCount(partialTestData.pipeline);
       const taskStatus = getTaskStatus(
@@ -199,21 +200,76 @@ describe('PipelineAugment test correct task status state is pulled from pipeline
         partialTestData.pipeline,
       );
 
-      expect(sumFailedTaskStatus(taskStatus)).toEqual(taskCount);
+      expect(sumFailedTaskStatus(taskStatus)).toEqual(0);
+      expect(sumCancelledTaskStatus(taskStatus)).toEqual(taskCount);
       expect(sumTaskStatuses(taskStatus)).toEqual(taskCount);
     });
 
-    it('expect a cancelled complex pipeline to have task-count equal to Failed and Cancelled states', () => {
-      const complexTestData = taskStatusData[PipelineExampleNames.COMPLEX_PIPELINE];
-
+    it(`expect correct task status for PipelineRun Failed at beginning`, () => {
+      const expected = { succeeded: 0, failed: 1 };
       const taskCount = getExpectedTaskCount(complexTestData.pipeline);
       const taskStatus = getTaskStatus(
-        complexTestData.pipelineRuns[DataState.CANCELLED],
+        complexTestData.pipelineRuns[DataState.CANCELLED1],
         complexTestData.pipeline,
       );
 
-      expect(sumFailedTaskStatus(taskStatus)).toEqual(taskCount);
+      expect(sumFailedTaskStatus(taskStatus)).toEqual(expected.failed);
+      expect(sumSuccededTaskStatus(taskStatus)).toEqual(expected.succeeded);
+      expect(sumCancelledTaskStatus(taskStatus)).toEqual(
+        taskCount - (expected.failed + expected.succeeded),
+      );
       expect(sumTaskStatuses(taskStatus)).toEqual(taskCount);
     });
+
+    it(`expect correct task status for PLR failed at stage 2 parallel`, () => {
+      const expected = { succeeded: 1, failed: 0 };
+      const taskCount = getExpectedTaskCount(complexTestData.pipeline);
+      const taskStatus = getTaskStatus(
+        complexTestData.pipelineRuns[DataState.CANCELLED2],
+        complexTestData.pipeline,
+      );
+      expect(sumFailedTaskStatus(taskStatus)).toEqual(expected.failed);
+      expect(sumSuccededTaskStatus(taskStatus)).toEqual(expected.succeeded);
+      expect(sumCancelledTaskStatus(taskStatus)).toEqual(
+        taskCount - (expected.failed + expected.succeeded),
+      );
+      expect(sumTaskStatuses(taskStatus)).toEqual(taskCount);
+    });
+
+    it(`expect correct task status for PLR failed at stage 3`, () => {
+      const expected = { succeeded: 3, failed: 0 };
+      const taskCount = getExpectedTaskCount(complexTestData.pipeline);
+      const taskStatus = getTaskStatus(
+        complexTestData.pipelineRuns[DataState.CANCELLED3],
+        complexTestData.pipeline,
+      );
+      expect(sumFailedTaskStatus(taskStatus)).toEqual(expected.failed);
+      expect(sumSuccededTaskStatus(taskStatus)).toEqual(expected.succeeded);
+      expect(sumCancelledTaskStatus(taskStatus)).toEqual(
+        taskCount - (expected.succeeded + expected.failed),
+      );
+      expect(sumTaskStatuses(taskStatus)).toEqual(taskCount);
+    });
+  });
+});
+
+describe('PipelineAugment test successfully determine Task type', () => {
+  it('expect to always get back a model', () => {
+    const model = getResourceModelFromTask({ name: null, taskRef: { name: null } });
+    expect(model).toBe(TaskModel);
+  });
+
+  it('expect to get a TaskModel for normal tasks', () => {
+    const complexTestData = pipelineTestData[PipelineExampleNames.COMPLEX_PIPELINE];
+
+    const model = getResourceModelFromTask(complexTestData.pipeline.spec.tasks[0]);
+    expect(model).toBe(TaskModel);
+  });
+
+  it('expect to get a ClusterTaskModel for tasks of a ClusterTask kind', () => {
+    const complexTestData = pipelineTestData[PipelineExampleNames.CLUSTER_PIPELINE];
+
+    const model = getResourceModelFromTask(complexTestData.pipeline.spec.tasks[0]);
+    expect(model).toBe(ClusterTaskModel);
   });
 });

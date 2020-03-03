@@ -1,9 +1,9 @@
 import * as React from 'react';
 import classNames from 'classnames';
 import { Link } from 'react-router-dom';
-import { Button, Popover, PopoverPosition } from '@patternfly/react-core';
+import { Button, ButtonProps, Popover, PopoverPosition } from '@patternfly/react-core';
 
-const DashboardCardButtonLink: React.FC<DashboardCardButtonLinkProps> = React.memo(
+export const DashboardCardButtonLink: React.FC<DashboardCardButtonLinkProps> = React.memo(
   ({ children, className, ...rest }) => (
     <Button
       variant="link"
@@ -25,18 +25,28 @@ const DashboardCardLink: React.FC<DashboardCardLinkProps> = React.memo(
 );
 
 export const DashboardCardPopupLink: React.FC<DashboardCardPopupLinkProps> = React.memo(
-  ({ linkTitle, popupTitle, children, className }) => {
+  ({
+    linkTitle,
+    popupTitle,
+    children,
+    className,
+    onShow,
+    onHide,
+    position = PopoverPosition.right,
+  }) => {
     if (React.Children.count(children) === 0) {
       return null;
     }
 
     return (
       <Popover
-        appendTo={() => document.getElementById('content-scrollable')}
-        position={PopoverPosition.right}
+        position={position}
         headerContent={popupTitle}
         bodyContent={children}
         enableFlip
+        onShow={onShow}
+        onHide={onHide}
+        maxWidth="21rem"
       >
         <DashboardCardButtonLink className={className}>{linkTitle}</DashboardCardButtonLink>
       </Popover>
@@ -46,7 +56,7 @@ export const DashboardCardPopupLink: React.FC<DashboardCardPopupLinkProps> = Rea
 
 export default DashboardCardLink;
 
-type DashboardCardButtonLinkProps = {
+type DashboardCardButtonLinkProps = ButtonProps & {
   children: React.ReactNode;
   className?: string;
 };
@@ -54,8 +64,11 @@ type DashboardCardButtonLinkProps = {
 type DashboardCardPopupLinkProps = {
   children?: React.ReactNode;
   popupTitle: string;
-  linkTitle: string;
+  linkTitle: React.ReactNode;
   className?: string;
+  onShow?: () => void;
+  onHide?: () => void;
+  position?: PopoverPosition;
 };
 
 type DashboardCardLinkProps = DashboardCardButtonLinkProps & {

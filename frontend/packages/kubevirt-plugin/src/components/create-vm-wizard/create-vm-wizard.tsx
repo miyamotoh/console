@@ -1,19 +1,15 @@
 import * as React from 'react';
 import * as _ from 'lodash';
 import { connect } from 'react-redux';
-import { createVm, createVmTemplate } from 'kubevirt-web-ui-components';
+import { createVm as importVM } from 'kubevirt-web-ui-components';
 import { Wizard, WizardStep } from '@patternfly/react-core';
 import { TemplateModel } from '@console/internal/models';
-import {
-  Firehose,
-  history,
-  makeQuery,
-  makeReduxID,
-  units,
-} from '@console/internal/components/utils';
+import { Firehose, history, units } from '@console/internal/components/utils';
 import { k8sGet, TemplateKind } from '@console/internal/module/k8s';
+import { Location } from 'history';
+import { match as RouterMatch } from 'react-router';
 import { withReduxID } from '../../utils/redux/common';
-import { VirtualMachineModel } from '../../models';
+import { DataVolumeModel, VirtualMachineModel } from '../../models';
 import {
   TEMPLATE_TYPE_BASE,
   TEMPLATE_TYPE_LABEL,
@@ -41,6 +37,15 @@ import {
   getDefaultSCVolumeMode,
 } from '../../selectors/config-map/sc-defaults';
 import { getStorageClassConfigMap } from '../../k8s/requests/config-map/storage-class';
+import { makeIDReferences } from '../../utils/redux/id-reference';
+import { PersistentVolumeClaimWrapper } from '../../k8s/wrapper/vm/persistent-volume-claim-wrapper';
+import { ProvisionSource } from '../../constants/vm/provision-source';
+import { getVolumeCloudInitNoCloud } from '../../selectors/vm';
+import {
+  CloudInitDataHelper,
+  CloudInitDataFormKeys,
+} from '../../k8s/wrapper/vm/cloud-init-data-helper';
+import { createVM, createVMTemplate } from '../../k8s/requests/vm/create/create';
 import {
   ChangedCommonData,
   CommonData,
@@ -50,9 +55,10 @@ import {
   VMWizardNetwork,
   VMWizardProps,
   VMWizardStorage,
+  VMWizardStorageType,
   VMWizardTab,
 } from './types';
-import { CREATE_VM, CREATE_VM_TEMPLATE, TabTitleResolver } from './strings/strings';
+import { CREATE_VM, CREATE_VM_TEMPLATE, TabTitleResolver, IMPORT_VM } from './strings/strings';
 import { vmWizardActions } from './redux/actions';
 import { ActionType } from './redux/types';
 import { iGetCommonData, iGetCreateVMWizardTabs } from './selectors/immutable/selectors';
@@ -65,6 +71,7 @@ import { ReviewTab } from './tabs/review-tab/review-tab';
 import { ResultTab } from './tabs/result-tab/result-tab';
 import { StorageTab } from './tabs/storage-tab/storage-tab';
 import { CloudInitTab } from './tabs/cloud-init-tab/cloud-init-tab';
+import { VirtualHardwareTab } from './tabs/virtual-hardware-tab/virtual-hardware-tab';
 
 import './create-vm-wizard.scss';
 
@@ -89,11 +96,24 @@ const kubevirtInterOP = async ({
   const clonedNetworks = _.cloneDeep(networks);
   const clonedStorages = _.cloneDeep(storages);
 
+  const cloudInitVolume = clonedStorages.map((stor) => stor.volume).find(getVolumeCloudInitNoCloud);
+  const data = VolumeWrapper.initialize(cloudInitVolume).getCloudInitNoCloud();
+  const hostname = new CloudInitDataHelper(data).get(CloudInitDataFormKeys.HOSTNAME);
+  if (hostname) {
+    clonedVMsettings.hostname = { value: hostname };
+  }
+
   clonedVMsettings.namespace = { value: activeNamespace };
   const operatingSystems = getTemplateOperatingSystems(templates);
   const osField = clonedVMsettings[VMSettingsField.OPERATING_SYSTEM];
   const osID = osField.value;
   osField.value = operatingSystems.find(({ id }) => id === osID);
+
+  const provisionSourceTypeField = clonedVMsettings[VMSettingsField.PROVISION_SOURCE_TYPE];
+  // createVMTemplate (source URL) creates unwanted dataVolume and removes already prepared dataVolumeTemplate
+  if (provisionSourceTypeField.value === ProvisionSource.URL.getValue()) {
+    provisionSourceTypeField.value = undefined;
+  }
 
   const interOPNetworks = clonedNetworks.map(({ networkInterface, network }) => {
     const networkInterfaceWrapper = NetworkInterfaceWrapper.initialize(networkInterface);
@@ -115,41 +135,76 @@ const kubevirtInterOP = async ({
 
   const storageClassConfigMap = await getStorageClassConfigMap({ k8sGet });
 
-  const interOPStorages = clonedStorages.map(({ disk, volume, dataVolume }) => {
-    const diskWrapper = DiskWrapper.initialize(disk);
-    const volumeWrapper = VolumeWrapper.initialize(volume);
-    const dataVolumeWrapper = dataVolume && DataVolumeWrapper.initialize(dataVolume);
+  const interOPStorages = clonedStorages.map(
+    ({ type, disk, volume, dataVolume, persistentVolumeClaim, importData }) => {
+      const diskWrapper = DiskWrapper.initialize(disk);
+      const volumeWrapper = VolumeWrapper.initialize(volume);
+      const dataVolumeWrapper = dataVolume && DataVolumeWrapper.initialize(dataVolume);
+      const persistentVolumeClaimWrapper =
+        persistentVolumeClaim && PersistentVolumeClaimWrapper.initialize(persistentVolumeClaim);
 
-    return {
-      name: diskWrapper.getName(),
-      isBootable: diskWrapper.isFirstBootableDevice(),
-      storageType:
-        volumeWrapper.getType() === VolumeType.DATA_VOLUME && dataVolume ? 'datavolume' : undefined,
-      templateStorage: {
-        volume,
-        disk,
-        dataVolumeTemplate: dataVolumeWrapper
-          ? DataVolumeWrapper.mergeWrappers(
-              dataVolumeWrapper,
-              DataVolumeWrapper.initializeFromSimpleData({
-                accessModes:
-                  dataVolumeWrapper.getAccessModes() ||
-                  getDefaultSCAccessMode(
-                    storageClassConfigMap,
-                    dataVolumeWrapper.getStorageClassName(),
-                  ),
-                volumeMode:
-                  dataVolumeWrapper.getVolumeMode() ||
-                  getDefaultSCVolumeMode(
-                    storageClassConfigMap,
-                    dataVolumeWrapper.getStorageClassName(),
-                  ),
-              }),
-            ).asResource()
-          : undefined,
-      },
-    };
-  });
+      const isImport =
+        persistentVolumeClaimWrapper &&
+        [
+          VMWizardStorageType.V2V_VMWARE_IMPORT,
+          VMWizardStorageType.V2V_VMWARE_IMPORT_TEMP,
+        ].includes(type);
+      const resolveType = (dv) => {
+        if (type === VMWizardStorageType.V2V_VMWARE_IMPORT) {
+          return 'external-import';
+        }
+        if (type === VMWizardStorageType.V2V_VMWARE_IMPORT_TEMP) {
+          return 'external-v2v-temp';
+        }
+        return volumeWrapper.getType() === VolumeType.DATA_VOLUME && dv ? 'datavolume' : undefined;
+      };
+
+      if (isImport) {
+        return {
+          name: diskWrapper.getName(),
+          isBootable: diskWrapper.isFirstBootableDevice(),
+          storageType: resolveType(dataVolume),
+          size: persistentVolumeClaimWrapper.getSize().value,
+          unit: persistentVolumeClaimWrapper.getSize().unit,
+          storageClass: persistentVolumeClaimWrapper.getStorageClassName(),
+          data: importData,
+        };
+      }
+
+      const finalDataVolumeWrapper = dataVolumeWrapper
+        ? DataVolumeWrapper.mergeWrappers(
+            dataVolumeWrapper,
+            DataVolumeWrapper.initializeFromSimpleData({
+              accessModes: dataVolumeWrapper.getAccessModes() || [
+                getDefaultSCAccessMode(
+                  storageClassConfigMap,
+                  dataVolumeWrapper.getStorageClassName(),
+                ),
+              ],
+              volumeMode:
+                dataVolumeWrapper.getVolumeMode() ||
+                getDefaultSCVolumeMode(
+                  storageClassConfigMap,
+                  dataVolumeWrapper.getStorageClassName(),
+                ),
+            }),
+          )
+        : undefined;
+
+      const finalDataVolume = finalDataVolumeWrapper && finalDataVolumeWrapper.asResource();
+
+      return {
+        name: diskWrapper.getName(),
+        isBootable: diskWrapper.isFirstBootableDevice(),
+        storageType: resolveType(finalDataVolume),
+        templateStorage: {
+          volume,
+          disk,
+          dataVolumeTemplate: finalDataVolume,
+        },
+      };
+    },
+  );
 
   return {
     interOPVMSettings: clonedVMsettings,
@@ -163,7 +218,12 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
 
   constructor(props) {
     super(props);
-    props.onInitialize();
+    if (!(props[VMWizardProps.isProviderImport] && props[VMWizardProps.isCreateTemplate])) {
+      props.onInitialize();
+    } else {
+      console.error('It is not possible to make an import VM template'); // eslint-disable-line no-console
+      this.isClosed = true;
+    }
   }
 
   componentDidUpdate(prevProps) {
@@ -177,22 +237,42 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
       return changedPropsAcc;
     }, new Set()) as ChangedCommonData;
 
-    if (changedProps.size > 0) {
+    const referencesChanged = !_.isEqual(prevProps.dataIDReferences, this.props.dataIDReferences);
+
+    if (changedProps.size > 0 || referencesChanged) {
       this.props.onCommonDataChanged(
-        { dataIDReferences: this.props.dataIDReferences },
+        referencesChanged ? { dataIDReferences: this.props.dataIDReferences } : undefined,
         changedProps,
       );
     }
   }
 
-  onClose = () => {
+  componentWillUnmount() {
+    this.onClose(true);
+  }
+
+  onClose = (disposeOnly?: boolean) => {
+    if (this.isClosed) {
+      return;
+    }
     this.isClosed = true;
-    this.props.onClose();
+    this.props.onClose(disposeOnly);
   };
+
+  getWizardTitle() {
+    const { isCreateTemplate, isProviderImport } = this.props;
+    if (isCreateTemplate) {
+      return CREATE_VM_TEMPLATE;
+    }
+    if (isProviderImport) {
+      return IMPORT_VM;
+    }
+    return CREATE_VM;
+  }
 
   finish = async () => {
     this.props.onResultsChanged({ errors: [], requestResults: [] }, null, true, true); // reset
-    const create = this.props.isCreateTemplate ? createVmTemplate : createVm;
+    const { isCreateTemplate, activeNamespace, isProviderImport } = this.props;
 
     const enhancedK8sMethods = new EnhancedK8sMethods();
     const vmSettings = iGetIn(this.props.stepData, [VMWizardTab.VM_SETTINGS, 'value']).toJS();
@@ -202,30 +282,46 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
     const storages = immutableListToShallowJS(
       iGetIn(this.props.stepData, [VMWizardTab.STORAGE, 'value']),
     );
-    const templates = immutableListToShallowJS(
+    const templates = immutableListToShallowJS<TemplateKind>(
       concatImmutableLists(
         iGetLoadedData(this.props[VMWizardProps.commonTemplates]),
         iGetLoadedData(this.props[VMWizardProps.userTemplates]),
       ),
     );
 
-    const { interOPVMSettings, interOPNetworks, interOPStorages } = await kubevirtInterOP({
-      vmSettings,
-      networks,
-      storages,
-      templates,
-      activeNamespace: this.props.activeNamespace,
-    });
+    let promise;
 
-    create(
-      enhancedK8sMethods,
-      templates,
-      interOPVMSettings,
-      interOPNetworks,
-      interOPStorages,
-      [],
-      units,
-    )
+    if (isProviderImport) {
+      const { interOPVMSettings, interOPNetworks, interOPStorages } = await kubevirtInterOP({
+        vmSettings,
+        networks,
+        storages,
+        templates,
+        activeNamespace,
+      });
+
+      promise = importVM(
+        enhancedK8sMethods,
+        templates,
+        interOPVMSettings,
+        interOPNetworks,
+        interOPStorages,
+        [],
+        units,
+      );
+    } else {
+      const create = isCreateTemplate ? createVMTemplate : createVM;
+      promise = create({
+        enhancedK8sMethods,
+        vmSettings,
+        networks,
+        storages,
+        templates,
+        namespace: activeNamespace,
+      });
+    }
+
+    promise
       .then(() => getResults(enhancedK8sMethods))
       .catch((error) => cleanupAndGetResults(enhancedK8sMethods, error))
       .then(({ requestResults, errors, mainError, isValid }: ResultsWrapper) =>
@@ -235,8 +331,7 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
   };
 
   render() {
-    const { isCreateTemplate, reduxID, stepData } = this.props;
-    const createVMText = isCreateTemplate ? CREATE_VM_TEMPLATE : CREATE_VM;
+    const { reduxID, stepData } = this.props;
 
     if (this.isClosed) {
       return null;
@@ -279,6 +374,15 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
               <>
                 <ResourceLoadErrors wizardReduxID={reduxID} />
                 <CloudInitTab wizardReduxID={reduxID} />
+              </>
+            ),
+          },
+          {
+            id: VMWizardTab.ADVANCED_VIRTUAL_HARDWARE,
+            component: (
+              <>
+                <ResourceLoadErrors wizardReduxID={reduxID} />
+                <VirtualHardwareTab wizardReduxID={reduxID} />
               </>
             ),
           },
@@ -340,7 +444,7 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
       <div className="kubevirt-create-vm-modal__container">
         {!isStepValid(stepData, VMWizardTab.RESULT) && (
           <div className="yaml-editor__header">
-            <h1 className="yaml-editor__header-text">{createVMText}</h1>
+            <h1 className="yaml-editor__header-text">{this.getWizardTitle()}</h1>
           </div>
         )}
         <Wizard
@@ -375,6 +479,7 @@ const wizardDispatchToProps = (dispatch, props) => ({
       vmWizardActions[ActionType.Create](props.reduxID, {
         data: {
           isCreateTemplate: props.isCreateTemplate,
+          isProviderImport: props.isProviderImport,
         },
         dataIDReferences: props.dataIDReferences,
       }),
@@ -390,9 +495,9 @@ const wizardDispatchToProps = (dispatch, props) => ({
       vmWizardActions[ActionType.SetResults](props.reduxID, results, isValid, isLocked, isPending),
     );
   },
-  onClose: () => {
+  onClose: (disposeOnly: boolean) => {
     dispatch(vmWizardActions[ActionType.Dispose](props.reduxID, props));
-    if (props.onClose) {
+    if (!disposeOnly && props.onClose) {
       props.onClose();
     }
   },
@@ -403,17 +508,22 @@ export const CreateVMWizard = connect(
   wizardDispatchToProps,
 )(CreateVMWizardComponent);
 
-export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentProps> = (props) => {
-  const {
-    reduxID,
-    match: {
-      params: { ns: activeNamespace },
-    },
-  } = props;
+export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentProps> = ({
+  reduxID,
+  match,
+  location,
+}) => {
+  const activeNamespace = match && match.params && match.params.ns;
+  const path = (match && match.path) || '';
+  const search = location && location.search;
   const resources = [
     getResource(VirtualMachineModel, {
       namespace: activeNamespace,
       prop: VMWizardProps.virtualMachines,
+    }),
+    getResource(DataVolumeModel, {
+      namespace: activeNamespace,
+      prop: VMWizardProps.dataVolumes,
     }),
     getResource(TemplateModel, {
       namespace: activeNamespace,
@@ -427,24 +537,15 @@ export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentPr
     }),
   ];
 
-  const dataIDReferences = resources.reduce((acc, resource) => {
-    const query = makeQuery(
-      resource.namespace,
-      resource.selector,
-      resource.fieldSelector,
-      resource.name,
-    );
-    acc[resource.prop] = ['k8s', makeReduxID(resource.model, query)];
-
-    return acc;
-  }, {});
+  const dataIDReferences = makeIDReferences(resources);
 
   dataIDReferences[VMWizardProps.activeNamespace] = ['UI', 'activeNamespace'];
 
   return (
-    <Firehose resources={resources}>
+    <Firehose resources={resources} doNotConnectToState>
       <CreateVMWizard
-        isCreateTemplate={!props.match.path.includes('/virtualmachines/')}
+        isCreateTemplate={!path.includes('/virtualmachines/')}
+        isProviderImport={new URLSearchParams(search).get('mode') === 'import'}
         dataIDReferences={dataIDReferences}
         activeNamespace={activeNamespace}
         reduxID={reduxID}
@@ -455,15 +556,9 @@ export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentPr
 };
 
 type CreateVMWizardPageComponentProps = {
-  match: {
-    params: {
-      ns: string;
-    };
-    path: string;
-    isExact: boolean;
-    url: string;
-  };
-  reduxID: string;
+  reduxID?: string;
+  location?: Location;
+  match?: RouterMatch<{ ns: string; plural: string; appName?: string }>;
 };
 
 export const CreateVMWizardPage = withReduxID(CreateVMWizardPageComponent);

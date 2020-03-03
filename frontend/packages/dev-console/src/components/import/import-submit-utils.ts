@@ -2,13 +2,14 @@ import * as _ from 'lodash';
 import {
   ImageStreamModel,
   BuildConfigModel,
+  DeploymentModel,
   DeploymentConfigModel,
   ProjectRequestModel,
   SecretModel,
   ServiceModel,
   RouteModel,
 } from '@console/internal/models';
-import { k8sCreate, K8sResourceKind } from '@console/internal/module/k8s';
+import { k8sCreate, K8sResourceKind, k8sUpdate, K8sVerb } from '@console/internal/module/k8s';
 import {
   getKnativeServiceDepResource,
   ServiceModel as KnServiceModel,
@@ -16,7 +17,15 @@ import {
 import { SecretType } from '@console/internal/components/secrets/create-secret';
 import { getAppLabels, getPodLabels, getAppAnnotations } from '../../utils/resource-label-utils';
 import { createService, createRoute, dryRunOpt } from '../../utils/shared-submit-utils';
-import { GitImportFormData, ProjectData, GitTypes, GitReadableTypes } from './import-types';
+import { AppResources } from '../edit-application/edit-application-types';
+import {
+  GitImportFormData,
+  ProjectData,
+  GitTypes,
+  GitReadableTypes,
+  Resources,
+} from './import-types';
+import { createPipelineForImportFlow } from './pipeline/pipeline-template-utils';
 
 export const generateSecret = () => {
   // http://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
@@ -94,10 +103,12 @@ export const createWebhookSecret = (
   return k8sCreate(SecretModel, webhookSecret, dryRun ? dryRunOpt : {});
 };
 
-export const createBuildConfig = (
+export const createOrUpdateBuildConfig = (
   formData: GitImportFormData,
   imageStream: K8sResourceKind,
   dryRun: boolean,
+  originalBuildConfig?: K8sResourceKind,
+  verb: K8sVerb = 'create',
 ): Promise<K8sResourceKind> => {
   const {
     name,
@@ -145,15 +156,18 @@ export const createBuildConfig = (
   };
 
   const buildConfig = {
+    ...(originalBuildConfig || {}),
     apiVersion: 'build.openshift.io/v1',
     kind: 'BuildConfig',
     metadata: {
+      ...(originalBuildConfig ? originalBuildConfig.metadata : {}),
       name,
       namespace,
       labels: { ...defaultLabels, ...userLabels },
       annotations: defaultAnnotations,
     },
     spec: {
+      ...(originalBuildConfig ? originalBuildConfig.spec : {}),
       output: {
         to: {
           kind: 'ImageStreamTag',
@@ -187,13 +201,105 @@ export const createBuildConfig = (
     },
   };
 
-  return k8sCreate(BuildConfigModel, buildConfig, dryRun ? dryRunOpt : {});
+  return verb === 'update'
+    ? k8sUpdate(BuildConfigModel, buildConfig)
+    : k8sCreate(BuildConfigModel, buildConfig, dryRun ? dryRunOpt : {});
 };
 
-export const createDeploymentConfig = (
+export const createOrUpdateDeployment = (
   formData: GitImportFormData,
   imageStream: K8sResourceKind,
   dryRun: boolean,
+  originalDeployment?: K8sResourceKind,
+  verb: K8sVerb = 'create',
+): Promise<K8sResourceKind> => {
+  const {
+    name,
+    project: { name: namespace },
+    application: { name: application },
+    image: { ports, tag },
+    deployment: { env, replicas },
+    labels: userLabels,
+    limits: { cpu, memory },
+    git: { url: repository, ref },
+  } = formData;
+
+  const imageStreamName = imageStream && imageStream.metadata.name;
+  const defaultLabels = getAppLabels(name, application, imageStreamName, tag);
+  const annotations = {
+    ...getAppAnnotations(repository, ref),
+    'alpha.image.policy.openshift.io/resolve-names': '*',
+    'image.openshift.io/triggers': JSON.stringify([
+      {
+        from: { kind: 'ImageStreamTag', name: `${name}:latest` },
+        fieldPath: `spec.template.spec.containers[?(@.name=="${name}")].image`,
+      },
+    ]),
+  };
+  const podLabels = getPodLabels(name);
+
+  const deployment = {
+    ...(originalDeployment || {}),
+    apiVersion: 'apps/v1',
+    kind: 'Deployment',
+    metadata: {
+      ...(originalDeployment ? originalDeployment.metadata : {}),
+      name,
+      namespace,
+      labels: { ...defaultLabels, ...userLabels },
+      annotations,
+    },
+    spec: {
+      ...(originalDeployment ? originalDeployment.spec : {}),
+      selector: {
+        matchLabels: {
+          app: name,
+        },
+      },
+      replicas,
+      template: {
+        metadata: {
+          labels: { ...userLabels, ...podLabels },
+        },
+        spec: {
+          containers: [
+            {
+              name,
+              image: `${name}:latest`,
+              ports,
+              env,
+              resources: {
+                ...((cpu.limit || memory.limit) && {
+                  limits: {
+                    ...(cpu.limit && { cpu: `${cpu.limit}${cpu.limitUnit}` }),
+                    ...(memory.limit && { memory: `${memory.limit}${memory.limitUnit}` }),
+                  },
+                }),
+                ...((cpu.request || memory.request) && {
+                  requests: {
+                    ...(cpu.request && { cpu: `${cpu.request}${cpu.requestUnit}` }),
+                    ...(memory.request && { memory: `${memory.request}${memory.requestUnit}` }),
+                  },
+                }),
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  return verb === 'update'
+    ? k8sUpdate(DeploymentModel, deployment)
+    : k8sCreate(DeploymentModel, deployment, dryRun ? dryRunOpt : {});
+};
+
+export const createOrUpdateDeploymentConfig = (
+  formData: GitImportFormData,
+  imageStream: K8sResourceKind,
+  dryRun: boolean,
+  originalDeploymentConfig?: K8sResourceKind,
+  verb: K8sVerb = 'create',
 ): Promise<K8sResourceKind> => {
   const {
     name,
@@ -212,15 +318,18 @@ export const createDeploymentConfig = (
   const podLabels = getPodLabels(name);
 
   const deploymentConfig = {
+    ...(originalDeploymentConfig || {}),
     apiVersion: 'apps.openshift.io/v1',
     kind: 'DeploymentConfig',
     metadata: {
+      ...(originalDeploymentConfig ? originalDeploymentConfig.metadata : {}),
       name,
       namespace,
       labels: { ...defaultLabels, ...userLabels },
       annotations: defaultAnnotations,
     },
     spec: {
+      ...(originalDeploymentConfig ? originalDeploymentConfig.spec : {}),
       selector: podLabels,
       replicas,
       template: {
@@ -269,65 +378,117 @@ export const createDeploymentConfig = (
     },
   };
 
-  return k8sCreate(DeploymentConfigModel, deploymentConfig, dryRun ? dryRunOpt : {});
+  return verb === 'update'
+    ? k8sUpdate(DeploymentConfigModel, deploymentConfig)
+    : k8sCreate(DeploymentConfigModel, deploymentConfig, dryRun ? dryRunOpt : {});
 };
 
-export const createResources = async (
+export const createOrUpdateResources = async (
   formData: GitImportFormData,
   imageStream: K8sResourceKind,
   createNewProject?: boolean,
   dryRun: boolean = false,
+  verb: K8sVerb = 'create',
+  appResources?: AppResources,
+  editAppResource?: K8sResourceKind,
 ): Promise<K8sResourceKind[]> => {
   const {
-    route: { create: canCreateRoute },
+    name,
+    project: { name: namespace },
+    route: { create: canCreateRoute, show: showRouteCheckbox },
     image: { ports },
     build: {
       strategy: buildStrategy,
       triggers: { webhook: webhookTrigger },
     },
     git: { url: repository, type: gitType, ref },
+    pipeline,
   } = formData;
   const imageStreamName = _.get(imageStream, 'metadata.name');
 
   createNewProject && (await createProject(formData.project));
 
-  const requests: Promise<K8sResourceKind>[] = [
-    createImageStream(formData, imageStream, dryRun),
-    createBuildConfig(formData, imageStream, dryRun),
-    createWebhookSecret(formData, 'generic', dryRun),
-  ];
+  const requests: Promise<K8sResourceKind>[] = [];
+
+  verb === 'create' &&
+    requests.push(
+      createImageStream(formData, imageStream, dryRun),
+      createWebhookSecret(formData, 'generic', dryRun),
+    );
+
+  requests.push(
+    createOrUpdateBuildConfig(
+      formData,
+      imageStream,
+      dryRun,
+      _.get(appResources, 'buildConfig.data', null),
+      verb,
+    ),
+  );
 
   const defaultAnnotations = getAppAnnotations(repository, ref);
 
-  if (formData.serverless.enabled) {
+  if (formData.resources === Resources.KnativeService) {
     // knative service doesn't have dry run capability so returning the promises.
     if (dryRun) {
       return Promise.all(requests);
     }
-
-    const [imageStreamResponse] = await Promise.all(requests);
+    let imageStreamURL: string;
+    const knativeRequests = [];
+    if (verb === 'update') {
+      imageStreamURL = _.get(editAppResource, 'spec.template.spec.containers[0].image', '');
+      knativeRequests.push(...requests);
+    } else {
+      const [imageStreamResponse] = await Promise.all(requests);
+      imageStreamURL = imageStreamResponse.status.dockerImageRepository;
+    }
     const knDeploymentResource = getKnativeServiceDepResource(
       formData,
-      imageStreamResponse.status.dockerImageRepository,
+      imageStreamURL,
       imageStreamName,
       defaultAnnotations,
+      editAppResource,
     );
-    return Promise.all([k8sCreate(KnServiceModel, knDeploymentResource)]);
+    knativeRequests.push(
+      verb === 'update'
+        ? k8sUpdate(KnServiceModel, knDeploymentResource)
+        : k8sCreate(KnServiceModel, knDeploymentResource),
+    );
+    return Promise.all(knativeRequests);
   }
 
-  requests.push(createDeploymentConfig(formData, imageStream, dryRun));
+  if (formData.resources === Resources.Kubernetes) {
+    requests.push(createOrUpdateDeployment(formData, imageStream, dryRun, editAppResource, verb));
+  } else if (formData.resources === Resources.OpenShift) {
+    requests.push(
+      createOrUpdateDeploymentConfig(formData, imageStream, dryRun, editAppResource, verb),
+    );
+  }
 
   if (!_.isEmpty(ports) || buildStrategy === 'Docker') {
-    const service = createService(formData, imageStream);
-    requests.push(k8sCreate(ServiceModel, service, dryRun ? dryRunOpt : {}));
-    if (canCreateRoute) {
-      const route = createRoute(formData, imageStream);
+    const originalService = _.get(appResources, 'service.data', null);
+    const service = createService(formData, imageStream, originalService);
+    requests.push(
+      verb === 'update'
+        ? k8sUpdate(ServiceModel, service)
+        : k8sCreate(ServiceModel, service, dryRun ? dryRunOpt : {}),
+    );
+    const originalRoute = _.get(appResources, 'route.data', null);
+    const route = createRoute(formData, imageStream, originalRoute);
+    if (verb === 'update' && !showRouteCheckbox) {
+      requests.push(k8sUpdate(RouteModel, route, namespace, name));
+    } else if (canCreateRoute) {
       requests.push(k8sCreate(RouteModel, route, dryRun ? dryRunOpt : {}));
     }
   }
 
-  if (webhookTrigger) {
+  if (pipeline.enabled && pipeline.template && !dryRun) {
+    requests.push(createPipelineForImportFlow(formData));
+  }
+
+  if (webhookTrigger && verb === 'create') {
     requests.push(createWebhookSecret(formData, gitType, dryRun));
   }
+
   return Promise.all(requests);
 };

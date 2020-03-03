@@ -6,7 +6,7 @@ import DashboardCardHeader from '@console/shared/src/components/dashboard/dashbo
 import DashboardCardTitle from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardTitle';
 import { EventKind } from '@console/internal/module/k8s';
 import { FirehoseResource, FirehoseResult } from '@console/internal/components/utils';
-import { EventModel } from '@console/internal/models';
+import { EventModel, StatefulSetModel, PodModel } from '@console/internal/models';
 import ActivityBody, {
   RecentEventsBody,
   OngoingActivityBody,
@@ -16,16 +16,24 @@ import {
   DashboardItemProps,
   withDashboardResources,
 } from '@console/internal/components/dashboard/with-dashboard-resources';
+import { getResiliencyProgress } from '@console/ceph-storage-plugin/src/utils';
 import { DATA_RESILIENCE_QUERIES } from '../../queries';
-import { NooBaaObjectBucketClaimModel, NooBaaObjectBucketModel } from '../../models';
-import { isDataResiliencyActivity } from './data-resiliency-activity/data-resiliency-activity';
 import './activity-card.scss';
 
 const eventsResource: FirehoseResource = { isList: true, kind: EventModel.kind, prop: 'events' };
 
-const noobaaEventsFilter = (event: EventKind): boolean =>
-  _.get(event, 'involvedObject.kind') ===
-  (NooBaaObjectBucketClaimModel.kind || NooBaaObjectBucketModel.kind);
+const isNoobaaEventObject = (event: EventKind): boolean => {
+  const eventName: string = _.get(event, 'involvedObject.name');
+  return _.startsWith(eventName, 'noobaa');
+};
+
+const noobaaEventsFilter = (event: EventKind): boolean => {
+  const eventKind: string = _.get(event, 'involvedObject.kind');
+  if (eventKind === PodModel.kind || eventKind === StatefulSetModel.kind) {
+    return isNoobaaEventObject(event);
+  }
+  return false;
+};
 
 const RecentEvent = withDashboardResources(
   ({ watchK8sResource, stopWatchK8sResource, resources }: DashboardItemProps) => {
@@ -71,12 +79,12 @@ const OngoingActivity = withDashboardResources(
 
     const prometheusActivities = [];
 
-    if (isDataResiliencyActivity(progress)) {
+    if (getResiliencyProgress(progress) < 1) {
       prometheusActivities.push({
         results: [progress, eta],
         loader: () =>
           import('./data-resiliency-activity/data-resiliency-activity').then(
-            (m) => m.DataResiliencyActivity,
+            (m) => m.NoobaaDataResiliency,
           ),
       });
     }
@@ -91,7 +99,7 @@ const OngoingActivity = withDashboardResources(
 );
 
 const ActivityCard: React.FC<{}> = () => (
-  <DashboardCard>
+  <DashboardCard gradient>
     <DashboardCardHeader>
       <DashboardCardTitle>Activity</DashboardCardTitle>
     </DashboardCardHeader>

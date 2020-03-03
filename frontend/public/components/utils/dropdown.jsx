@@ -35,9 +35,9 @@ export class DropdownMixin extends React.PureComponent {
     this.hide(event);
   }
 
-  componentWillReceiveProps({ selectedKey }) {
+  componentWillReceiveProps({ selectedKey, items }) {
     if (selectedKey !== this.props.selectedKey) {
-      this.setState({ selectedKey });
+      this.setState({ selectedKey, title: items[selectedKey] });
     }
   }
 
@@ -373,7 +373,7 @@ export class Dropdown extends DropdownMixin {
     if (actionItems) {
       const { selectedKey, keyboardHoverKey, noSelection } = this.props;
       return (
-        <React.Fragment>
+        <>
           {actionItems.map((ai) => (
             <DropDownRow
               className={classNames({ active: ai.actionKey === selectedKey && !noSelection })}
@@ -388,7 +388,7 @@ export class Dropdown extends DropdownMixin {
           <li className="co-namespace-selector__divider">
             <div className="dropdown-menu__divider" />
           </li>
-        </React.Fragment>
+        </>
       );
     }
     return null;
@@ -568,6 +568,7 @@ export class Dropdown extends DropdownMixin {
             type="button"
             id={this.props.id}
             aria-describedby={describedBy}
+            disabled={disabled}
           >
             <span className="pf-c-dropdown__toggle-text">
               {titlePrefix && `${titlePrefix}: `}

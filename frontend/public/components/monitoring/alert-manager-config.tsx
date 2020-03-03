@@ -1,16 +1,11 @@
 import * as React from 'react';
 import * as _ from 'lodash-es';
-import { safeLoad } from 'js-yaml';
-import { Base64 } from 'js-base64';
 import * as fuzzy from 'fuzzysearch';
-
-import { K8sResourceKind } from '../../module/k8s';
-import { LoadingBox, MsgBox, SectionHeading, StatusBox } from '../utils';
-import { createAlertRoutingModal } from '../modals';
-import { Table, TableData, TableRow, TextFilter } from '../factory';
+import { Link } from 'react-router-dom';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
 import {
+  Alert,
   Button,
   EmptyState,
   EmptyStateBody,
@@ -18,13 +13,27 @@ import {
   Title,
 } from '@patternfly/react-core';
 
-const AlertRouting: React.FC<AlertManagerProps> = ({ config, secret }) => {
+import { K8sResourceKind } from '../../module/k8s';
+import { history, Kebab, MsgBox, SectionHeading, StatusBox } from '../utils';
+import { confirmModal, createAlertRoutingModal } from '../modals';
+import { Table, TableData, TableRow, TextFilter } from '../factory';
+import {
+  getAlertManagerConfig,
+  patchAlertManagerConfig,
+  receiverTypes,
+} from './alert-manager-utils';
+import { Helmet } from 'react-helmet';
+
+let secret: K8sResourceKind = null; // alertmanager-main Secret which holds alertmanager configuration yaml
+let config: AlertManagerConfig = null; // alertmanager configuration yaml as object
+
+const AlertRouting = () => {
   const groupBy = _.get(config, ['route', 'group_by'], []);
   return (
     <div className="co-m-pane__body">
       <SectionHeading text="Alert Routing">
         <Button
-          className="btn-edit-alert-routing"
+          className="co-alert-manager-config__edit-alert-routing-btn"
           onClick={() => createAlertRoutingModal({ config, secret })}
           variant="secondary"
         >
@@ -34,16 +43,20 @@ const AlertRouting: React.FC<AlertManagerProps> = ({ config, secret }) => {
       <div className="row">
         <div className="col-sm-6">
           <dt>Group By</dt>
-          <dd>{_.isEmpty(groupBy) ? '-' : _.join(groupBy, ', ')}</dd>
+          <dd data-test-id="group_by_value">{_.isEmpty(groupBy) ? '-' : _.join(groupBy, ', ')}</dd>
           <dt>Group Wait</dt>
-          <dd>{_.get(config, ['route', 'group_wait'], '-')}</dd>
+          <dd data-test-id="group_wait_value">{_.get(config, ['route', 'group_wait'], '-')}</dd>
         </div>
         <div className="col-sm-6">
           <dl className="co-m-pane__details">
             <dt>Group Interval</dt>
-            <dd>{_.get(config, ['route', 'group_interval'], '-')}</dd>
+            <dd data-test-id="group_interval_value">
+              {_.get(config, ['route', 'group_interval'], '-')}
+            </dd>
             <dt>Repeat Interval</dt>
-            <dd>{_.get(config, ['route', 'repeat_interval'], '-')}</dd>
+            <dd data-test-id="repeat_interval_value">
+              {_.get(config, ['route', 'repeat_interval'], '-')}
+            </dd>
           </dl>
         </div>
       </div>
@@ -55,6 +68,7 @@ const tableColumnClasses = [
   classNames('col-lg-3', 'col-md-3', 'col-sm-6', 'col-xs-6'),
   classNames('col-lg-3', 'col-md-3', 'hidden-sm', 'hidden-xs'),
   classNames('col-lg-6', 'col-md-6', 'col-sm-6', 'col-xs-6'),
+  Kebab.columnClass,
 ];
 
 const ReceiverTableHeader = () => {
@@ -73,34 +87,90 @@ const ReceiverTableHeader = () => {
       title: 'Routing Labels',
       props: { className: tableColumnClasses[2] },
     },
+    {
+      title: '',
+      props: { className: tableColumnClasses[3] },
+    },
   ];
 };
 ReceiverTableHeader.displayName = 'ReceiverTableHeader';
 
-const getIntegrationTypes = (receiver) => {
+const getIntegrationTypes = (receiver: AlertManagerReceiver): string[] => {
   /* Given receiver = {
        "name": "team-X-pager",
        "email_configs": [...],
        "pagerduty_configs": [...]
      };
-     returns "email, pagerduty"
+     returns ['email_configs', 'pagerduty_configs']
   */
-  const integrationTypes = _.filter(_.keys(receiver), (key) => _.includes(key, '_configs'));
-  return _.join(_.map(integrationTypes, (type) => type.substr(0, type.indexOf('_configs'))), ', ');
+  return _.filter(_.keys(receiver), (v) => _.endsWith(v, '_configs'));
 };
 
-// Recursive function to get hierarchy of routing labels for each receiver
-const getRoutingLabels = (routes, parentLabels) => {
-  let results = [];
+/**
+ * Recursive function which transverses routes and sub-routes to get labels for each receiver.
+ * Each entry is a set of labels used to route alerts to a receiver
+ *
+ * Ex: returns
+ * [{
+ *   "receiver": "team-Y-pager",
+ *   "labels": {
+ *     "service": "database",
+ *     "owner": "team-Y"
+ *   }
+ * },
+ * {
+ *   "receiver": "team-Y-pager",
+ *   "labels": {
+ *     "service": "files",
+ *     "severity": "critical"
+ *   }
+ * }]
+}*/
+const getRoutingLabelsByReceivers = (routes, parentLabels): RoutingLabelsByReceivers[] => {
+  let results: RoutingLabelsByReceivers[] = [];
   let labels = {};
   for (const obj of routes) {
-    labels = _.merge({}, parentLabels, obj.match || obj.match_re);
+    labels = _.merge({}, parentLabels, obj.match, obj.match_re);
     results.push({ receiver: obj.receiver, labels });
     if (obj.routes) {
-      results = results.concat(getRoutingLabels(obj.routes, labels));
+      results = results.concat(getRoutingLabelsByReceivers(obj.routes, labels));
     }
   }
   return results;
+};
+
+/**
+ * Is receiver used in a top-level route that has no sub routes, or
+ * is receiver not in any route (no routing labels)?
+ */
+const hasSimpleRoute = (
+  receiver: AlertManagerReceiver,
+  receiverRoutingLabels: RoutingLabelsByReceivers[],
+): boolean => {
+  const routes = _.get(config, ['route', 'routes']);
+  return (
+    _.filter(routes, (route) => {
+      return route.receiver === receiver.name && _.isUndefined(route.routes);
+    }).length > 0 || _.isEmpty(receiverRoutingLabels)
+  );
+};
+
+/**
+ * Does receiver contains a single known receiver type (ex: pagerduty_config), which has a single config.
+ * No receiver type specified is valid, as well as a single receiver type with no config
+ */
+const hasSimpleReceiver = (
+  receiver: AlertManagerReceiver,
+  receiverIntegrationTypes: string[],
+): boolean => {
+  if (receiverIntegrationTypes.length === 0) {
+    return true;
+  } else if (receiverIntegrationTypes.length === 1) {
+    const receiverConfig = receiverIntegrationTypes[0]; // ex: 'pagerduty_configs'
+    const numConfigs = _.get(receiver, receiverConfig).length; // 'pagerduty_configs' is array and may have multiple sets of properties
+    return _.hasIn(receiverTypes, receiverConfig) && numConfigs <= 1; // known receiver type and a single set of props
+  }
+  return false;
 };
 
 // Puts sets of key=value pairs into single comma delimited label
@@ -117,32 +187,97 @@ const RoutingLabel: React.FC<RoutingLabelProps> = ({ labels }) => {
         <span className="co-m-label__key">{key}</span>
         <span className="co-m-label__eq">=</span>
         <span className="co-m-label__value">{value}</span>
-        {count < _.size(labels) && <React.Fragment>,&nbsp;</React.Fragment>}
+        {count < _.size(labels) && <>,&nbsp;</>}
       </React.Fragment>
     );
   });
-  return <div className="co-m-label co-m-label--expand">{list}</div>;
+  return (
+    <div>
+      <div className="co-m-label co-m-label--expand">{list}</div>
+    </div>
+  );
 };
+
+const deleteReceiver = (receiverName: string) => {
+  // remove any routes which use receiverToDelete
+  _.update(config, 'route.routes', (routes) => {
+    _.remove(routes, (route: AlertManagerRoute) => route.receiver === receiverName);
+    return routes;
+  });
+  // delete receiver
+  _.update(config, 'receivers', (receivers) => {
+    _.remove(receivers, (receiver: AlertManagerReceiver) => receiver.name === receiverName);
+    return receivers;
+  });
+  return patchAlertManagerConfig(secret, config).then(() => {
+    history.push('/monitoring/alertmanagerconfig');
+  });
+};
+
+const receiverMenuItems = (receiverName: string, canDelete: boolean, canUseEditForm: boolean) => [
+  {
+    label: `Edit ${canUseEditForm ? 'Receiver' : 'YAML'}`,
+    callback: () => {
+      const targetUrl = canUseEditForm
+        ? `/monitoring/alertmanagerconfig/receivers/${receiverName}/edit`
+        : `/monitoring/alertmanageryaml`;
+      return history.push(targetUrl);
+    },
+  },
+  {
+    label: 'Delete Receiver',
+    isDisabled: !canDelete,
+    tooltip: !canDelete
+      ? 'Cannot delete the default receiver, or a receiver which has a sub-route'
+      : '',
+    callback: () =>
+      confirmModal({
+        title: 'Delete Receiver',
+        message: `Are you sure you want to delete receiver '${receiverName}' ?`,
+        btnText: 'Delete Receiver',
+        executeFn: () => deleteReceiver(receiverName),
+      }),
+  },
+];
 
 const ReceiverTableRow: React.FC<ReceiverTableRowProps> = ({
   obj: receiver,
   index,
   key,
   style,
-  customData: routingLabels,
+  customData,
 }) => {
+  const { routingLabelsByReceivers, defaultReceiverName } = customData;
   // filter to routing labels belonging to current Receiver
-  const receiverRoutingLabels = _.filter(routingLabels, { receiver: receiver.name });
+  const receiverRoutingLabels = _.filter(routingLabelsByReceivers, { receiver: receiver.name });
+  const receiverIntegrationTypes = getIntegrationTypes(receiver);
+  const integrationTypesLabel = _.join(
+    _.map(receiverIntegrationTypes, (type) => type.substr(0, type.indexOf('_configs'))),
+    ', ',
+  );
+  const isDefaultReceiver = receiver.name === defaultReceiverName;
+  const receiverHasSimpleRoute = hasSimpleRoute(receiver, receiverRoutingLabels);
+
+  // Receiver form can only handle simple configurations. Can edit via form if receiver
+  // has a simple route and receiver
+  const canUseEditForm =
+    receiverHasSimpleRoute && hasSimpleReceiver(receiver, receiverIntegrationTypes);
+
+  // Receivers can be deleted if it has a simple route and not the default receiver
+  const canDelete = !isDefaultReceiver && receiverHasSimpleRoute;
+
   return (
     <TableRow id={index} index={index} trKey={key} style={style}>
       <TableData className={tableColumnClasses[0]}>{receiver.name}</TableData>
-      <TableData className={tableColumnClasses[1]}>{getIntegrationTypes(receiver)}</TableData>
+      <TableData className={tableColumnClasses[1]}>{integrationTypesLabel}</TableData>
       <TableData className={tableColumnClasses[2]}>
-        {_.map(receiverRoutingLabels, (route, i) => (
-          <div key={i}>
-            <RoutingLabel labels={_.get(route, 'labels')} />
-          </div>
-        ))}
+        {isDefaultReceiver && <RoutingLabel labels={{ default: 'all' }} />}
+        {_.map(receiverRoutingLabels, (route, i) => {
+          return !_.isEmpty(route.labels) ? <RoutingLabel key={i} labels={route.labels} /> : null;
+        })}
+      </TableData>
+      <TableData className={tableColumnClasses[3]}>
+        <Kebab options={receiverMenuItems(receiver.name, canDelete, canUseEditForm)} />
       </TableData>
     </TableRow>
   );
@@ -150,19 +285,17 @@ const ReceiverTableRow: React.FC<ReceiverTableRowProps> = ({
 ReceiverTableRow.displayName = 'ReceiverTableRow';
 
 const ReceiversTable: React.FC<ReceiverTableProps> = (props) => {
-  const { route, filterValue } = props;
-  const { receiver: defaultReceiver, routes } = route;
+  const { filterValue } = props;
+  const { route } = config;
+  const { receiver: defaultReceiverName, routes } = route;
 
-  const routingLabels = getRoutingLabels(routes, {});
-  if (defaultReceiver) {
-    routingLabels.push({ receiver: defaultReceiver, labels: { default: 'all' } });
-  }
+  const routingLabelsByReceivers = _.isEmpty(routes) ? [] : getRoutingLabelsByReceivers(routes, {});
   const EmptyMsg = () => <MsgBox title={`No Receivers match filter '${filterValue}'`} />;
   return (
     <Table
       {...props}
       aria-label="Receivers"
-      customData={routingLabels}
+      customData={{ routingLabelsByReceivers, defaultReceiverName }}
       EmptyMsg={EmptyMsg}
       Header={ReceiverTableHeader}
       Row={ReceiverTableRow}
@@ -186,7 +319,7 @@ const ReceiversEmptyState: React.FC = () => (
   </EmptyState>
 );
 
-const Receivers: React.FC<AlertManagerProps> = ({ config }) => {
+const Receivers = () => {
   const [receiverFilter, setReceiverFilter] = React.useState('');
   let receivers = _.get(config, 'receivers', []);
   if (receiverFilter) {
@@ -197,6 +330,13 @@ const Receivers: React.FC<AlertManagerProps> = ({ config }) => {
     <div className="co-m-pane__body">
       <SectionHeading text="Receivers" />
       <div className="co-m-pane__filter-bar co-m-pane__filter-bar--alt">
+        <div className="co-m-pane__filter-bar-group">
+          <Link className="co-m-primary-action" to="/monitoring/alertmanagerconfig/receivers/~new">
+            <Button variant="primary" data-test-id="create-receiver">
+              Create Receiver
+            </Button>
+          </Link>
+        </div>
         <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--filter">
           <TextFilter
             defaultValue=""
@@ -208,62 +348,51 @@ const Receivers: React.FC<AlertManagerProps> = ({ config }) => {
       {_.isEmpty(receivers) && !receiverFilter ? (
         <ReceiversEmptyState />
       ) : (
-        <ReceiversTable
-          filterValue={receiverFilter}
-          data={receivers}
-          route={_.get(config, 'route')}
-        />
+        <ReceiversTable filterValue={receiverFilter} data={receivers} />
       )}
     </div>
   );
 };
 
-const AlertManagerConfiguration: React.FC<AlertManagerConfigurationProps> = ({ obj: secret }) => {
-  const alertManagerYaml = _.get(secret, ['data', 'alertmanager.yaml']);
-  let errorMsg;
-  let yamlStringData;
-  let config;
+const AlertManagerConfiguration: React.FC<AlertManagerConfigurationProps> = ({ obj }) => {
+  const [errorMsg, setErrorMsg] = React.useState('');
+  secret = obj; // alertmanager-main Secret which holds encoded alertmanager configuration yaml
+  if (!errorMsg) {
+    config = getAlertManagerConfig(secret, setErrorMsg);
+  }
 
-  if (!_.isEmpty(alertManagerYaml)) {
-    yamlStringData = Base64.decode(alertManagerYaml);
-    try {
-      config = safeLoad(yamlStringData);
-    } catch (e) {
-      errorMsg = `Error parsing YAML: ${e}`;
-    }
+  if (errorMsg) {
+    return (
+      <Alert
+        isInline
+        className="co-alert co-alert--scrollable"
+        variant="danger"
+        title="An error occurred"
+      >
+        <div className="co-pre-line">{errorMsg}</div>
+      </Alert>
+    );
   }
 
   return (
-    <div className="co-m-pane__body">
-      {errorMsg && <span>{errorMsg}</span>}
-      {!errorMsg && (
-        <React.Fragment>
-          <AlertRouting secret={secret} config={config} />
-          <Receivers config={config} />
-        </React.Fragment>
-      )}
-    </div>
+    <>
+      <AlertRouting />
+      <Receivers />
+    </>
   );
 };
 
 export const AlertManagerConfigWrapper: React.FC<AlertManagerConfigWrapperProps> = React.memo(
   ({ obj, ...props }) => {
-    const [inProgress, setInProgress] = React.useState(true);
-
-    React.useEffect(() => {
-      if (inProgress && !_.isEmpty(obj.data)) {
-        setInProgress(false);
-      }
-    }, [inProgress, obj.data]);
-
-    if (inProgress) {
-      return <LoadingBox />;
-    }
-
     return (
-      <StatusBox {...obj}>
-        <AlertManagerConfiguration {...props} obj={obj.data} />
-      </StatusBox>
+      <>
+        <Helmet>
+          <title>Alerting</title>
+        </Helmet>
+        <StatusBox {...obj}>
+          <AlertManagerConfiguration {...props} obj={obj.data} />
+        </StatusBox>
+      </>
     );
   },
 );
@@ -283,7 +412,7 @@ type labels = {
   [key: string]: string;
 };
 
-type AlertManagerRoute = {
+export type AlertManagerRoute = {
   receiver?: string;
   groupBy?: { [key: string]: string };
   groupWait?: string;
@@ -291,30 +420,37 @@ type AlertManagerRoute = {
   repeatInterval?: string;
   match?: labels[];
   matchRe?: labels[];
-  routes?: AlertManagerRoute;
+  routes?: AlertManagerRoute[];
 };
 
-type RoutesByReceivers = {
+type RoutingLabelsByReceivers = {
   receiver: string;
   labels: { [key: string]: string };
 };
 
-type AlertManagerReceiver = {
-  name: string;
+type WebhookConfig = {
+  url: string;
 };
 
-type AlertManagerProps = {
-  config: {
-    route: AlertManagerRoute;
-    receivers: AlertManagerReceiver[];
-  };
-  secret?: K8sResourceKind;
+type PagerDutyConfig = {
+  routingKey?: string;
+  serviceKey?: string;
+};
+
+export type AlertManagerReceiver = {
+  name: string;
+  webhookConfigs?: WebhookConfig[];
+  pagerdutyConfigs?: PagerDutyConfig[];
+};
+
+export type AlertManagerConfig = {
+  route: AlertManagerRoute;
+  receivers: AlertManagerReceiver[];
 };
 
 type ReceiverTableProps = {
   data: AlertManagerReceiver[];
   filterValue?: string;
-  route: AlertManagerRoute;
 };
 
 type ReceiverTableRowProps = {
@@ -322,7 +458,10 @@ type ReceiverTableRowProps = {
   index: number;
   key?: string;
   style: object;
-  customData: RoutesByReceivers;
+  customData: {
+    routingLabelsByReceivers: RoutingLabelsByReceivers[];
+    defaultReceiverName: string;
+  };
 };
 
 type RoutingLabelProps = {

@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { TextInputTypes } from '@patternfly/react-core';
-import { InputField, DroppableFileInputField } from '../../formik-fields';
+import { InputField, DroppableFileInputField } from '@console/shared';
 
 const PipelineClusterOptions: React.FC = () => (
-  <React.Fragment>
+  <>
     <InputField
       type={TextInputTypes.text}
       name="params.name"
@@ -49,7 +49,7 @@ const PipelineClusterOptions: React.FC = () => (
       helpText="Upload file by dragging &amp; dropping, selecting it, or pasting from the clipboard."
       required
     />
-  </React.Fragment>
+  </>
 );
 
 export default PipelineClusterOptions;

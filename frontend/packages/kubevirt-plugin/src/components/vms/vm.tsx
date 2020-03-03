@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { connect } from 'react-redux';
 import * as classNames from 'classnames';
 import { sortable } from '@patternfly/react-table';
 import {
@@ -24,11 +23,11 @@ import {
 import { VMIKind, VMKind } from '../../types';
 import { getMigrationVMIName, isMigrating } from '../../selectors/vmi-migration';
 import { getBasicID, getLoadedData, getResource } from '../../utils';
-import { openCreateVmWizard } from '../modals';
 import { getVMStatus } from '../../statuses/vm/vm';
-import { getCreateVMWizards } from '../create-vm-wizard/selectors/selectors';
 import { vmStatusFilter } from './table-filters';
 import { menuActions } from './menu-actions';
+
+import './vm.scss';
 
 const tableColumnClasses = [
   classNames('col-lg-4', 'col-md-4', 'col-sm-6', 'col-xs-6'),
@@ -73,11 +72,11 @@ const VMRow: React.FC<VMRowProps> = ({
   const name = getName(vm);
   const namespace = getNamespace(vm);
   const uid = getUID(vm);
-  const vmStatus = getVMStatus(vm, pods, migrations);
   const lookupID = getBasicID(vm);
 
   const migration = migrationLookup[lookupID];
   const vmi = vmiLookup[lookupID];
+  const vmStatus = getVMStatus({ vm, vmi, pods, migrations });
 
   return (
     <TableRow id={uid} index={index} trKey={key} style={style}>
@@ -88,7 +87,7 @@ const VMRow: React.FC<VMRowProps> = ({
         <ResourceLink kind={NamespaceModel.kind} name={namespace} title={namespace} />
       </TableData>
       <TableData className={dimensify()}>
-        <VMStatus vm={vm} pods={pods} migrations={migrations} />
+        <VMStatus vm={vm} vmi={vmi} pods={pods} migrations={migrations} />
       </TableData>
       <TableData className={dimensify(true)}>
         <Kebab
@@ -110,55 +109,56 @@ const VMRow: React.FC<VMRowProps> = ({
 const VMList: React.FC<React.ComponentProps<typeof Table> & VMListProps> = (props) => {
   const { resources } = props;
   return (
-    <Table
-      {...props}
-      aria-label={VirtualMachineModel.labelPlural}
-      Header={VMHeader}
-      Row={VMRow}
-      virtualize
-      customData={{
-        pods: getLoadedData(resources.pods, []),
-        migrations: getLoadedData(resources.migrations, []),
-        vmiLookup: createLookup(resources.vmis, getBasicID),
-        migrationLookup: createLookup(
-          resources.migrations,
-          (m) => isMigrating(m) && `${getNamespace(m)}-${getMigrationVMIName(m)}`,
-        ),
-      }}
-    />
+    <div className="kubevirt-vm-list">
+      <Table
+        {...props}
+        aria-label={VirtualMachineModel.labelPlural}
+        Header={VMHeader}
+        Row={VMRow}
+        virtualize
+        customData={{
+          pods: getLoadedData(resources.pods, []),
+          migrations: getLoadedData(resources.migrations, []),
+          vmiLookup: createLookup(resources.vmis, getBasicID),
+          migrationLookup: createLookup(
+            resources.migrations,
+            (m) => isMigrating(m) && `${getNamespace(m)}-${getMigrationVMIName(m)}`,
+          ),
+        }}
+      />
+    </div>
   );
 };
 
 VMList.displayName = 'VMList';
 
-const getCreateProps = ({
-  namespace,
-  hasCreateVMWizardsSupport,
-}: {
-  namespace: string;
-  hasCreateVMWizardsSupport: boolean;
-}) => {
+const getCreateProps = ({ namespace }: { namespace: string }) => {
   const items: any = {
-    wizard: 'Create with Wizard',
-    yaml: 'Create from YAML',
+    wizard: 'New with Wizard',
+    wizardImport: 'Import with Wizard',
+    yaml: 'New from YAML',
   };
-
-  if (hasCreateVMWizardsSupport) {
-    items.wizardNew = 'Create with New Wizard';
-  }
 
   return {
     items,
-    createLink: (itemName) =>
-      `/k8s/ns/${namespace || 'default'}/virtualmachines/${
-        !hasCreateVMWizardsSupport || itemName === 'yaml' ? '~new' : '~new-wizard'
-      }`, // covers 'yaml', new-wizard and default
-    action: (itemName) => (itemName === 'wizard' ? () => openCreateVmWizard(namespace) : null),
+    createLink: (itemName) => {
+      const base = `/k8s/ns/${namespace || 'default'}/virtualmachines`;
+
+      switch (itemName) {
+        case 'wizard':
+          return `${base}/~new-wizard`;
+        case 'wizardImport':
+          return `${base}/~new-wizard?mode=import`;
+        case 'yaml':
+        default:
+          return `${base}/~new`;
+      }
+    },
   };
 };
 
-const VirtualMachinesPageComponent: React.FC<VirtualMachinesPageProps> = (props) => {
-  const { namespace, hasCreateVMWizardsSupport } = props;
+export const VirtualMachinesPage: React.FC<VirtualMachinesPageProps> = (props) => {
+  const { namespace, skipAccessReview } = props;
 
   const resources = [
     getResource(VirtualMachineModel, { namespace, prop: 'vms' }),
@@ -172,25 +172,24 @@ const VirtualMachinesPageComponent: React.FC<VirtualMachinesPageProps> = (props)
   ];
 
   const flatten = ({ vms }) => getLoadedData(vms, []);
+  const createAccessReview = skipAccessReview ? null : { model: VirtualMachineModel, namespace };
 
   return (
     <MultiListPage
       {...props}
+      createAccessReview={createAccessReview}
+      createButtonText="Create Virtual Machine"
       canCreate
       title={VirtualMachineModel.labelPlural}
       rowFilters={[vmStatusFilter]}
       ListComponent={VMList}
-      createProps={getCreateProps({ namespace, hasCreateVMWizardsSupport })}
+      createProps={getCreateProps({ namespace })}
       resources={resources}
       flatten={flatten}
       label={VirtualMachineModel.labelPlural}
     />
   );
 };
-
-export const VirtualMachinesPage = connect((state) => ({
-  hasCreateVMWizardsSupport: !!getCreateVMWizards(state),
-}))(VirtualMachinesPageComponent);
 
 type VMRowProps = {
   obj: VMKind;
@@ -218,4 +217,5 @@ type VirtualMachinesPageProps = {
   namespace: string;
   obj: VMKind;
   hasCreateVMWizardsSupport: boolean;
+  skipAccessReview?: boolean;
 };

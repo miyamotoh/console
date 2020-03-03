@@ -3,12 +3,17 @@ import * as _ from 'lodash-es';
 import * as PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Modal } from 'patternfly-react';
-import { CatalogItemHeader, PropertiesSidePanel, PropertyItem } from 'patternfly-react-extensions';
+import {
+  CatalogItemHeader,
+  PropertiesSidePanel,
+  PropertyItem,
+} from '@patternfly/react-catalog-view-extension';
 
 import { normalizeIconClass } from './catalog-item-icon';
 import { ClusterServicePlanModel } from '../../models';
 import { k8sGet } from '../../module/k8s';
-import { Timestamp, ExternalLink } from '../utils';
+import { Timestamp, ExternalLink, SectionHeading } from '../utils';
+import { SyncMarkdownView } from '../markdown-view';
 
 export class CatalogTileDetails extends React.Component {
   state = {
@@ -54,7 +59,7 @@ export class CatalogTileDetails extends React.Component {
     const iconClass = tileIconClass ? normalizeIconClass(tileIconClass) : null;
     const creationTimestamp = _.get(obj, 'metadata.creationTimestamp');
 
-    const supportUrlLink = <ExternalLink href={supportUrl} text="Get Support" />;
+    const supportUrlLink = <ExternalLink href={supportUrl} text="Get support" />;
     const documentationUrlLink = (
       <ExternalLink
         href={documentationUrl}
@@ -70,7 +75,7 @@ export class CatalogTileDetails extends React.Component {
     ));
 
     return (
-      <React.Fragment>
+      <>
         <Modal.Header>
           <Modal.CloseButton onClick={closeOverlay} />
           <CatalogItemHeader
@@ -104,23 +109,24 @@ export class CatalogTileDetails extends React.Component {
                   )}
                 </PropertiesSidePanel>
                 <div className="co-catalog-page__overlay-description">
-                  {tileDescription && <p>{tileDescription}</p>}
+                  <SectionHeading text="Description" />
+                  {tileDescription && <SyncMarkdownView content={tileDescription} />}
                   {longDescription && <p>{longDescription}</p>}
                   {sampleRepo && <p>Sample repository: {sampleRepoLink}</p>}
                   {documentationUrl && (
-                    <React.Fragment>
+                    <>
                       <h2 className="h5">Documentation</h2>
                       <p>{documentationUrlLink}</p>
-                    </React.Fragment>
+                    </>
                   )}
                   {!_.isEmpty(plans) && (
-                    <React.Fragment>
+                    <>
                       <h2 className="h5">Service Plans</h2>
                       <ul>{planItems}</ul>
-                    </React.Fragment>
+                    </>
                   )}
                   {kind === 'ImageStream' && (
-                    <React.Fragment>
+                    <>
                       <hr />
                       <p>The following resources will be created:</p>
                       <ul>
@@ -151,14 +157,14 @@ export class CatalogTileDetails extends React.Component {
                           expose your workload outside the cluster.
                         </li>
                       </ul>
-                    </React.Fragment>
+                    </>
                   )}
                 </div>
               </div>
             </div>
           </div>
         </Modal.Body>
-      </React.Fragment>
+      </>
     );
   }
 }

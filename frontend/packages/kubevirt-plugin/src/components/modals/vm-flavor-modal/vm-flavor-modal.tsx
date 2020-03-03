@@ -1,7 +1,6 @@
 import * as React from 'react';
 import * as _ from 'lodash';
 import * as classNames from 'classnames';
-import { getResource } from 'kubevirt-web-ui-components';
 import {
   HandlePromiseProps,
   withHandlePromise,
@@ -36,6 +35,7 @@ import {
   TEMPLATE_TYPE_LABEL,
   TEMPLATE_TYPE_BASE,
 } from '../../../constants';
+import { getResource } from '../../../utils';
 import './_vm-flavor-modal.scss';
 
 const MB = 1000 ** 2;
@@ -113,7 +113,7 @@ const VMFlavorModal = withHandlePromise((props: VMFlavornModalProps) => {
           </FormGroup>
 
           {flavor === CUSTOM_FLAVOR && (
-            <React.Fragment>
+            <>
               <FormGroup label="CPUs" isRequired fieldId={getId('cpu')}>
                 <TextInput
                   isRequired
@@ -134,7 +134,7 @@ const VMFlavorModal = withHandlePromise((props: VMFlavornModalProps) => {
                   aria-label="Memory"
                 />
               </FormGroup>
-            </React.Fragment>
+            </>
           )}
         </Form>
       </ModalBody>

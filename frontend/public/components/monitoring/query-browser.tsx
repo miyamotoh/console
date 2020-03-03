@@ -47,6 +47,12 @@ import { GraphEmpty } from '../graphs/graph-empty';
 import { getPrometheusURL, PrometheusEndpoint } from '../graphs/helpers';
 import { queryBrowserTheme } from '../graphs/themes';
 
+// Prometheus internal labels start with "__"
+const isInternalLabel = (key: string): boolean => _.startsWith(key, '__');
+
+// External labels added by Prometheus (included in Thanos Querier responses)
+const isExternalLabel = (key: string): boolean => key === 'prometheus';
+
 const spans = ['5m', '15m', '30m', '1h', '2h', '6h', '12h', '1d', '2d', '1w', '2w'];
 const dropdownItems = _.zipObject(spans, spans);
 const chartTheme = getCustomTheme(
@@ -100,7 +106,7 @@ const SpanControls: React.FC<SpanControlsProps> = React.memo(
     };
 
     return (
-      <React.Fragment>
+      <>
         <TextInput
           aria-label="graph timespan"
           className="query-browser__span-text"
@@ -124,7 +130,7 @@ const SpanControls: React.FC<SpanControlsProps> = React.memo(
         >
           Reset Zoom
         </Button>
-      </React.Fragment>
+      </>
     );
   },
 );
@@ -203,7 +209,8 @@ const Tooltip_: React.FC<TooltipProps> = ({ datum, x, y }) =>
   ) : null;
 const Tooltip = withFallback(Tooltip_);
 
-const graphLabelComponent = <ChartTooltip flyoutComponent={<Tooltip />} />;
+// The `center` prop is required by ChartTooltip, but is actually overridden by our custom tooltip
+const graphLabelComponent = <ChartTooltip center={{ x: 0, y: 0 }} flyoutComponent={<Tooltip />} />;
 
 // Set activateData to false to work around VictoryVoronoiContainer crash (see
 // https://github.com/FormidableLabs/victory/issues/1314)
@@ -216,8 +223,15 @@ const graphContainer = (
   />
 );
 
-const Graph: React.FC<GraphProps> = React.memo(({ data, disableTooltips, span, xDomain }) => {
+const Graph: React.FC<GraphProps> = React.memo(({ allSeries, disabledSeries, span, xDomain }) => {
   const [containerRef, width] = useRefWidth();
+
+  // Remove any disabled series
+  const data = _.flatMap(allSeries, (series, i) => {
+    return _.map(series, ([metric, values]) => {
+      return _.some(disabledSeries[i], (s) => _.isEqual(s, metric)) ? [{}] : values;
+    });
+  });
 
   // Set a reasonable Y-axis range based on the min and max values in the data
   const findMin = (series) => _.minBy(series, 'y');
@@ -233,14 +247,16 @@ const Graph: React.FC<GraphProps> = React.memo(({ data, disableTooltips, span, x
     maxY = 0;
   }
 
-  const tickFormat =
+  const xTickFormat = span < 5 * 60 * 1000 ? twentyFourHourTimeWithSeconds : twentyFourHourTime;
+
+  const yTickFormat =
     Math.abs(maxY - minY) < 0.005 ? (v) => (v === 0 ? '0' : v.toExponential(1)) : formatValue;
 
   return (
     <div ref={containerRef} style={{ width: '100%' }}>
       {width > 0 && (
         <Chart
-          containerComponent={disableTooltips ? undefined : graphContainer}
+          containerComponent={graphContainer}
           domain={{ x: xDomain || [Date.now() - span, Date.now()], y: [minY, maxY] }}
           domainPadding={{ y: 1 }}
           height={200}
@@ -248,8 +264,8 @@ const Graph: React.FC<GraphProps> = React.memo(({ data, disableTooltips, span, x
           theme={chartTheme}
           width={width}
         >
-          <ChartAxis tickCount={5} tickFormat={twentyFourHourTime} />
-          <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={tickFormat} />
+          <ChartAxis tickCount={5} tickFormat={xTickFormat} />
+          <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={yTickFormat} />
           <ChartGroup>
             {_.map(data, (values, i) => (
               <ChartLine key={i} data={values} />
@@ -296,7 +312,7 @@ const maxDataPointsSoft = 6000;
 const maxDataPointsHard = 10000;
 
 // Min and max number of data samples per data series
-const minSamples = 20;
+const minSamples = 10;
 const maxSamples = 300;
 
 // We don't want to refresh all the graph data for just a small adjustment in the number of samples, so don't update
@@ -312,14 +328,80 @@ const minSpan = 30 * 1000;
 // Don't poll more often than this number of milliseconds
 const minPollInterval = 10 * 1000;
 
+const ZoomableGraph: React.FC<ZoomableGraphProps> = ({
+  allSeries,
+  disabledSeries,
+  onZoom,
+  span,
+  xDomain,
+}) => {
+  const [isZooming, setIsZooming] = React.useState(false);
+  const [x1, setX1] = React.useState(0);
+  const [x2, setX2] = React.useState(0);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    setIsZooming(true);
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+    setX1(x);
+    setX2(x);
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    setX2(e.clientX - e.currentTarget.getBoundingClientRect().left);
+  };
+
+  const onMouseUp = (e: React.MouseEvent) => {
+    setIsZooming(false);
+
+    const xMin = Math.min(x1, x2);
+    const xMax = Math.max(x1, x2);
+
+    // Don't do anything if a range was not selected (don't zoom if you just click the graph)
+    if (xMax === xMin) {
+      return;
+    }
+
+    const { width } = e.currentTarget.getBoundingClientRect();
+    const oldFrom = _.get(xDomain, '[0]', Date.now() - span);
+    let from = oldFrom + (span * xMin) / width;
+    let to = oldFrom + (span * xMax) / width;
+    let newSpan = to - from;
+
+    if (newSpan < minSpan) {
+      newSpan = minSpan;
+      const middle = (from + to) / 2;
+      from = middle - newSpan / 2;
+      to = middle + newSpan / 2;
+    }
+    onZoom(from, to);
+  };
+
+  const handlers = isZooming ? { onMouseMove, onMouseUp } : { onMouseDown };
+
+  return (
+    <div className="query-browser__zoom" {...handlers}>
+      {isZooming && (
+        <div
+          className="query-browser__zoom-overlay"
+          style={{ left: Math.min(x1, x2), width: Math.abs(x1 - x2) }}
+        />
+      )}
+      <Graph allSeries={allSeries} disabledSeries={disabledSeries} span={span} xDomain={xDomain} />
+    </div>
+  );
+};
+
 const QueryBrowser_: React.FC<QueryBrowserProps> = ({
+  defaultSamples,
   defaultTimespan,
   disabledSeries = [],
   filterLabels,
   GraphLink,
+  hideControls,
   hideGraphs,
   namespace,
   patchQuery,
+  pollInterval,
   queries,
 }) => {
   // For the default time span, use the first of the suggested span options that is at least as long as defaultTimespan
@@ -328,17 +410,15 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
   const [span, setSpan] = React.useState(parsePrometheusDuration(defaultSpanText));
 
   // Limit the number of samples so that the step size doesn't fall below minStep
-  const maxSamplesForSpan = _.clamp(Math.round(span / minStep), minSamples, maxSamples);
+  const maxSamplesForSpan =
+    defaultSamples || _.clamp(Math.round(span / minStep), minSamples, maxSamples);
 
   const [xDomain, setXDomain] = React.useState();
   const [error, setError] = React.useState();
   const [isDatasetTooBig, setIsDatasetTooBig] = React.useState(false);
-  const [isZooming, setIsZooming] = React.useState(false);
-  const [results, setResults] = React.useState();
+  const [graphData, setGraphData] = React.useState();
   const [samples, setSamples] = React.useState(maxSamplesForSpan);
   const [updating, setUpdating] = React.useState(true);
-  const [x1, setX1] = React.useState(0);
-  const [x2, setX2] = React.useState(0);
 
   const endTime = _.get(xDomain, '[1]');
 
@@ -390,7 +470,20 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
             ) {
               setSamples(newSamples);
             } else {
-              setResults(newResults);
+              const newGraphData = _.map(newResults, (result) => {
+                return _.map(result, ({ metric, values }) => {
+                  // If filterLabels is specified, ignore all series that don't match
+                  return filterLabels &&
+                    _.some(
+                      metric,
+                      (v, k) => filterLabels[k] !== v && !isInternalLabel(k) && !isExternalLabel(k),
+                    )
+                    ? []
+                    : [metric, formatSeriesValues(values, samples, span)];
+                });
+              });
+              setGraphData(newGraphData);
+
               _.each(newResults, (r, i) =>
                 patchQuery(i, {
                   series: r ? _.map(r, 'metric') : undefined,
@@ -409,32 +502,14 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
 
   // Don't poll if an end time was set (because the latest data is not displayed) or if the graph is hidden. Otherwise
   // use a polling interval relative to the graph's timespan.
-  const delay = endTime || hideGraphs ? null : Math.max(span / 120, minPollInterval);
+  const tickInterval =
+    pollInterval === undefined ? Math.max(span / 120, minPollInterval) : pollInterval;
+  const delay = endTime || hideGraphs ? null : tickInterval;
 
-  usePoll(tick, delay, endTime, namespace, queries, samples, span);
+  const queriesKey = _.reject(queries, _.isEmpty).join();
+  usePoll(tick, delay, endTime, filterLabels, namespace, queriesKey, samples, span);
 
-  React.useEffect(() => setUpdating(true), [endTime, queries, samples, span]);
-
-  const graphData: GraphDataPoint[][] = React.useMemo(
-    () =>
-      _.flatten(
-        _.map(results, (result, responseIndex) => {
-          return _.map(result, ({ metric, values }) => {
-            // If filterLabels is specified, ignore all series that don't match
-            const isIgnored = filterLabels
-              ? // Ignore internal labels (start with "__")
-                _.some(metric, (v, k) => filterLabels[k] !== v && !_.startsWith(k, '__'))
-              : _.some(disabledSeries[responseIndex], (s) => _.isEqual(s, metric));
-
-            return isIgnored ? [{ x: null, y: null }] : formatSeriesValues(values, samples, span);
-          });
-        }),
-      ),
-    // Some of the hook dependencies are not included because we instead want those dependencies to trigger an Prometheus
-    // API call, which will update `results` and then trigger this hook
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [disabledSeries, filterLabels, results],
-  );
+  React.useLayoutEffect(() => setUpdating(true), [endTime, namespace, queriesKey, samples, span]);
 
   const onSpanChange = React.useCallback((newSpan: number) => {
     setXDomain(undefined);
@@ -466,49 +541,9 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
     );
   }
 
-  const onMouseDown = (e) => {
-    if (!isZooming) {
-      setIsZooming(true);
-      const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-      setX1(x);
-      setX2(x);
-    }
-  };
-
-  const onMouseMove = (e) => {
-    if (isZooming) {
-      setX2(e.clientX - e.currentTarget.getBoundingClientRect().left);
-    }
-  };
-
-  const onMouseUp = (e) => {
-    if (isZooming) {
-      setIsZooming(false);
-
-      const xMin = Math.min(x1, x2);
-      const xMax = Math.max(x1, x2);
-
-      // Don't do anything if a range was not selected (don't zoom if you just click the graph)
-      if (xMax === xMin) {
-        return;
-      }
-
-      const { width } = e.currentTarget.getBoundingClientRect();
-      const oldFrom = _.get(xDomain, '[0]', Date.now() - span);
-      let from = oldFrom + (span * xMin) / width;
-      let to = oldFrom + (span * xMax) / width;
-      let newSpan = to - from;
-
-      if (newSpan < minSpan) {
-        newSpan = minSpan;
-        const middle = (from + to) / 2;
-        from = middle - newSpan / 2;
-        to = middle + newSpan / 2;
-      }
-
-      setXDomain([from, to]);
-      setSpan(newSpan);
-    }
+  const onZoom = (from: number, to: number) => {
+    setXDomain([from, to]);
+    setSpan(to - from);
   };
 
   return (
@@ -519,7 +554,9 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
     >
       <div className="query-browser__controls">
         <div className="query-browser__controls--left">
-          <SpanControls defaultSpanText={defaultSpanText} onChange={onSpanChange} span={span} />
+          {!hideControls && (
+            <SpanControls defaultSpanText={defaultSpanText} onChange={onSpanChange} span={span} />
+          )}
           {updating && (
             <div className="query-browser__loading">
               <LoadingInline />
@@ -535,8 +572,8 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
       {error && <Error error={error} />}
       {_.isEmpty(graphData) && !updating && <GraphEmpty />}
       {!_.isEmpty(graphData) && (
-        <React.Fragment>
-          {samples < maxSamplesForSpan && (
+        <>
+          {samples < maxSamplesForSpan && !updating && (
             <Alert
               isInline
               className="co-alert"
@@ -545,22 +582,15 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
             />
           )}
           <div className="graph-wrapper graph-wrapper--query-browser">
-            <div
-              className="query-browser__zoom"
-              onMouseDown={onMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-            >
-              {isZooming && (
-                <div
-                  className="query-browser__zoom-overlay"
-                  style={{ left: Math.min(x1, x2), width: Math.abs(x1 - x2) }}
-                />
-              )}
-              <Graph data={graphData} disableTooltips={isZooming} xDomain={xDomain} span={span} />
-            </div>
+            <ZoomableGraph
+              allSeries={graphData}
+              disabledSeries={disabledSeries}
+              onZoom={onZoom}
+              span={span}
+              xDomain={xDomain}
+            />
           </div>
-        </React.Fragment>
+        </>
       )}
     </div>
   );
@@ -581,6 +611,8 @@ type GraphDataPoint = {
 
 export type Labels = { [key: string]: string };
 
+type Series = [Labels, GraphDataPoint[][]];
+
 export type QueryObj = {
   disabledSeries?: Labels[];
   isEnabled?: boolean;
@@ -593,20 +625,31 @@ export type QueryObj = {
 type PrometheusValue = [number, string];
 
 type GraphProps = {
-  data: GraphDataPoint[][];
-  disableTooltips: boolean;
+  allSeries: Series[];
+  disabledSeries?: Labels[][];
   span: number;
-  xDomain: AxisDomain;
+  xDomain?: AxisDomain;
+};
+
+type ZoomableGraphProps = {
+  allSeries: Series[];
+  disabledSeries?: Labels[][];
+  onZoom: (from: number, to: number) => void;
+  span: number;
+  xDomain?: AxisDomain;
 };
 
 type QueryBrowserProps = {
+  defaultSamples?: number;
   defaultTimespan: number;
   disabledSeries?: Labels[][];
   filterLabels?: Labels;
   GraphLink?: React.ComponentType<{}>;
+  hideControls?: boolean;
   hideGraphs: boolean;
   namespace?: string;
   patchQuery: (index: number, patch: QueryObj) => any;
+  pollInterval?: number;
   queries: string[];
 };
 

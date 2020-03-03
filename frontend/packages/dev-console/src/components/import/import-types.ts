@@ -1,16 +1,35 @@
 import { K8sResourceKind, ContainerPort } from '@console/internal/module/k8s';
-import { LazyLoader } from '@console/plugin-sdk/src/typings/types';
-import { NameValuePair, NameValueFromPair } from '../formik-fields/field-types';
+import { LazyLoader } from '@console/plugin-sdk';
+import { NameValuePair, NameValueFromPair } from '@console/shared';
 import { NormalizedBuilderImages } from '../../utils/imagestream-utils';
 
 export interface DeployImageFormProps {
   builderImages?: NormalizedBuilderImages;
-  projects?: {
-    data: [];
-    loaded: boolean;
-  };
+  projects?: FirehoseList;
 }
+export type ImageStreamPayload = boolean | K8sResourceKind;
 
+export type ImageStreamState = {
+  hasAccessToPullImage: ImageStreamPayload;
+  accessLoading: ImageStreamPayload;
+  loading: ImageStreamPayload;
+  hasCreateAccess: ImageStreamPayload;
+  selectedImageStream: ImageStreamPayload;
+};
+export enum ImageStreamActions {
+  setAccessLoading = 'setAccessLoading',
+  setLoading = 'setLoading',
+  setSelectedImageStream = 'setSelectedImageStream',
+  setHasAccessToPullImage = 'setHasAccessToPullImage',
+  setHasCreateAccess = 'setHasCreateAccess',
+}
+export type ImageStreamAction = { type: ImageStreamActions; value: ImageStreamPayload };
+export interface ImageStreamContextProps {
+  state: ImageStreamState;
+  dispatch: React.Dispatch<ImageStreamAction>;
+  hasImageStreams: boolean;
+  setHasImageStreams: (value: boolean) => void;
+}
 export interface SourceToImageFormProps {
   builderImages?: NormalizedBuilderImages;
   projects?: {
@@ -37,10 +56,19 @@ export interface DeployImageFormData {
   application: ApplicationData;
   name: string;
   searchTerm: string;
+  registry: string;
+  imageStream: {
+    image: string;
+    tag: string;
+    namespace: string;
+    grantAccess?: boolean;
+  };
   isi: ImageStreamImageData;
   image: ImageStreamImageData;
   isSearchingForImage: boolean;
+  resources: Resources;
   serverless?: ServerlessData;
+  pipeline?: PipelineData;
   labels: { [name: string]: string };
   env: { [name: string]: string };
   route: RouteData;
@@ -50,14 +78,17 @@ export interface DeployImageFormData {
 }
 
 export interface GitImportFormData {
+  formType?: string;
   name: string;
   project: ProjectData;
   application: ApplicationData;
   git: GitData;
   docker: DockerData;
   serverless?: ServerlessData;
+  pipeline?: PipelineData;
   image: ImageData;
   route: RouteData;
+  resources: Resources;
   build: BuildData;
   deployment: DeploymentData;
   labels: { [name: string]: string };
@@ -111,6 +142,7 @@ export interface DockerData {
 }
 
 export interface RouteData {
+  show?: boolean;
   create: boolean;
   targetPort: string;
   unknownTargetPort?: string;
@@ -150,8 +182,12 @@ export interface DeploymentData {
 }
 
 export interface ServerlessData {
-  enabled: boolean;
   scaling: ServerlessScaling;
+}
+
+export interface PipelineData {
+  enabled: boolean;
+  template?: K8sResourceKind;
 }
 
 export interface ServerlessScaling {
@@ -180,6 +216,12 @@ export enum ImportTypes {
   git = 'git',
   docker = 'docker',
   s2i = 's2i',
+}
+
+export enum Resources {
+  OpenShift = 'openshift',
+  Kubernetes = 'k8s',
+  KnativeService = 'knativeservice',
 }
 
 export interface ImportData {
@@ -214,8 +256,10 @@ export interface LimitsData {
 export interface ResourceType {
   request: number | string;
   requestUnit: string;
+  defaultRequestUnit: string;
   limit: number | string;
   limitUnit: string;
+  defaultLimitUnit: string;
 }
 
 export enum CPUUnits {

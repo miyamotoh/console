@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { getVmTemplate, BootOrder, getBootableDevicesInOrder } from 'kubevirt-web-ui-components';
 import { ResourceSummary, NodeLink, ResourceLink } from '@console/internal/components/utils';
 import { PodKind } from '@console/internal/module/k8s';
 import { getName, getNamespace, getNodeName } from '@console/shared';
@@ -8,18 +7,33 @@ import { VMKind, VMIKind } from '../../types';
 import { VMTemplateLink } from '../vm-templates/vm-template-link';
 import { getBasicID, prefixedID } from '../../utils';
 import { vmDescriptionModal, vmFlavorModal } from '../modals';
+import { VMCDRomModal } from '../modals/cdrom-vm-modal';
+import { BootOrderModal } from '../modals/boot-order-modal/boot-order-modal';
 import { getDescription } from '../../selectors/selectors';
+import { getCDRoms } from '../../selectors/vm/selectors';
+import { getVMTemplateNamespacedName } from '../../selectors/vm-template/selectors';
 import { getVMStatus } from '../../statuses/vm/vm';
 import { getFlavorText } from '../flavor-text';
 import { EditButton } from '../edit-button';
 import { getVmiIpAddressesString } from '../ip-addresses';
-import { VmStatuses } from '../vm-status';
-import { getOperatingSystemName, getOperatingSystem, getWorkloadProfile } from '../../selectors/vm';
+import { VMStatuses } from '../vm-status';
+import { DiskSummary } from '../vm-disks/disk-summary';
+import { BootOrderSummary } from '../boot-order';
+import { VirtualMachineInstanceModel } from '../../models';
+import {
+  getOperatingSystemName,
+  getOperatingSystem,
+  getWorkloadProfile,
+  getDevices,
+} from '../../selectors/vm';
 
-import './_vm-resource.scss';
+import './vm-resource.scss';
 
 export const VMDetailsItem: React.FC<VMDetailsItemProps> = ({
   title,
+  canEdit = false,
+  editButtonId,
+  onEditClick,
   idValue,
   isNotAvail = false,
   valueClassName,
@@ -27,7 +41,9 @@ export const VMDetailsItem: React.FC<VMDetailsItemProps> = ({
 }) => {
   return (
     <>
-      <dt>{title}</dt>
+      <dt>
+        {title} <EditButton id={editButtonId} canEdit={canEdit} onClick={onEditClick} />
+      </dt>
       <dd id={idValue} className={valueClassName}>
         {isNotAvail ? <span className="text-secondary">Not available</span> : children}
       </dd>
@@ -36,7 +52,7 @@ export const VMDetailsItem: React.FC<VMDetailsItemProps> = ({
 };
 
 export const VMResourceSummary: React.FC<VMResourceSummaryProps> = ({ vm, canUpdateVM }) => {
-  const template = getVmTemplate(vm);
+  const templateNamespacedName = getVMTemplateNamespacedName(vm);
 
   const id = getBasicID(vm);
   const description = getDescription(vm);
@@ -59,8 +75,12 @@ export const VMResourceSummary: React.FC<VMResourceSummaryProps> = ({ vm, canUpd
         {os}
       </VMDetailsItem>
 
-      <VMDetailsItem title="Template" idValue={prefixedID(id, 'template')} isNotAvail={!template}>
-        {template && <VMTemplateLink template={template} />}
+      <VMDetailsItem
+        title="Template"
+        idValue={prefixedID(id, 'template')}
+        isNotAvail={!templateNamespacedName}
+      >
+        {templateNamespacedName && <VMTemplateLink {...templateNamespacedName} />}
       </VMDetailsItem>
     </ResourceSummary>
   );
@@ -73,10 +93,13 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
   migrations,
   canUpdateVM,
 }) => {
+  const [isBootOrderModalOpen, setBootOrderModalOpen] = React.useState<boolean>(false);
+
   const id = getBasicID(vm);
-  const vmStatus = getVMStatus(vm, pods, migrations);
+  const vmStatus = getVMStatus({ vm, vmi, pods, migrations });
   const { launcherPod } = vmStatus;
-  const sortedBootableDevices = getBootableDevicesInOrder(vm);
+  const cds = getCDRoms(vm);
+  const devices = getDevices(vm);
   const nodeName = getNodeName(launcherPod);
   const ipAddrs = getVmiIpAddressesString(vmi, vmStatus);
   const workloadProfile = getWorkloadProfile(vm);
@@ -85,7 +108,15 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
   return (
     <dl className="co-m-pane__details">
       <VMDetailsItem title="Status" idValue={prefixedID(id, 'vm-statuses')}>
-        <VmStatuses vm={vm} pods={pods} migrations={migrations} />
+        <VMStatuses vm={vm} vmi={vmi} pods={pods} migrations={migrations} />
+      </VMDetailsItem>
+
+      <VMDetailsItem title="VM Instance" idValue={prefixedID(id, 'vmi')} isNotAvail={!getName(vmi)}>
+        <ResourceLink
+          kind={VirtualMachineInstanceModel.kind}
+          name={getName(vmi)}
+          namespace={getNamespace(vmi)}
+        />
       </VMDetailsItem>
 
       <VMDetailsItem title="Pod" idValue={prefixedID(id, 'pod')} isNotAvail={!launcherPod}>
@@ -100,10 +131,28 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
 
       <VMDetailsItem
         title="Boot Order"
+        canEdit
+        editButtonId={prefixedID(id, 'boot-order-edit')}
+        onEditClick={() => setBootOrderModalOpen(true)}
         idValue={prefixedID(id, 'boot-order')}
-        isNotAvail={sortedBootableDevices.length === 0}
       >
-        <BootOrder bootableDevices={sortedBootableDevices} />
+        <BootOrderModal
+          isOpen={isBootOrderModalOpen}
+          setOpen={setBootOrderModalOpen}
+          vmLikeEntity={vm}
+        />
+        <BootOrderSummary devices={devices} />
+      </VMDetailsItem>
+
+      <VMDetailsItem
+        title="CD-ROMs"
+        canEdit={canUpdateVM}
+        editButtonId={prefixedID(id, 'cdrom-edit')}
+        onEditClick={() => VMCDRomModal({ vmLikeEntity: vm, modalClassName: 'modal-lg' })}
+        idValue={prefixedID(id, 'cdrom')}
+        isNotAvail={cds.length === 0}
+      >
+        <DiskSummary disks={cds} vm={vm} />
       </VMDetailsItem>
 
       <VMDetailsItem
@@ -141,6 +190,9 @@ export const VMDetailsList: React.FC<VMResourceListProps> = ({
 
 type VMDetailsItemProps = {
   title: string;
+  canEdit?: boolean;
+  editButtonId?: string;
+  onEditClick?: () => void;
   idValue?: string;
   isNotAvail?: boolean;
   valueClassName?: string;

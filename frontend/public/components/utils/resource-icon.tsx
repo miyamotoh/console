@@ -19,16 +19,17 @@ export const ResourceIcon: React.SFC<ResourceIconProps> = ({ className, kind }) 
   }
   const kindObj = modelFor(kind);
   const kindStr = _.get(kindObj, 'kind', kind);
+  const backgroundColor = _.get(kindObj, 'color', undefined);
   const klass = classNames(`co-m-resource-icon co-m-resource-${kindStr.toLowerCase()}`, className);
   const iconLabel = (kindObj && kindObj.abbr) || kindToAbbr(kindStr);
 
   const rendered = (
-    <React.Fragment>
+    <>
       <span className="sr-only">{kindStr}</span>
-      <span className={klass} title={kindStr}>
+      <span className={klass} title={kindStr} style={{ backgroundColor }}>
         {iconLabel}
       </span>
-    </React.Fragment>
+    </>
   );
   if (kindObj) {
     MEMO[memoKey] = rendered;

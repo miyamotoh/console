@@ -14,6 +14,7 @@ import {
 } from '@console/plugin-sdk';
 import { GridPosition } from '@console/shared/src/components/dashboard/DashboardGrid';
 import { referenceForModel } from '@console/internal/module/k8s';
+import { ClusterServiceVersionModel } from '@console/operator-lifecycle-manager';
 import * as models from './models';
 
 type ConsumedExtensions =
@@ -35,6 +36,37 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'ModelDefinition',
     properties: {
       models: _.values(models),
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${referenceForModel(
+        models.NooBaaBucketClassModel,
+      )}/~new`,
+      loader: () =>
+        import('./components/bucket-class/create-bc' /* webpackChunkName: "create-bc" */).then(
+          (m) => m.default,
+        ),
+      required: NOOBAA_FLAG,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: [
+        `/k8s/ns/:ns/${ClusterServiceVersionModel.plural}/:appName/${referenceForModel(
+          models.NooBaaBackingStoreModel,
+        )}/~new`,
+        `/k8s/ns/:ns/${referenceForModel(models.NooBaaBackingStoreModel)}/~new`,
+      ],
+      loader: () =>
+        import(
+          './components/create-backingstore-page/create-bs-page' /* webpackChunkName: "create-bs" */
+        ).then((m) => m.default),
+      required: NOOBAA_FLAG,
     },
   },
   {
@@ -83,8 +115,8 @@ const plugin: Plugin<ConsumedExtensions> = [
       position: GridPosition.LEFT,
       loader: () =>
         import(
-          './components/buckets-card/buckets-card' /* webpackChunkName: "object-service-buckets-card" */
-        ).then((m) => m.BucketsCard),
+          './components/object-data-reduction-card/object-data-reduction-card' /* webpackChunkName: "object-service-data-reduction-card" */
+        ).then((m) => m.default),
       required: NOOBAA_FLAG,
     },
   },
@@ -95,8 +127,20 @@ const plugin: Plugin<ConsumedExtensions> = [
       position: GridPosition.LEFT,
       loader: () =>
         import(
-          './components/resource-providers-card/resource-providers-card' /* webpackChunkName: "object-service-resource-providers-card" */
-        ).then((m) => m.ResourceProvidersCard),
+          './components/buckets-card/buckets-card' /* webpackChunkName: "object-service-buckets-card" */
+        ).then((m) => m.BucketsCard),
+      required: NOOBAA_FLAG,
+    },
+  },
+  {
+    type: 'Dashboards/Card',
+    properties: {
+      tab: 'object-service',
+      position: GridPosition.MAIN,
+      loader: () =>
+        import(
+          './components/capacity-breakdown/capacity-breakdown-card' /* webpackChunkName: "object-service-capacity-breakdown-card" */
+        ).then((m) => m.default),
       required: NOOBAA_FLAG,
     },
   },
@@ -128,11 +172,11 @@ const plugin: Plugin<ConsumedExtensions> = [
     type: 'Dashboards/Card',
     properties: {
       tab: 'object-service',
-      position: GridPosition.RIGHT,
+      position: GridPosition.LEFT,
       loader: () =>
         import(
-          './components/object-data-reduction-card/object-data-reduction-card' /* webpackChunkName: "object-service-data-reduction-card" */
-        ).then((m) => m.default),
+          './components/resource-providers-card/resource-providers-card' /* webpackChunkName: "object-service-resource-providers-card" */
+        ).then((m) => m.ResourceProvidersCard),
       required: NOOBAA_FLAG,
     },
   },
@@ -206,6 +250,7 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/object-bucket-claim-page/create-obc' /* webpackChunkName: "create-obc" */
         ).then((m) => m.CreateOBCPage),
+      required: NOOBAA_FLAG,
     },
   },
 ];

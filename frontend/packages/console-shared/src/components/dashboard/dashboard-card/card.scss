@@ -6,6 +6,20 @@ $co-dashboard-card--line-height: 19px;
   margin: 0;
 }
 
+.co-dashboard-card--gradient {
+  position: relative;
+  &:after {
+    background: linear-gradient(rgba(255, 255, 255, 0), var(--pf-global--BackgroundColor--100));
+    bottom: 0;
+    content: '';
+    left: 0;
+    min-height: 2rem;
+    pointer-events: none;
+    position: absolute;
+    width: calc(100% - var(--pf-global--spacer--lg));
+  }
+}
+
 .co-dashboard-card__body--no-padding {
   margin-bottom: calc(-1 * var(--pf-c-card--child--PaddingBottom));
   margin-left: calc(-1 * var(--pf-c-card--child--PaddingLeft));
@@ -44,7 +58,6 @@ $co-dashboard-card--line-height: 19px;
 
 .co-dashboard-icon {
   font-size: 1.2rem;
-  margin-top: 0.2rem;
 }
 
 .co-dashboard-text--small {

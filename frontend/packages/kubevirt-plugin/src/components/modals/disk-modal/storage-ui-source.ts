@@ -1,7 +1,9 @@
 /* eslint-disable lines-between-class-members */
 
 import { ValueEnum, VolumeType } from '../../../constants';
-import { DataVolumeSourceType } from '../../../constants/vm/storage';
+import { DataVolumeSourceType, DiskType } from '../../../constants/vm/storage';
+import { getStringEnumValues } from '../../../utils/types';
+import { BinaryUnit } from '../../form/size-unit-utils';
 
 export class StorageUISource extends ValueEnum<string> {
   static readonly BLANK = new StorageUISource(
@@ -25,11 +27,18 @@ export class StorageUISource extends ValueEnum<string> {
     VolumeType.PERSISTENT_VOLUME_CLAIM,
     undefined,
   );
+  static readonly IMPORT_DISK = new StorageUISource(
+    'Import Disk',
+    VolumeType.PERSISTENT_VOLUME_CLAIM,
+    undefined,
+    true,
+  );
 
   static readonly OTHER = new StorageUISource('Other');
 
   private readonly volumeType: VolumeType;
   private readonly dataVolumeSourceType: DataVolumeSourceType;
+  private readonly hasNewPVC: boolean;
 
   private static readonly ALL = Object.freeze(
     ValueEnum.getAllClassEnumProperties<StorageUISource>(StorageUISource),
@@ -47,10 +56,12 @@ export class StorageUISource extends ValueEnum<string> {
     value: string,
     volumeType?: VolumeType,
     dataVolumeSourceType?: DataVolumeSourceType,
+    hasNewPVC: boolean = false,
   ) {
     super(value);
     this.volumeType = volumeType;
     this.dataVolumeSourceType = dataVolumeSourceType;
+    this.hasNewPVC = hasNewPVC;
   }
 
   static getAll = () => StorageUISource.ALL;
@@ -60,24 +71,40 @@ export class StorageUISource extends ValueEnum<string> {
 
   static fromString = (model: string): StorageUISource => StorageUISource.stringMapper[model];
 
-  static fromTypes = (volumeType: VolumeType, dataVolumeSourceType?: DataVolumeSourceType) =>
+  static fromTypes = (
+    volumeType: VolumeType,
+    dataVolumeSourceType?: DataVolumeSourceType,
+    hasNewPVC: boolean = false,
+  ) =>
     StorageUISource.ALL.find(
       (storageUIType) =>
         storageUIType !== StorageUISource.OTHER &&
         storageUIType.volumeType == volumeType && // eslint-disable-line eqeqeq
-        storageUIType.dataVolumeSourceType == dataVolumeSourceType, // eslint-disable-line eqeqeq
+        storageUIType.dataVolumeSourceType == dataVolumeSourceType && // eslint-disable-line eqeqeq
+        storageUIType.hasNewPVC == hasNewPVC, // eslint-disable-line eqeqeq
     );
 
   getVolumeType = () => this.volumeType;
 
   getDataVolumeSourceType = () => this.dataVolumeSourceType;
 
+  getAllowedUnits = () =>
+    this === StorageUISource.IMPORT_DISK
+      ? getStringEnumValues<BinaryUnit>(BinaryUnit)
+      : [BinaryUnit.Mi, BinaryUnit.Gi, BinaryUnit.Ti];
+
   requiresPVC = () =>
     this === StorageUISource.ATTACH_DISK || this === StorageUISource.ATTACH_CLONED_DISK;
+
+  requiresNewPVC = () => this.hasNewPVC;
 
   requiresContainerImage = () => this === StorageUISource.CONTAINER;
 
   requiresURL = () => this === StorageUISource.URL;
+
+  requiresSize = () => this.requiresDatavolume() || this.hasNewPVC;
+
+  requiresStorageClass = () => this.requiresDatavolume() || this.hasNewPVC;
 
   requiresVolume = () => !!this.volumeType;
 
@@ -86,4 +113,24 @@ export class StorageUISource extends ValueEnum<string> {
   requiresNamespace = () => this === StorageUISource.ATTACH_CLONED_DISK;
 
   isEditingSupported = () => !this.dataVolumeSourceType; // vm disks - do not support because pvc was already created from DV
+
+  isNameEditingSupported = (diskType: DiskType) => diskType !== DiskType.CDROM;
+
+  isSizeEditingSupported = () => this !== StorageUISource.IMPORT_DISK;
+
+  isPlainDataVolume = (isCreateTemplate: boolean) =>
+    isCreateTemplate && this === StorageUISource.URL;
+
+  hasDynamicSize = () => this === StorageUISource.CONTAINER;
+
+  canBeChangedToThisSource = (diskType: DiskType) => {
+    if (diskType === DiskType.CDROM) {
+      return (
+        this === StorageUISource.ATTACH_DISK ||
+        this === StorageUISource.URL ||
+        this === StorageUISource.CONTAINER
+      );
+    }
+    return this !== StorageUISource.IMPORT_DISK && this !== StorageUISource.OTHER;
+  };
 }

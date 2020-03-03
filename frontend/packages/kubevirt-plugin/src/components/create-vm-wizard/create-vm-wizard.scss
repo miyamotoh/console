@@ -12,10 +12,22 @@
   min-height: inherit;
 }
 
+.pf-c-wizard__main {
+  z-index: calc(var(--pf-global--ZIndex--xs) - 3);
+}
+
 .pf-c-wizard__nav {
-  z-index: calc(var(--pf-global--ZIndex--xs) + 1);
+  z-index: calc(var(--pf-global--ZIndex--xs) - 2);
 }
 
 .pf-c-wizard__toggle {
-  z-index: calc(var(--pf-global--ZIndex--xs) + 2);
+  z-index: calc(var(--pf-global--ZIndex--xs) - 1);
+}
+
+.pf-c-wizard__nav-link {
+  font-size: calc(var(--pf-global--FontSize--lg) - 2px);
+}
+
+.pf-c-wizard__toggle-list-item {
+  font-size: calc(var(--pf-global--FontSize--lg) - 2px);
 }

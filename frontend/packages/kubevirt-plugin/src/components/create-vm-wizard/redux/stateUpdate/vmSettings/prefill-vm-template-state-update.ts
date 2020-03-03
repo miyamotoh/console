@@ -10,13 +10,18 @@ import {
   VMWizardStorage,
   VMWizardStorageType,
 } from '../../../types';
-import { iGetLoadedCommonData, iGetName } from '../../../selectors/immutable/selectors';
+import {
+  iGetCommonData,
+  iGetLoadedCommonData,
+  iGetName,
+} from '../../../selectors/immutable/selectors';
 import { concatImmutableLists, immutableListToShallowJS } from '../../../../../utils/immutable';
 import { iGetNetworks } from '../../../selectors/immutable/networks';
 import { podNetwork } from '../../initial-state/networks-tab-initial-state';
 import { vmWizardInternalActions } from '../../internal-actions';
 import {
   CUSTOM_FLAVOR,
+  DataVolumeSourceType,
   DiskBus,
   DiskType,
   NetworkInterfaceModel,
@@ -33,12 +38,14 @@ import {
   getVolumes,
   hasAutoAttachPodInterface,
   parseCPU,
+  isWinToolsImage,
 } from '../../../../../selectors/vm';
 import { selectVM } from '../../../../../selectors/vm-template/selectors';
 import {
   getTemplateFlavors,
   getTemplateOperatingSystems,
   getTemplateWorkloadProfiles,
+  getTemplateHostname,
 } from '../../../../../selectors/vm-template/advanced';
 import { V1Network } from '../../../../../types/vm';
 import { getFlavors } from '../../../../../selectors/vm-template/combined-dependent';
@@ -51,6 +58,10 @@ import { MutableVolumeWrapper, VolumeWrapper } from '../../../../../k8s/wrapper/
 import { getProvisionSourceStorage } from '../../initial-state/storage-tab-initial-state';
 import { CloudInitDataHelper } from '../../../../../k8s/wrapper/vm/cloud-init-data-helper';
 import { getStorages } from '../../../selectors/selectors';
+import { DataVolumeWrapper } from '../../../../../k8s/wrapper/vm/data-volume-wrapper';
+import { V1alpha1DataVolume } from '../../../../../types/vm/disk/V1alpha1DataVolume';
+import { joinIDs } from '../../../../../utils';
+import { VM_TEMPLATE_NAME_PARAMETER } from '../../../../../constants/vm-templates';
 
 export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptions) => {
   const state = getState();
@@ -58,6 +69,8 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
   const userTemplateName = iGetVmSettingValue(state, id, VMSettingsField.USER_TEMPLATE);
 
   const iUserTemplates = iGetLoadedCommonData(state, id, VMWizardProps.userTemplates);
+  const isProviderImport = iGetCommonData(state, id, VMWizardProps.isProviderImport);
+  const activeNamespace = iGetCommonData(state, id, VMWizardProps.activeNamespace);
 
   const iUserTemplate =
     userTemplateName && iUserTemplates
@@ -65,7 +78,14 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
       : null;
 
   let isCloudInitForm = null;
-  const vmSettingsUpdate = {};
+  const vmSettingsUpdate = {
+    // ensure the the form is reset when "None" template is selected
+    [VMSettingsField.FLAVOR]: { value: null },
+    [VMSettingsField.OPERATING_SYSTEM]: { value: null },
+    [VMSettingsField.WORKLOAD_PROFILE]: { value: null },
+    [VMSettingsField.PROVISION_SOURCE_TYPE]: { value: isProviderImport ? undefined : null },
+    [VMSettingsField.HOSTNAME]: { value: null },
+  };
 
   // filter out oldTemplates
   let networksUpdate = immutableListToShallowJS<VMWizardNetwork>(iGetNetworks(state, id)).filter(
@@ -79,6 +99,7 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
         VMWizardStorageType.PROVISION_SOURCE_DISK,
         VMWizardStorageType.TEMPLATE,
         VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK,
+        VMWizardStorageType.WINDOWS_GUEST_TOOLS_TEMPLATE,
       ].includes(storage.type) &&
       VolumeWrapper.initialize(storage.volume).getType() !== VolumeType.CLOUD_INIT_NO_CLOUD,
   );
@@ -92,6 +113,9 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
     const userTemplate = iUserTemplate.toJS();
 
     const vm = selectVM(userTemplate);
+    const dataVolumes = immutableListToShallowJS<V1alpha1DataVolume>(
+      iGetLoadedCommonData(state, id, VMWizardProps.dataVolumes),
+    );
 
     // update flavor
     const [flavor] = getTemplateFlavors([userTemplate]);
@@ -111,10 +135,16 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
     vmSettingsUpdate[VMSettingsField.WORKLOAD_PROFILE] = { value: workload };
 
     // update provision source
-    const provisionSourceDetails = ProvisionSource.getProvisionSourceDetails(userTemplate);
+    const provisionSourceDetails = ProvisionSource.getProvisionSourceDetails(userTemplate, {
+      convertTemplateDataVolumesToAttachClonedDisk: true,
+    });
     vmSettingsUpdate[VMSettingsField.PROVISION_SOURCE_TYPE] = {
       value: provisionSourceDetails.type ? provisionSourceDetails.type.getValue() : null,
     };
+
+    // update hostname
+    const hostname = getTemplateHostname(userTemplate);
+    vmSettingsUpdate[VMSettingsField.HOSTNAME] = { value: hostname };
 
     const networkLookup = createBasicLookup<V1Network>(getNetworks(vm), getSimpleName);
     // prefill networks
@@ -139,12 +169,19 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
     networksUpdate.push(...templateNetworks);
 
     const volumeLookup = createBasicLookup<V1Volume>(getVolumes(vm), getSimpleName);
-    const datavolumeTemplatesLookup = createBasicLookup(getDataVolumeTemplates(vm), getName);
+    const dataVolumeTemplatesLookup = createBasicLookup<V1alpha1DataVolume>(
+      getDataVolumeTemplates(vm),
+      getName,
+    );
+
+    const standaloneDataVolumeLookup = createBasicLookup<V1alpha1DataVolume>(dataVolumes, getName);
+
     // // prefill storage
     const templateStorages: VMWizardStorage[] = getDisks(vm).map((disk) => {
       const diskWrapper = DiskWrapper.initialize(disk);
       let volume = volumeLookup[diskWrapper.getName()];
       const volumeWrapper = VolumeWrapper.initialize(volume);
+      let dataVolume = dataVolumeTemplatesLookup[volumeWrapper.getDataVolumeName()];
 
       if (volumeWrapper.getType() === VolumeType.CLOUD_INIT_NO_CLOUD) {
         const helper = new CloudInitDataHelper(volumeWrapper.getCloudInitNoCloud());
@@ -158,20 +195,48 @@ export const prefillVmTemplateUpdater = ({ id, dispatch, getState }: UpdateOptio
         } else if (isCloudInitForm == null) {
           isCloudInitForm = false;
         }
+      } else if (volumeWrapper.getType() === VolumeType.DATA_VOLUME && !dataVolume) {
+        const standaloneDataVolumeWrapper = DataVolumeWrapper.initialize(
+          standaloneDataVolumeLookup[volumeWrapper.getDataVolumeName()],
+        );
+        const newDataVolumeName = joinIDs(VM_TEMPLATE_NAME_PARAMETER, diskWrapper.getName());
+
+        dataVolume = DataVolumeWrapper.initializeFromSimpleData({
+          name: newDataVolumeName,
+          storageClassName: standaloneDataVolumeWrapper.getStorageClassName() || undefined,
+          type: DataVolumeSourceType.PVC,
+          size: standaloneDataVolumeWrapper.getSize().value,
+          unit: standaloneDataVolumeWrapper.getSize().unit,
+          typeData: { name: volumeWrapper.getDataVolumeName(), namespace: activeNamespace },
+        }).asResource();
+
+        volume = new MutableVolumeWrapper(volume, { copy: true })
+          .replaceTypeData({ name: newDataVolumeName })
+          .asMutableResource();
+      }
+
+      // TODO: can't be guest tools and provision source at the same time, refactor to flags?
+      let type = diskWrapper.isFirstBootableDevice()
+        ? VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK
+        : VMWizardStorageType.TEMPLATE;
+
+      if (isWinToolsImage(volumeWrapper.getContainerImage())) {
+        type = VMWizardStorageType.WINDOWS_GUEST_TOOLS_TEMPLATE;
       }
 
       return {
         id: getNextStorageID(),
-        type: diskWrapper.isFirstBootableDevice()
-          ? VMWizardStorageType.PROVISION_SOURCE_TEMPLATE_DISK
-          : VMWizardStorageType.TEMPLATE,
+        type,
         volume,
-        dataVolume: datavolumeTemplatesLookup[volumeWrapper.getDataVolumeName()],
+        dataVolume,
         disk:
           diskWrapper.getType() === DiskType.DISK && !diskWrapper.getDiskBus()
             ? DiskWrapper.mergeWrappers(
                 diskWrapper,
-                DiskWrapper.initializeFromSimpleData({ type: DiskType.DISK, bus: DiskBus.VIRTIO }),
+                DiskWrapper.initializeFromSimpleData({
+                  type: DiskType.DISK,
+                  bus: DiskBus.VIRTIO,
+                }),
               ).asResource()
             : disk,
       };

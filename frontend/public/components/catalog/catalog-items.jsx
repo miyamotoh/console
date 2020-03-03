@@ -2,7 +2,8 @@ import * as React from 'react';
 import * as _ from 'lodash-es';
 import * as PropTypes from 'prop-types';
 import * as catalogImg from '../../imgs/logos/catalog-icon.svg';
-import { CatalogTile } from 'patternfly-react-extensions';
+import { Badge } from '@patternfly/react-core';
+import { CatalogTile, CatalogTileBadge } from '@patternfly/react-catalog-view-extension';
 import { Modal } from 'patternfly-react';
 
 import { history } from '../utils/router';
@@ -136,6 +137,11 @@ const filterValueMap = {
   ImageStream: 'Source-to-Image',
 };
 
+const GroupByTypes = {
+  Operator: 'Operator',
+  None: 'None',
+};
+
 const keywordCompare = (filterString, item) => {
   if (!filterString) {
     return true;
@@ -156,6 +162,17 @@ const setURLParams = (params) => {
   const searchParams = `?${params.toString()}${url.hash}`;
 
   history.replace(`${url.pathname}${searchParams}`);
+};
+
+export const groupItems = (items, groupBy) => {
+  if (groupBy === GroupByTypes.Operator) {
+    const installedOperators = _.filter(items, (item) => item.kind === 'InstalledOperator');
+    const nonOperators = _.filter(items, (item) => item.kind !== 'InstalledOperator');
+    const groupedOperators = _.groupBy(installedOperators, (item) => item.obj.csv.spec.displayName);
+    const groupAllItems = { ...groupedOperators, 'Non Operators': nonOperators };
+    return groupAllItems;
+  }
+  return items;
 };
 
 export class CatalogTileViewPage extends React.Component {
@@ -205,16 +222,25 @@ export class CatalogTileViewPage extends React.Component {
     const iconClass = tileIconClass ? normalizeIconClass(tileIconClass) : null;
     const vendor = tileProvider ? `provided by ${tileProvider}` : null;
     const iconImgUrl = tileImgUrl || catalogImg;
+    const { kind: filters } = getAvailableFilters({ kind });
+    const filter = _.find(filters, ['value', kind]);
     return (
       <CatalogTile
+        className="co-catalog-tile"
         key={uid}
         onClick={() => this.openOverlay(item)}
         title={tileName}
+        badges={[
+          <CatalogTileBadge key="type">
+            <Badge isRead>{filter.label}</Badge>
+          </CatalogTileBadge>,
+        ]}
         iconImg={iconImgUrl}
         iconClass={iconClass}
         vendor={vendor}
         description={tileDescription}
         data-test={`${kind}-${obj.metadata.name}`}
+        maxDescriptionLength={55}
       />
     );
   }
@@ -224,7 +250,7 @@ export class CatalogTileViewPage extends React.Component {
     const { detailsItem } = this.state;
 
     return (
-      <React.Fragment>
+      <>
         <TileViewPage
           items={items}
           itemsSorter={(itemsToSort) =>
@@ -240,6 +266,8 @@ export class CatalogTileViewPage extends React.Component {
           renderTile={this.renderTile}
           pageDescription={pageDescription}
           emptyStateInfo="No developer catalog items are being shown due to the filters being applied."
+          groupItems={groupItems}
+          groupByTypes={GroupByTypes}
         />
         <Modal
           show={!!detailsItem}
@@ -251,7 +279,7 @@ export class CatalogTileViewPage extends React.Component {
             <CatalogTileDetails item={detailsItem} closeOverlay={this.closeOverlay} />
           )}
         </Modal>
-      </React.Fragment>
+      </>
     );
   }
 }

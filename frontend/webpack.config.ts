@@ -19,7 +19,7 @@ const NODE_ENV = process.env.NODE_ENV;
 const HOT_RELOAD = process.env.HOT_RELOAD;
 
 /* Helpers */
-const extractCSS = new MiniCssExtractPlugin({ filename: 'app-bundle.css' });
+const extractCSS = new MiniCssExtractPlugin({ filename: 'app-bundle.[contenthash].css' });
 const overpassTest = /overpass-.*\.(woff2?|ttf|eot|otf)(\?.*$|$)/;
 
 const config: Configuration = {
@@ -56,7 +56,7 @@ const config: Configuration = {
       { test: /\.glsl$/, loader: 'raw!glslify' },
       {
         test: /(\.jsx?)|(\.tsx?)$/,
-        exclude: /node_modules/,
+        exclude: /node_modules\/(?!(bitbucket|ky)\/)/,
         use: [
           { loader: 'cache-loader' },
           {

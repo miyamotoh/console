@@ -18,9 +18,7 @@ import {
   DashboardsTab,
   DashboardsOverviewInventoryItem,
   DashboardsInventoryItemGroup,
-  DashboardsOverviewQuery,
   DashboardsOverviewUtilizationItem,
-  DashboardsOverviewTopConsumerItem,
   DashboardsOverviewResourceActivity,
   DashboardsOverviewPrometheusActivity,
 } from '@console/plugin-sdk';
@@ -28,9 +26,7 @@ import {
 import { PodModel, RouteModel, NodeModel } from '@console/internal/models';
 import { FLAGS } from '@console/internal/const';
 import { GridPosition } from '@console/shared/src/components/dashboard/DashboardGrid';
-import { humanizeBinaryBytesWithoutB } from '@console/internal/components/utils/units';
 import { OverviewQuery } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/queries';
-import { MetricType } from '@console/shared/src/components/dashboard/top-consumers-card/metric-type';
 import { FooBarModel } from './models';
 import { yamlTemplates } from './yaml-templates';
 import TestIcon from './components/test-icon';
@@ -54,9 +50,7 @@ type ConsumedExtensions =
   | DashboardsCard
   | DashboardsOverviewInventoryItem
   | DashboardsInventoryItemGroup
-  | DashboardsOverviewQuery
   | DashboardsOverviewUtilizationItem
-  | DashboardsOverviewTopConsumerItem
   | DashboardsOverviewResourceActivity
   | DashboardsOverviewPrometheusActivity;
 
@@ -219,29 +213,8 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Dashboards/Overview/Query',
-    properties: {
-      queryKey: OverviewQuery.STORAGE_TOTAL,
-      query: 'fooQuery',
-      required: 'TEST_MODEL_FLAG',
-    },
-  },
-  {
-    type: 'Dashboards/Overview/Query',
-    properties: {
-      queryKey: OverviewQuery.STORAGE_UTILIZATION,
-      query: 'barQuery',
-      required: 'TEST_MODEL_FLAG',
-    },
-  },
-  {
     type: 'Dashboards/Overview/Inventory/Item',
     properties: {
-      resource: {
-        isList: true,
-        kind: RouteModel.kind,
-        prop: 'routes',
-      },
       model: RouteModel,
       mapper: getRouteStatusGroups,
       expandedComponent: () =>
@@ -262,24 +235,9 @@ const plugin: Plugin<ConsumedExtensions> = [
   {
     type: 'Dashboards/Overview/Utilization/Item',
     properties: {
-      title: 'Foo',
+      id: OverviewQuery.STORAGE_UTILIZATION,
       query: 'barQuery',
-      humanizeValue: humanizeBinaryBytesWithoutB,
-      required: 'TEST_MODEL_FLAG',
-    },
-  },
-  {
-    type: 'Dashboards/Overview/TopConsumers/Item',
-    properties: {
-      model: PodModel,
-      name: 'Prometheus',
-      metric: 'pod_name',
-      queries: {
-        [MetricType.CPU]:
-          'sort(topk(5, pod_name:container_cpu_usage:sum{pod_name=~"prometheus-.*"}))',
-      },
-      mutator: (data) =>
-        data.map((datum) => ({ ...datum, x: (datum.x as string).replace('prometheus-', '') })),
+      totalQuery: 'fooQuery',
       required: 'TEST_MODEL_FLAG',
     },
   },

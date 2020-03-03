@@ -21,7 +21,7 @@ import {
   getMachineRole,
   StatusIconAndText,
 } from '@console/shared';
-import { canHostAddMachine, getHostStatus } from '../../utils/host-status';
+import { getHostStatus } from '../../status/host-status';
 import {
   getHostNICs,
   getHostDescription,
@@ -35,11 +35,16 @@ import {
   getHostMachine,
   findNodeMaintenance,
   getHostBios,
+  getHostProvisioningState,
+  getHostBootMACAddress,
 } from '../../selectors';
 import { BareMetalHostKind } from '../../types';
+import { HOST_REGISTERING_STATES } from '../../constants/bare-metal-host';
 import MachineLink from './MachineLink';
 import BareMetalHostPowerStatusIcon from './BareMetalHostPowerStatusIcon';
 import BareMetalHostStatus from './BareMetalHostStatus';
+
+import './BareMetalHostDetails.scss';
 
 type BareMetalHostDetailsProps = {
   obj: BareMetalHostKind;
@@ -67,6 +72,7 @@ const BareMetalHostDetails: React.FC<BareMetalHostDetailsProps> = ({
   const totalStorageCapacity = humanizeDecimalBytes(getHostTotalStorageCapacity(host)).string;
   const description = getHostDescription(host);
   const powerStatus = getHostPowerStatus(host);
+  const provisioningState = getHostProvisioningState(host);
   const { count: CPUCount, model: CPUModel } = getHostCPU(host);
   const { manufacturer, productName, serialNumber } = getHostVendorInfo(host);
   const bios = getHostBios(host);
@@ -90,15 +96,17 @@ const BareMetalHostDetails: React.FC<BareMetalHostDetailsProps> = ({
             )}
             <dt>Host Addresses</dt>
             <dd>
-              Management: {getHostBMCAddress(host)}
-              <br />
-              NICs: {ips}
+              <ul className="metal3-bare-metal-host-details__simple-list">
+                <li>Management: {getHostBMCAddress(host)}</li>
+                <li>NICs: {ips}</li>
+                <li>Boot Interface MAC: {getHostBootMACAddress(host)}</li>
+              </ul>
             </dd>
-            {(canHostAddMachine(status.status) || machineName) && (
+            {machineName && (
               <>
                 <dt>Machine</dt>
                 <dd>
-                  <MachineLink host={host} status={status} />
+                  <MachineLink host={host} />
                 </dd>
               </>
             )}
@@ -125,15 +133,20 @@ const BareMetalHostDetails: React.FC<BareMetalHostDetailsProps> = ({
           <dl>
             <dt>Status</dt>
             <dd>
-              <BareMetalHostStatus status={status} />
+              <BareMetalHostStatus {...status} />
             </dd>
-            <dt>Power Status</dt>
-            <dd>
-              <StatusIconAndText
-                title={powerStatus}
-                icon={<BareMetalHostPowerStatusIcon powerStatus={powerStatus} />}
-              />
-            </dd>
+            {/* power status is not available until host registration/inspection is finished */}
+            {!HOST_REGISTERING_STATES.includes(provisioningState) && (
+              <>
+                <dt>Power Status</dt>
+                <dd>
+                  <StatusIconAndText
+                    title={powerStatus}
+                    icon={<BareMetalHostPowerStatusIcon powerStatus={powerStatus} />}
+                  />
+                </dd>
+              </>
+            )}
             {role && (
               <>
                 <dt>Role</dt>
@@ -150,11 +163,11 @@ const BareMetalHostDetails: React.FC<BareMetalHostDetailsProps> = ({
               <>
                 <dt>Bios</dt>
                 <dd>
-                  Version: {bios.version}
-                  <br />
-                  Vendor: {bios.vendor}
-                  <br />
-                  Date: {bios.date}
+                  <ul className="metal3-bare-metal-host-details__simple-list">
+                    <li>Version: {bios.version}</li>
+                    <li>Vendor: {bios.vendor}</li>
+                    <li>Date: {bios.date}</li>
+                  </ul>
                 </dd>
               </>
             )}
@@ -168,11 +181,13 @@ const BareMetalHostDetails: React.FC<BareMetalHostDetailsProps> = ({
               <>
                 <dt>Hardware</dt>
                 <dd>
-                  {CPUCount}x {CPUModel} CPU
-                  <br />
-                  {RAMGB} RAM
-                  <br />
-                  {totalStorageCapacity} Disk
+                  <ul className="metal3-bare-metal-host-details__simple-list">
+                    <li>
+                      {CPUCount}x {CPUModel} CPU
+                    </li>
+                    <li>{RAMGB} RAM</li>
+                    <li>{totalStorageCapacity} Disk</li>
+                  </ul>
                 </dd>
               </>
             )}
