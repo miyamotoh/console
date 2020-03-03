@@ -158,6 +158,7 @@ const ImageSearch: React.FC = () => {
           setFieldValue('image.tag', tag);
           !values.name && setFieldValue('name', getSuggestedName(name));
           !values.application.name &&
+            values.application.selectedKey !== UNASSIGNED_KEY &&
             setFieldValue('application.name', `${getSuggestedName(name)}-app`);
           // set default port value
           const targetPort = _.head(ports);
