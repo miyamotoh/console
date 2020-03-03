@@ -1,27 +1,28 @@
 import * as React from 'react';
-import * as _ from 'lodash';
 import {
   Dropdown,
-  humanizeDecimalBytes,
+  humanizeBinaryBytes,
   humanizeCpuCores as humanizeCpuCoresUtil,
 } from '@console/internal/components/utils';
-import { getName, getNamespace } from '@console/shared';
+import { getName, getNamespace, getCreationTimestamp } from '@console/shared';
 import DashboardCard from '@console/shared/src/components/dashboard/dashboard-card/DashboardCard';
 import DashboardCardHeader from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardHeader';
 import DashboardCardTitle from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardTitle';
 import UtilizationBody from '@console/shared/src/components/dashboard/utilization-card/UtilizationBody';
 import {
-  ONE_HR,
-  SIX_HR,
-  TWENTY_FOUR_HR,
-} from '@console/shared/src/components/dashboard/utilization-card/dropdown-value';
-import { PrometheusUtilizationItem } from '@console/internal/components/dashboard/dashboards-page/overview-dashboard/utilization-card';
+  PrometheusUtilizationItem,
+  PrometheusMultilineUtilizationItem,
+} from '@console/internal/components/dashboard/dashboards-page/cluster-dashboard/utilization-card';
+import {
+  useMetricDuration,
+  Duration,
+} from '@console/shared/src/components/dashboard/duration-hook';
+import { ByteDataTypes } from '@console/shared/src/graph-helper/data-utils';
 import { VMDashboardContext } from '../../vms/vm-dashboard-context';
-import { findVMPod } from '../../../selectors/pod/selectors';
-import { getUtilizationQueries, VMQueries } from './queries';
-
-const metricDurations = [ONE_HR, SIX_HR, TWENTY_FOUR_HR];
-const metricDurationsOptions = _.zipObject(metricDurations, metricDurations);
+import { findVMIPod } from '../../../selectors/pod/selectors';
+import { isVMRunningWithVMI } from '../../../selectors/vm';
+import { getUtilizationQueries, getMultilineUtilizationQueries, VMQueries } from './queries';
+import { getPrometheusQueryEndTimestamp } from '@console/internal/components/graphs/helpers';
 
 // TODO: extend humanizeCpuCores() from @console/internal for the flexibility of space
 const humanizeCpuCores = (v) => {
@@ -32,13 +33,27 @@ const humanizeCpuCores = (v) => {
   return humanized;
 };
 
+const adjustDurationForStart = (start: number, createdAt: string): number => {
+  if (!createdAt) {
+    return start;
+  }
+  const endTimestamp = getPrometheusQueryEndTimestamp();
+  const startTimestamp = endTimestamp - start;
+  const createdAtTimestamp = Date.parse(createdAt);
+  const adjustedStart = endTimestamp - createdAtTimestamp;
+  return startTimestamp > createdAtTimestamp ? start : adjustedStart;
+};
+
 export const VMUtilizationCard: React.FC = () => {
   const [timestamps, setTimestamps] = React.useState<Date[]>();
-  const [duration, setDuration] = React.useState(metricDurations[0]);
-  const { vm, pods } = React.useContext(VMDashboardContext);
-  const vmName = getName(vm);
-  const namespace = getNamespace(vm);
-  const launcherPodName = getName(findVMPod(vm, pods));
+  const [duration, setDuration] = useMetricDuration();
+  const { vm, vmi, pods } = React.useContext(VMDashboardContext);
+  const vmiLike = vm || vmi;
+  const vmName = getName(vmiLike);
+  const namespace = getNamespace(vmiLike);
+  const launcherPodName = getName(findVMIPod(vmi, pods));
+  const vmIsRunning = isVMRunningWithVMI({ vm, vmi });
+
   const queries = React.useMemo(
     () =>
       getUtilizationQueries({
@@ -49,24 +64,27 @@ export const VMUtilizationCard: React.FC = () => {
     [vmName, namespace, launcherPodName],
   );
 
-  /* TODO: use when multi-line charts are ready
-    const netStats = [
-      getRangeVectorStats(netUtilizationIn),
-      getRangeVectorStats(netUtilizationOut),
-    ];
-    const netDataUnits = ['In', 'Out'];
-    */
+  const multilineQueries = React.useMemo(
+    () =>
+      getMultilineUtilizationQueries({
+        vmName,
+        namespace,
+        launcherPodName,
+      }),
+    [vmName, namespace, launcherPodName],
+  );
+
+  const createdAt = getCreationTimestamp(vmi);
+  const adjustDuration = React.useCallback(
+    (start: number) => adjustDurationForStart(start, createdAt),
+    [createdAt],
+  );
 
   return (
     <DashboardCard>
       <DashboardCardHeader>
         <DashboardCardTitle>Utilization</DashboardCardTitle>
-        <Dropdown
-          items={metricDurationsOptions}
-          onChange={setDuration}
-          selectedKey={duration}
-          title={duration}
-        />
+        <Dropdown items={Duration} onChange={setDuration} selectedKey={duration} title={duration} />
       </DashboardCardHeader>
       <UtilizationBody timestamps={timestamps}>
         <PrometheusUtilizationItem
@@ -74,25 +92,40 @@ export const VMUtilizationCard: React.FC = () => {
           utilizationQuery={queries[VMQueries.CPU_USAGE]}
           humanizeValue={humanizeCpuCores}
           duration={duration}
+          adjustDuration={adjustDuration}
           setTimestamps={setTimestamps}
+          namespace={namespace}
+          isDisabled={!vmIsRunning}
         />
         <PrometheusUtilizationItem
           title="Memory"
           utilizationQuery={queries[VMQueries.MEMORY_USAGE]}
-          humanizeValue={humanizeDecimalBytes}
+          humanizeValue={humanizeBinaryBytes}
+          byteDataType={ByteDataTypes.BinaryBytes}
           duration={duration}
+          namespace={namespace}
+          adjustDuration={adjustDuration}
+          isDisabled={!vmIsRunning}
         />
         <PrometheusUtilizationItem
           title="Filesystem"
           utilizationQuery={queries[VMQueries.FILESYSTEM_USAGE]}
-          humanizeValue={humanizeDecimalBytes}
+          humanizeValue={humanizeBinaryBytes}
+          byteDataType={ByteDataTypes.BinaryBytes}
           duration={duration}
+          namespace={namespace}
+          adjustDuration={adjustDuration}
+          isDisabled={!vmIsRunning}
         />
-        <PrometheusUtilizationItem
+        <PrometheusMultilineUtilizationItem
           title="Network Transfer"
-          utilizationQuery={queries[VMQueries.NETWORK_INOUT_USAGE]}
-          humanizeValue={humanizeDecimalBytes}
+          queries={multilineQueries[VMQueries.NETWORK_USAGE]}
+          humanizeValue={humanizeBinaryBytes}
+          byteDataType={ByteDataTypes.BinaryBytes}
           duration={duration}
+          namespace={namespace}
+          adjustDuration={adjustDuration}
+          isDisabled={!vmIsRunning}
         />
       </UtilizationBody>
     </DashboardCard>

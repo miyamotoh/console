@@ -11,7 +11,6 @@ import { PlusCircleIcon, OutlinedQuestionCircleIcon } from '@patternfly/react-ic
 import { k8sPatch } from '@console/internal/module/k8s';
 import { ModalFooter } from '../modal/modal-footer';
 import { getCDsPatch } from '../../../k8s/patches/vm/vm-cdrom-patches';
-import { getRemoveDiskPatches } from '../../../k8s/patches/vm/vm-disk-patches';
 import { getVMLikeModel, asVM, isWindows } from '../../../selectors/vm';
 import {
   getCDRoms,
@@ -23,11 +22,39 @@ import {
   isVMRunning,
 } from '../../../selectors/vm/selectors';
 import { isValidationError, validateURL } from '../../../utils/validations/common';
-import { VMKind, VMLikeEntityKind } from '../../../types';
+import { VMLikeEntityKind } from '../../../types/vmLike';
 import { CDRomRow } from './cdrom-row';
 import { getAvailableCDName } from './helpers';
-import { initialDisk, WINTOOLS_CONTAINER_NAMES, StorageType, CD, CDMap } from './constants';
+import { initialDisk, WINTOOLS_CONTAINER_NAMES, StorageType } from './constants';
 import './cdrom-modal.scss';
+import { CD, CDMap } from './types';
+import { VMKind } from '../../../types/vm';
+
+export const AddCDButton = ({ className, text, onClick, isDisabled }: AddCDButtonProps) => (
+  <div className={className}>
+    <Button
+      className="pf-m-link--align-left"
+      id="vm-cd-add-btn"
+      variant="link"
+      onClick={onClick}
+      isDisabled={isDisabled}
+      icon={<PlusCircleIcon />}
+    >
+      {text}
+    </Button>
+    {isDisabled && (
+      <Tooltip
+        position="bottom"
+        trigger="click mouseenter"
+        entryDelay={0}
+        exitDelay={0}
+        content="You have reached the maximum amount of CD-ROM drives"
+      >
+        <OutlinedQuestionCircleIcon />
+      </Tooltip>
+    )}
+  </div>
+);
 
 export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
   const {
@@ -52,17 +79,16 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
           name,
           cdrom,
           bootOrder,
-          isInVM: true,
         };
         const container = getContainerImageByDisk(vm, name);
         if (container) {
-          if (_.includes(WINTOOLS_CONTAINER_NAMES, container))
+          if (_.includes(WINTOOLS_CONTAINER_NAMES, container)) {
             cd = {
               ...cd,
               type: StorageType.WINTOOLS,
               windowsTools: container,
             };
-          else {
+          } else {
             cd = { ...cd, type: StorageType.CONTAINER, container };
           }
         }
@@ -88,10 +114,12 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
 
   const [cds, setCDs] = React.useState<CDMap>(mapCDsToSource(getCDRoms(vm)));
   const [showRestartAlert, setShowRestartAlert] = React.useState<boolean>(false);
+  const [shouldPatch, setShouldPatch] = React.useState<boolean>(false);
 
   const onCDChange = (cdName: string, key: string, value: string) => {
     setShowRestartAlert(true);
-    const cd = { ...cds[cdName], [key]: value, changed: true };
+    setShouldPatch(true);
+    const cd = { ...cds[cdName], [key]: value };
     if (key === StorageType.URL) {
       if (isValidationError(validateURL(value))) {
         cd.isURLValid = false;
@@ -108,33 +136,21 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
       ...initialDisk,
       type: StorageType.CONTAINER,
       name,
-      isInVM: false,
-      changed: true,
+      newCD: true,
     };
     setShowRestartAlert(true);
+    setShouldPatch(true);
     setCDs({ ...cds, [name]: newCD });
   };
 
-  const onCDEject = (cdName: string) =>
-    setCDs({ ...cds, [cdName]: { ...cds[cdName], ejected: true } });
-
   const onCDDelete = (cdName: string) => {
-    if (cds[cdName].isInVM) {
-      const patch = getRemoveDiskPatches(vmLikeEntity, cds[cdName]);
-      const promise = k8sPatch(getVMLikeModel(vmLikeEntity), vmLikeEntity, patch);
-      // eslint-disable-next-line promise/catch-or-return
-      handlePromise(promise).then(() => {
-        setCDs(_.omit(cds, cdName));
-        setShowRestartAlert(true);
-      });
-    } else {
-      setCDs(_.omit(cds, cdName));
-    }
+    setShouldPatch(true);
+    setCDs(_.omit(cds, cdName));
   };
 
   const submit = async (e) => {
     e.preventDefault();
-    if (Object.values(cds).find((cd) => cd.changed)) {
+    if (shouldPatch) {
       const patch = await getCDsPatch(vmLikeEntity, Object.values(cds));
       const promise = k8sPatch(getVMLikeModel(vmLikeEntity), vmLikeEntity, patch);
       handlePromise(promise).then(close); // eslint-disable-line promise/catch-or-return
@@ -178,7 +194,6 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
                 inProgress={inProgress}
                 onChange={onCDChange}
                 onDelete={onCDDelete}
-                onEject={onCDEject}
               />
             ))
           ) : (
@@ -186,26 +201,12 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
               This virtual machine does not have any CD-ROMs attached.
             </Text>
           )}
-          <div className="kubevirt-add-cd-btn">
-            <Button
-              className="pf-m-link--align-left"
-              id="vm-cd-add-btn"
-              variant="link"
-              onClick={onCDAdd}
-              isDisabled={_.size(cds) > 1}
-              icon={<PlusCircleIcon />}
-            >
-              Add CD-ROM
-            </Button>
-            {_.size(cds) > 1 && (
-              <Tooltip
-                position="bottom"
-                content="You have reached the maximum amount of CD-ROM drives"
-              >
-                <OutlinedQuestionCircleIcon />
-              </Tooltip>
-            )}
-          </div>
+          <AddCDButton
+            className="kubevirt-add-cd-btn"
+            text="Add CD-ROM"
+            onClick={onCDAdd}
+            isDisabled={_.size(cds) > 1}
+          />
         </Form>
       </ModalBody>
       <ModalFooter
@@ -223,6 +224,13 @@ export const CDRomModal = withHandlePromise((props: CDRomModalProps) => {
     </div>
   );
 });
+
+type AddCDButtonProps = {
+  className: string;
+  text: string;
+  isDisabled: boolean;
+  onClick: () => void;
+};
 
 type CDRomModalProps = HandlePromiseProps &
   ModalComponentProps & {

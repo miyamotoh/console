@@ -9,6 +9,7 @@ import { errorModal } from './modals';
 import { MachineConfigPoolModel, NodeModel } from '../models';
 import { machineConfigReference, MachineConfigPage } from './machine-config';
 import {
+  K8sResourceCondition,
   K8sResourceConditionStatus,
   MachineConfigPoolConditionType,
   MachineConfigPoolKind,
@@ -51,7 +52,7 @@ const machineConfigPoolMenuActions = [
 const getConditionStatus = (
   mcp: MachineConfigPoolKind,
   type: MachineConfigPoolConditionType,
-): K8sResourceConditionStatus => {
+): K8sResourceCondition['status'] => {
   const { conditions } = mcp.status;
   const condition = _.find(conditions, { type });
   return condition ? condition.status : K8sResourceConditionStatus.Unknown;
@@ -182,7 +183,7 @@ const MachineConfigPoolDetails: React.SFC<MachineConfigPoolDetailsProps> = ({ ob
   return (
     <>
       <div className="co-m-pane__body">
-        <SectionHeading text="Machine Config Pool Overview " />
+        <SectionHeading text="Machine Config Pool Details " />
         {paused && <WorkloadPausedAlert model={MachineConfigPoolModel} obj={obj} />}
         <MachineConfigPoolCounts obj={obj} />
         <div className="row">

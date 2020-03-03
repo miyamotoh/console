@@ -6,7 +6,7 @@ import { Button } from '@patternfly/react-core';
 import store from '../redux';
 import { LoadingBox, LoadingInline, Dropdown, ResourceIcon } from './utils';
 import { connectToFlags } from '../reducers/features';
-import { FLAGS } from '../const';
+import { FLAGS } from '@console/shared';
 import { Terminal } from './terminal';
 import { WSFactory } from '../module/ws-factory';
 import { resourceURL } from '../module/k8s';
@@ -90,9 +90,7 @@ export const PodExec = connectToFlags(FLAGS.OPENSHIFT)(
             if (previous.includes(NO_SH)) {
               current.reset();
               current.onConnectionClosed(
-                `This container doesn't have a /bin/sh shell. Try specifying your command in a terminal with:\r\n\r\n ${usedClient} -n ${
-                  metadata.namespace
-                } exec ${metadata.name} -ti <command>`,
+                `This container doesn't have a /bin/sh shell. Try specifying your command in a terminal with:\r\n\r\n ${usedClient} -n ${metadata.namespace} exec ${metadata.name} -ti <command>`,
               );
               this.ws.destroy();
               previous = '';

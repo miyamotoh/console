@@ -141,9 +141,8 @@ type VirtualMachineTemplatesProps = {
   };
 };
 
-const VirtualMachineTemplates: React.FC<
-  React.ComponentProps<typeof Table> & VirtualMachineTemplatesProps
-> = (props) => {
+const VirtualMachineTemplates: React.FC<React.ComponentProps<typeof Table> &
+  VirtualMachineTemplatesProps> = (props) => {
   return (
     <div className="kubevirt-vm-template-list">
       <Table
@@ -161,8 +160,8 @@ const VirtualMachineTemplates: React.FC<
 };
 const getCreateProps = ({ namespace }: { namespace: string }) => {
   const items: any = {
-    wizard: 'Create with Wizard',
-    yaml: 'Create from YAML',
+    wizard: 'New with Wizard',
+    yaml: 'New from YAML',
   };
 
   return {
@@ -174,9 +173,8 @@ const getCreateProps = ({ namespace }: { namespace: string }) => {
   };
 };
 
-const VirtualMachineTemplatesPage: React.FC<
-  VirtualMachineTemplatesPageProps & React.ComponentProps<typeof ListPage>
-> = (props) => {
+const VirtualMachineTemplatesPage: React.FC<VirtualMachineTemplatesPageProps &
+  React.ComponentProps<typeof ListPage>> = (props) => {
   const { skipAccessReview } = props;
   const namespace = props.match.params.ns;
 
@@ -206,7 +204,7 @@ const VirtualMachineTemplatesPage: React.FC<
     <MultiListPage
       {...props}
       createAccessReview={createAccessReview}
-      createButtonText="Create Template"
+      createButtonText="Create Virtual Machine Template"
       canCreate
       title={VM_TEMPLATE_LABEL_PLURAL}
       ListComponent={VirtualMachineTemplates}

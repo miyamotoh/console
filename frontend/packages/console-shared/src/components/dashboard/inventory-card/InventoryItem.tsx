@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 import { InProgressIcon, QuestionCircleIcon } from '@patternfly/react-icons';
-import { RedExclamationCircleIcon, YellowExclamationTriangleIcon } from '@console/shared';
 import { FlagsObject, WithFlagsProps, connectToFlags } from '@console/internal/reducers/features';
 import { K8sResourceKind, K8sKind } from '@console/internal/module/k8s';
 import { resourcePathFromModel } from '@console/internal/components/utils/resource-link';
@@ -14,6 +13,7 @@ import {
 import * as plugins from '@console/internal/plugins';
 import { pluralize } from '@console/internal/components/utils';
 import { isDashboardsInventoryItemGroup } from '@console/plugin-sdk';
+import { RedExclamationCircleIcon, YellowExclamationTriangleIcon } from '../../status/icons';
 import { InventoryStatusGroup } from './status-group';
 import './inventory-card.scss';
 
@@ -59,7 +59,7 @@ const getStatusGroupIcons = (flags: FlagsObject) => {
   return groupStatusIcons;
 };
 
-const InventoryItem: React.FC<InventoryItemProps> = React.memo(
+export const InventoryItem: React.FC<InventoryItemProps> = React.memo(
   ({
     isLoading,
     title,
@@ -72,7 +72,7 @@ const InventoryItem: React.FC<InventoryItemProps> = React.memo(
   }) => {
     const [expanded, setExpanded] = React.useState(false);
     const onClick = React.useCallback(() => setExpanded(!expanded), [expanded]);
-    const titleMessage = isLoading || error ? title : pluralize(count, title, titlePlural);
+    const titleMessage = pluralize(count, title, titlePlural, !isLoading && !error);
     return ExpandedComponent ? (
       <Accordion
         asDefinitionList={false}
@@ -128,7 +128,7 @@ const InventoryItem: React.FC<InventoryItemProps> = React.memo(
 );
 
 export const Status = connectToFlags<StatusProps>(
-  ...plugins.registry.getRequiredFlags([isDashboardsInventoryItemGroup]),
+  ...plugins.registry.getGatingFlagNames([isDashboardsInventoryItemGroup]),
 )(({ groupID, count, flags }) => {
   if (groupID === InventoryStatusGroup.NOT_MAPPED || !count) {
     return null;
@@ -144,7 +144,7 @@ export const Status = connectToFlags<StatusProps>(
 });
 
 const StatusLink = connectToFlags<StatusLinkProps>(
-  ...plugins.registry.getRequiredFlags([isDashboardsInventoryItemGroup]),
+  ...plugins.registry.getGatingFlagNames([isDashboardsInventoryItemGroup]),
 )(({ groupID, count, statusIDs, kind, namespace, filterType, flags, basePath }) => {
   if (groupID === InventoryStatusGroup.NOT_MAPPED || !count) {
     return null;
@@ -173,7 +173,7 @@ const ResourceTitleComponent: React.FC<ResourceTitleComponentComponent> = ({
 }) => <Link to={basePath || resourcePathFromModel(kind, null, namespace)}>{children}</Link>;
 
 export const ResourceInventoryItem = connectToFlags<ResourceInventoryItemProps>(
-  ...plugins.registry.getRequiredFlags([isDashboardsInventoryItemGroup]),
+  ...plugins.registry.getGatingFlagNames([isDashboardsInventoryItemGroup]),
 )(
   ({
     kind,
@@ -201,12 +201,18 @@ export const ResourceInventoryItem = connectToFlags<ResourceInventoryItemProps>(
       Object.keys(groups).filter((key) => groups[key].count > 0),
       flags,
     );
+
+    // The count can depend on additionalResources (like mixing of VM and VMI for kubevirt-plugin)
+    const totalCount = mapper
+      ? Object.keys(groups).reduce((acc, cur) => groups[cur].count + acc, 0)
+      : resources.length;
+
     return (
       <InventoryItem
         isLoading={isLoading}
         title={useAbbr ? kind.abbr : kind.label}
         titlePlural={useAbbr ? undefined : kind.labelPlural}
-        count={resources.length}
+        count={totalCount}
         error={error}
         TitleComponent={showLink ? TitleComponent : null}
         ExpandedComponent={ExpandedComponent}
@@ -239,7 +245,7 @@ type StatusGroup = {
     filterType?: string;
     statusIDs: string[];
     count: number;
-  }
+  };
 };
 
 export type StatusGroupMapper = (

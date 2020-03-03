@@ -19,7 +19,7 @@ import { referenceForModel } from '../module/k8s';
 import { RootState } from '../redux';
 import { ActionType as K8sActionType } from '../actions/k8s';
 import { FeatureAction, ActionType } from '../actions/features';
-import { FLAGS } from '../const';
+import { FLAGS } from '@console/shared/src/constants';
 import * as plugins from '../plugins';
 
 export const defaults = _.mapValues(FLAGS, (flag) =>
@@ -52,6 +52,9 @@ plugins.registry
     }
   });
 
+const pluginFlagNames = _.uniq(plugins.registry.getFeatureFlags().map((ff) => ff.properties.flag));
+const isKnownFlag = (flag: string) => !!FLAGS[flag] || pluginFlagNames.includes(flag);
+
 export type FeatureState = ImmutableMap<string, boolean>;
 
 export const featureReducerName = 'FLAGS';
@@ -62,14 +65,16 @@ export const featureReducer = (state: FeatureState, action: FeatureAction): Feat
 
   switch (action.type) {
     case ActionType.SetFlag:
-      if (!FLAGS[action.payload.flag]) {
-        throw new Error(`unknown key for reducer ${action.payload.flag}`);
+      if (!isKnownFlag(action.payload.flag)) {
+        throw new Error(`unknown flag ${action.payload.flag}`);
       }
-      return state.merge({ [action.payload.flag]: action.payload.value });
+      return state.set(action.payload.flag, action.payload.value);
+
     case ActionType.ClearSSARFlags:
       return state.withMutations((s) =>
         action.payload.flags.reduce((acc, curr) => acc.remove(curr), s),
       );
+
     case K8sActionType.ReceivedResources:
       // Flip all flags to false to signify that we did not see them
       _.each(CRDs, (v) => (state = state.set(v, false)));
@@ -114,12 +119,9 @@ export type ConnectToFlags = <P extends WithFlagsProps>(
 };
 
 export const connectToFlags: ConnectToFlags = (...flags) =>
-  connect(
-    (state: RootState) => stateToProps(flags, state),
-    null,
-    null,
-    { areStatePropsEqual: _.isEqual },
-  );
+  connect((state: RootState) => stateToProps(flags, state), null, null, {
+    areStatePropsEqual: _.isEqual,
+  });
 
 // Flag detection is not complete if the flag's value is `undefined`.
-export const flagPending = (flag) => flag === undefined;
+export const flagPending = (flag: boolean) => flag === undefined;

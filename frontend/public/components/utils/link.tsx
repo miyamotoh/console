@@ -2,7 +2,7 @@ import * as React from 'react';
 import * as classNames from 'classnames';
 import Linkify from 'react-linkify';
 
-import { ALL_NAMESPACES_KEY } from '../../const';
+import { ALL_NAMESPACES_KEY } from '@console/shared/src/constants';
 
 // Kubernetes "dns-friendly" names match
 // [a-z0-9]([-a-z0-9]*[a-z0-9])?  and are 63 or fewer characters
@@ -26,7 +26,7 @@ export const namespacedPrefixes = [
   '/operatorhub',
   '/operatormanagement',
   '/operators',
-  '/overview',
+  '/details',
   '/provisionedservices',
   '/search',
   '/status',
@@ -91,7 +91,7 @@ LinkifyExternal.displayName = 'LinkifyExternal';
 
 type ExternalLinkProps = {
   href: string;
-  text: string;
+  text: React.ReactNode;
   additionalClassName?: string;
   dataTestID?: string;
 };

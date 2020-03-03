@@ -9,8 +9,14 @@ import {
 } from './validations/vm-settings-tab-validation';
 import { setNetworksTabValidity, validateNetworks } from './validations/networks-tab-validation';
 import { setStoragesTabValidity, validateStorages } from './validations/storage-tab-validation';
+import { setVirtualHardwareTabValidity } from './validations/virtual-hardware-tab-validation';
 
-const UPDATE_TABS = [VMWizardTab.VM_SETTINGS, VMWizardTab.NETWORKING, VMWizardTab.STORAGE];
+const UPDATE_TABS = [
+  VMWizardTab.VM_SETTINGS,
+  VMWizardTab.NETWORKING,
+  VMWizardTab.STORAGE,
+  VMWizardTab.ADVANCED_VIRTUAL_HARDWARE,
+];
 
 const updaterResolver = {
   [VMWizardTab.VM_SETTINGS]: updateVmSettingsState,
@@ -27,20 +33,18 @@ const isTabValidResolver = {
   [VMWizardTab.VM_SETTINGS]: setVmSettingsTabValidity,
   [VMWizardTab.NETWORKING]: setNetworksTabValidity,
   [VMWizardTab.STORAGE]: setStoragesTabValidity,
+  [VMWizardTab.ADVANCED_VIRTUAL_HARDWARE]: setVirtualHardwareTabValidity,
 };
 
 export const updateAndValidateState = (options: UpdateOptions) => {
   const { prevState, changedCommonData, getState } = options;
 
-  const propsChanged = Object.keys(changedCommonData).some((key) => changedCommonData[key]);
-  const enhancedOptions = { ...options, propsChanged };
-
   UPDATE_TABS.forEach((tabKey) => {
     const updater = updaterResolver[tabKey];
-    updater && updater(enhancedOptions);
+    updater && updater(options);
   });
 
-  if (propsChanged || prevState !== getState()) {
+  if (changedCommonData.size > 0 || prevState !== getState()) {
     UPDATE_TABS.forEach((tabKey) => {
       const dataValidator = validateTabResolver[tabKey];
       const tabValidator = isTabValidResolver[tabKey];
@@ -50,7 +54,7 @@ export const updateAndValidateState = (options: UpdateOptions) => {
       }
 
       if (tabValidator) {
-        tabValidator(enhancedOptions);
+        tabValidator(options);
       }
     });
   }

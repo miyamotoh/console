@@ -2,14 +2,16 @@ import * as React from 'react';
 import * as _ from 'lodash-es';
 import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { Alert } from '@patternfly/react-core';
+import { AlertVariant } from '@patternfly/react-core';
 import * as plugins from '../../plugins';
 
 import { RootState } from '../../redux';
 import { featureReducerName, flagPending, FeatureState } from '../../reducers/features';
 import { K8sKind, k8sList, referenceForModel, getResourceDescription } from '../../module/k8s';
-import { resourcePathFromModel, Kebab, LoadingBox } from '../utils';
+import { EmptyBox, ExpandableAlert, Kebab, LoadingBox, resourcePathFromModel } from '../utils';
 import { addIDPItems } from './oauth';
+import { TextFilter } from '../factory';
+import { fuzzyCaseInsensitive } from '../factory/table-filters';
 
 const stateToProps = (state: RootState) => ({
   configResources: state.k8s.getIn(['RESOURCES', 'configResources']),
@@ -51,9 +53,10 @@ const ItemRow = ({ item }) => {
 
 class GlobalConfigPage_ extends React.Component<GlobalConfigPageProps, GlobalConfigPageState> {
   readonly state: GlobalConfigPageState = {
-    errorMessage: '',
+    errors: [],
     items: [],
     loading: true,
+    textFilter: '',
   };
 
   getGlobalConfigs(): plugins.GlobalConfig[] {
@@ -61,13 +64,13 @@ class GlobalConfigPage_ extends React.Component<GlobalConfigPageProps, GlobalCon
   }
 
   componentDidMount() {
-    let errorMessage = '';
     Promise.all(
       this.props.configResources.map((model: K8sKind) => {
         return k8sList(model)
-          .catch((err) => {
-            errorMessage += `${err.message} `;
-            this.setState({ errorMessage });
+          .catch(({ response: { status }, message = `Could not get resource ${model.kind}` }) => {
+            if (status !== 403) {
+              this.setState(({ errors }) => ({ errors: [...errors, message] }));
+            }
             return [];
           })
           .then((items) => items.map((i: K8sKind) => ({ ...i, model })));
@@ -143,35 +146,60 @@ class GlobalConfigPage_ extends React.Component<GlobalConfigPageProps, GlobalCon
   }
 
   render() {
-    const { errorMessage, items, loading } = this.state;
+    const { errors, items = [], loading, textFilter } = this.state;
+    const visibleItems = items.filter(({ label, description = '' }) => {
+      return (
+        fuzzyCaseInsensitive(textFilter, label) ||
+        description.toLowerCase().indexOf(textFilter.toLowerCase()) !== -1
+      );
+    });
     return (
-      <div className="co-m-pane__body">
-        {errorMessage && (
-          <Alert isInline className="co-alert" variant="danger" title="Error loading resources">
-            {errorMessage}
-          </Alert>
-        )}
-        {loading && <LoadingBox />}
+      <>
         {!loading && (
-          <>
-            <p className="co-m-pane__explanation">
-              Edit the following resources to manage the configuration of your cluster.
-            </p>
-            <div className="co-m-table-grid co-m-table-grid--bordered">
-              <div className="row co-m-table-grid__head">
-                <div className="col-xs-10 col-sm-4">Configuration Resource</div>
-                <div className="hidden-xs col-sm-7">Description</div>
-                <div />
-              </div>
-              <div className="co-m-table-grid__body">
-                {_.map(items, (item) => (
-                  <ItemRow item={item} key={item.id} />
-                ))}
-              </div>
+          <div className="co-m-pane__filter-bar co-m-pane__filter-bar--with-help-text">
+            <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--help-text">
+              <p className="co-help-text">
+                Edit the following resources to manage the configuration of your cluster.
+              </p>
             </div>
-          </>
+            <div className="co-m-pane__fiter-bar-group co-m-pane__filter-bar-group--filter">
+              <TextFilter
+                value={textFilter}
+                label="by name or description"
+                onChange={(e) => this.setState({ textFilter: e.target.value })}
+              />
+            </div>
+          </div>
         )}
-      </div>
+        <div className="co-m-pane__body">
+          {!_.isEmpty(errors) && (
+            <ExpandableAlert
+              variant={AlertVariant.danger}
+              alerts={errors.map((error, i) => (
+                <div key={i}>{error}</div>
+              ))}
+            />
+          )}
+          {loading && <LoadingBox />}
+          {!loading &&
+            (_.isEmpty(visibleItems) ? (
+              <EmptyBox label="Configuration Resources" />
+            ) : (
+              <div className="co-m-table-grid co-m-table-grid--bordered">
+                <div className="row co-m-table-grid__head">
+                  <div className="col-xs-10 col-sm-4">Configuration Resource</div>
+                  <div className="hidden-xs col-sm-7">Description</div>
+                  <div />
+                </div>
+                <div className="co-m-table-grid__body">
+                  {_.map(visibleItems, (item) => (
+                    <ItemRow item={item} key={item.id} />
+                  ))}
+                </div>
+              </div>
+            ))}
+        </div>
+      </>
     );
   }
 }
@@ -184,9 +212,10 @@ type GlobalConfigPageProps = {
 };
 
 type GlobalConfigPageState = {
-  errorMessage: string;
+  errors: string[];
   items: any;
   loading: boolean;
+  textFilter: string;
 };
 
 type GlobalConfigObjectProps = {

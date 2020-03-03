@@ -19,6 +19,7 @@ import (
 	"github.com/openshift/console/pkg/auth"
 	"github.com/openshift/console/pkg/bridge"
 	"github.com/openshift/console/pkg/crypto"
+	"github.com/openshift/console/pkg/helm/chartproxy"
 	"github.com/openshift/console/pkg/proxy"
 	"github.com/openshift/console/pkg/server"
 	"github.com/openshift/console/pkg/serverconfig"
@@ -107,6 +108,8 @@ func main() {
 	fDocumentationBaseURL := fs.String("documentation-base-url", "", "The base URL for documentation links.")
 
 	fLoadTestFactor := fs.Int("load-test-factor", 0, "DEV ONLY. The factor used to multiply k8s API list responses for load testing purposes.")
+
+	helmConfig := chartproxy.RegisterFlags(fs)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -476,21 +479,43 @@ func main() {
 		bridge.FlagFatalf("user-auth", "must be one of: oidc, disabled")
 	}
 
+	var resourceListerToken string
 	switch *fK8sAuth {
 	case "service-account":
 		bridge.ValidateFlagIs("k8s-mode", *fK8sMode, "in-cluster")
 		srv.StaticUser = &auth.User{
 			Token: k8sAuthServiceAccountBearerToken,
 		}
+		resourceListerToken = k8sAuthServiceAccountBearerToken
 	case "bearer-token":
 		bridge.ValidateFlagNotEmpty("k8s-auth-bearer-token", *fK8sAuthBearerToken)
 		srv.StaticUser = &auth.User{
 			Token: *fK8sAuthBearerToken,
 		}
+		resourceListerToken = *fK8sAuthBearerToken
 	case "oidc", "openshift":
 		bridge.ValidateFlagIs("user-auth", *fUserAuth, "oidc", "openshift")
+		resourceListerToken = k8sAuthServiceAccountBearerToken
 	default:
-		bridge.FlagFatalf("k8s-mode", "must be one of: service-account, bearer-token, oidc")
+		bridge.FlagFatalf("k8s-mode", "must be one of: service-account, bearer-token, oidc, openshift")
+	}
+
+	srv.MonitoringDashboardConfigMapLister = &server.ResourceLister{
+		BearerToken: resourceListerToken,
+		RequestURL: &url.URL{
+			Scheme: k8sEndpoint.Scheme,
+			Host:   k8sEndpoint.Host,
+			Path:   "/api/v1/namespaces/openshift-config-managed/configmaps",
+			RawQuery: url.Values{
+				"labelSelector": {"console.openshift.io/dashboard=true"},
+			}.Encode(),
+		},
+
+		Client: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: srv.K8sProxyConfig.TLSClientConfig,
+			},
+		},
 	}
 
 	listenURL := bridge.ValidateFlagIsURL("listen", *fListen)
@@ -503,9 +528,13 @@ func main() {
 		bridge.FlagFatalf("listen", "scheme must be one of: http, https")
 	}
 
+	helmConfig.Configure(srv)
+
 	httpsrv := &http.Server{
 		Addr:    listenURL.Host,
 		Handler: srv.HTTPHandler(),
+		// Disable HTTP/2, which breaks WebSockets.
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 
 	log.Infof("Binding to %s...", httpsrv.Addr)

@@ -6,7 +6,7 @@ import { CreateYAML } from '@console/internal/components/create-yaml';
 import { ListPageProps } from '@console/internal/components/monitoring';
 import { sortable } from '@patternfly/react-table';
 import { Button } from '@patternfly/react-core';
-import { withFallback } from '@console/internal/components/utils/error-boundary';
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
 import {
   K8sResourceKind,
   referenceForModel,
@@ -204,7 +204,7 @@ export const CreateSubscriptionYAML: React.SFC<CreateSubscriptionYAMLProps> = (p
             channel: ${channel.name}
         `;
           return (
-            <CreateYAML {...props as any} plural={SubscriptionModel.plural} template={template} />
+            <CreateYAML {...(props as any)} plural={SubscriptionModel.plural} template={template} />
           );
         }
         return <LoadingBox />;
@@ -237,7 +237,7 @@ export const CreateSubscriptionYAML: React.SFC<CreateSubscriptionYAMLProps> = (p
       ]}
     >
       {/* FIXME(alecmerdler): Hack because `Firehose` injects props without TypeScript knowing about it */}
-      <Create {...props as any} />
+      <Create {...(props as any)} />
     </Firehose>
   );
 };
@@ -471,6 +471,7 @@ export const CatalogSourceListPage: React.FC<CatalogSourceListPageProps> = (prop
     createProps={{ to: `/k8s/cluster/${referenceForModel(CatalogSourceModel)}/~new` }}
     flatten={(data) => flatten({ operatorHub: props.obj, ...data })}
     ListComponent={CatalogSourceList}
+    textFilter="catalog-source-name"
     resources={[
       {
         isList: true,

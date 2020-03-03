@@ -4,7 +4,7 @@ import { getStringEnumValues } from '../../utils/types';
 import { V1Network, V1NetworkInterface, VMKind } from '../../types/vm';
 import { NetworkInterfaceWrapper } from '../../k8s/wrapper/vm/network-interface-wrapper';
 import { NetworkWrapper } from '../../k8s/wrapper/vm/network-wrapper';
-import { UIDiskValidation, UINetworkInterfaceValidation } from '../../utils/validations/vm';
+import { UINetworkInterfaceValidation } from '../../utils/validations/vm/nic';
 import { V1Disk } from '../../types/vm/disk/V1Disk';
 import { V1Volume } from '../../types/vm/disk/V1Volume';
 import { V1alpha1DataVolume } from '../../types/vm/disk/V1alpha1DataVolume';
@@ -14,6 +14,7 @@ import { DataVolumeWrapper } from '../../k8s/wrapper/vm/data-volume-wrapper';
 import { IDReferences } from '../../utils/redux/id-reference';
 import { V1PersistentVolumeClaim } from '../../types/vm/disk/V1PersistentVolumeClaim';
 import { PersistentVolumeClaimWrapper } from '../../k8s/wrapper/vm/persistent-volume-claim-wrapper';
+import { UIDiskValidation } from '../../utils/validations/vm/types';
 
 export enum VMWizardTab { // order important
   VM_SETTINGS = 'VM_SETTINGS',
@@ -29,6 +30,7 @@ export enum VMWizardProps {
   isCreateTemplate = 'isCreateTemplate',
   isProviderImport = 'isProviderImport',
   activeNamespace = 'activeNamespace',
+  openshiftFlag = 'openshiftFlag',
   reduxID = 'reduxID',
   virtualMachines = 'virtualMachines',
   userTemplates = 'userTemplates',
@@ -100,7 +102,7 @@ export type VMWareProviderRenderableField =
   | VMWareProviderField.STATUS
   | VMWareProviderField.VM;
 export type VMSettingsRenderableFieldResolver = {
-  [key in VMSettingsRenderableField | VMWareProviderRenderableField]: string
+  [key in VMSettingsRenderableField | VMWareProviderRenderableField]: string;
 };
 
 export type VMSettingsFieldType = {
@@ -118,6 +120,7 @@ export type ChangedCommonDataProp =
   | VMWizardProps.userTemplates
   | VMWizardProps.commonTemplates
   | VMWizardProps.dataVolumes
+  | VMWizardProps.openshiftFlag
   | VMWareProviderProps.deployment
   | VMWareProviderProps.deploymentPods
   | VMWareProviderProps.v2vvmware
@@ -134,6 +137,7 @@ export type ChangedCommonData = Set<ChangedCommonDataProp>;
 
 export const DetectCommonDataChanges = new Set<ChangedCommonDataProp>([
   VMWizardProps.activeNamespace,
+  VMWizardProps.openshiftFlag,
   VMWizardProps.virtualMachines,
   VMWizardProps.userTemplates,
   VMWizardProps.commonTemplates,
@@ -159,6 +163,7 @@ export type CreateVMWizardComponentProps = {
   isCreateTemplate: boolean;
   dataIDReferences: IDReferences;
   activeNamespace: string;
+  openshiftFlag: boolean;
   reduxID: string;
   stepData: any;
   userTemplates: FirehoseResult<TemplateKind[]>;

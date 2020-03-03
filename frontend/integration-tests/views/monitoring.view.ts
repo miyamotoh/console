@@ -1,7 +1,10 @@
+import { Base64 } from 'js-base64';
+
 import { $, $$, browser, by, element, ExpectedConditions as until } from 'protractor';
 import * as crudView from '../views/crud.view';
+import { firstElementByTestID } from '../protractor.conf';
 
-export const wait = async (condition) => await browser.wait(condition, 15000);
+export const wait = async (condition) => await browser.wait(condition, 20000);
 
 // List pages
 export const listPageHeading = $('.co-m-pane__heading');
@@ -45,9 +48,7 @@ export const openFirstRowKebabMenu = () => {
   return firstRow
     .$('[data-test-id="kebab-button"]')
     .click()
-    .then(() =>
-      browser.wait(until.elementToBeClickable(crudView.actionForLabel('Delete Receiver'))),
-    );
+    .then(() => browser.wait(until.visibilityOf($('[data-test-id="action-items"]'))));
 };
 
 export const clickFirstRowKebabAction = (actionLabel: string) => {
@@ -63,3 +64,21 @@ export const getFirstRowAsText = () => {
     return text.replace(/[\n\r]/g, ' ');
   });
 };
+
+export const saveAsDefault = firstElementByTestID('save-as-default');
+
+export const defaultAlertmanagerYaml = Base64.encode(`"global":
+  "resolve_timeout": "5m"
+"receivers":
+- "name": "null"
+"route":
+  "group_by":
+  - "job"
+  "group_interval": "5m"
+  "group_wait": "30s"
+  "receiver": "null"
+  "repeat_interval": "12h"
+  "routes":
+  - "match":
+      "alertname": "Watchdog"
+    "receiver": "null"`);

@@ -3,10 +3,10 @@ import { Provider } from 'react-redux';
 import { Link, Router } from 'react-router-dom';
 import { mount, shallow } from 'enzyme';
 
+import { FLAGS } from '@console/shared';
 import { setFlag } from '@console/internal/actions/features';
 import * as UIActions from '@console/internal/actions/ui';
 import { history } from '@console/internal/components/utils/router';
-import { FLAGS } from '@console/internal/const';
 import {
   PrometheusGraph,
   PrometheusGraphLink,
@@ -41,13 +41,16 @@ describe('<PrometheusGraphLink />', () => {
     // Need full mount with redux store since this is a redux-connected component
     const getWrapper = (query: string) => {
       const wrapper = mount(
-        <Router history={history}>
-          <Provider store={store}>
-            <PrometheusGraphLink query={query}>
-              <p className="test-class" />
-            </PrometheusGraphLink>
-          </Provider>
-        </Router>,
+        <PrometheusGraphLink query={query}>
+          <p className="test-class" />
+        </PrometheusGraphLink>,
+        {
+          wrappingComponent: ({ children }) => (
+            <Router history={history}>
+              <Provider store={store}>{children}</Provider>
+            </Router>
+          ),
+        },
       );
       expect(wrapper.find('p.test-class').exists()).toBe(true);
       return wrapper;
@@ -61,14 +64,14 @@ describe('<PrometheusGraphLink />', () => {
     expect(wrapper.find(Link).exists()).toBe(false);
     wrapper = getWrapper('test');
     expect(wrapper.find(Link).exists()).toBe(true);
-    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+    expect(wrapper.find(Link).props().to).toEqual('/dev-monitoring/ns/default/metrics?query0=test');
 
     store.dispatch(UIActions.setActivePerspective('admin'));
     wrapper = getWrapper('');
     expect(wrapper.find(Link).exists()).toBe(false);
     wrapper = getWrapper('test');
     expect(wrapper.find(Link).exists()).toBe(true);
-    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+    expect(wrapper.find(Link).props().to).toEqual('/dev-monitoring/ns/default/metrics?query0=test');
 
     store.dispatch(setFlag(FLAGS.CAN_GET_NS, true));
     store.dispatch(UIActions.setActivePerspective('dev'));
@@ -76,7 +79,7 @@ describe('<PrometheusGraphLink />', () => {
     expect(wrapper.find(Link).exists()).toBe(false);
     wrapper = getWrapper('test');
     expect(wrapper.find(Link).exists()).toBe(true);
-    expect(wrapper.find(Link).props().to).toEqual('/metrics?query0=test');
+    expect(wrapper.find(Link).props().to).toEqual('/dev-monitoring/ns/default/metrics?query0=test');
 
     store.dispatch(UIActions.setActivePerspective('admin'));
     wrapper = getWrapper('');

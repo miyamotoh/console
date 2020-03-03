@@ -84,7 +84,7 @@ class PipelineTaskLogs extends React.Component<PipelineTaskLogsProps, PipelineTa
     this.sizeContainer();
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     if (!_.isEqual(this.props, nextProps)) {
       const pod: Pod = _.get(nextProps, ['obj', 'data'], {});
       const { containers, stillFetching } = getRenderContainers(pod);
@@ -166,6 +166,7 @@ class PipelineTaskLogs extends React.Component<PipelineTaskLogsProps, PipelineTa
           }
           style={{ height: targetHeight }}
           ref={this.scrollPane}
+          data-test-id="logs-task-container"
         >
           <div className="odc-pipeline-task-logs__taskName">
             {taskName}

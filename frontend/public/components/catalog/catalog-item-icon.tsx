@@ -33,10 +33,11 @@ import * as gitImg from '../../imgs/logos/git.svg';
 import * as githubImg from '../../imgs/logos/github.svg';
 import * as gitlabImg from '../../imgs/logos/gitlab.svg';
 import * as glassfishImg from '../../imgs/logos/glassfish.svg';
-import * as goGopherImg from '../../imgs/logos/go-gopher.svg';
+import * as goLangImg from '../../imgs/logos/golang.svg';
 import * as grailsImg from '../../imgs/logos/grails.svg';
 import * as hadoopImg from '../../imgs/logos/hadoop.svg';
 import * as haproxyImg from '../../imgs/logos/haproxy.svg';
+import * as helmImg from '../../imgs/logos/helm.svg';
 import * as infinispanImg from '../../imgs/logos/infinispan.svg';
 import * as jbossImg from '../../imgs/logos/jboss.svg';
 import * as jenkinsImg from '../../imgs/logos/jenkins.svg';
@@ -69,6 +70,7 @@ import * as playImg from '../../imgs/logos/play.svg';
 import * as postgresqlImg from '../../imgs/logos/postgresql.svg';
 import * as processserverImg from '../../imgs/logos/processserver.svg';
 import * as pythonImg from '../../imgs/logos/python.svg';
+import * as quarkusImg from '../../imgs/logos/quarkus.svg';
 import * as rabbitmqImg from '../../imgs/logos/rabbitmq.svg';
 import * as railsImg from '../../imgs/logos/rails.svg';
 import * as redisImg from '../../imgs/logos/redis.svg';
@@ -84,6 +86,7 @@ import * as suseImg from '../../imgs/logos/suse.svg';
 import * as symfonyImg from '../../imgs/logos/symfony.svg';
 import * as tomcatImg from '../../imgs/logos/tomcat.svg';
 import * as ubuntuImg from '../../imgs/logos/ubuntu.svg';
+import * as vertxImg from '../../imgs/logos/vertx.svg';
 import * as wildflyImg from '../../imgs/logos/wildfly.svg';
 import * as windowsImg from '../../imgs/logos/windows.svg';
 import * as wordpressImg from '../../imgs/logos/wordpress.svg';
@@ -121,11 +124,12 @@ const logos = new Map()
   .set('icon-github', githubImg)
   .set('icon-gitlab', gitlabImg)
   .set('icon-glassfish', glassfishImg)
-  .set('icon-go-gopher', goGopherImg)
-  .set('icon-golang', goGopherImg)
+  .set('icon-go-gopher', goLangImg)
+  .set('icon-golang', goLangImg)
   .set('icon-grails', grailsImg)
   .set('icon-hadoop', hadoopImg)
   .set('icon-haproxy', haproxyImg)
+  .set('icon-helm', helmImg)
   .set('icon-infinispan', infinispanImg)
   .set('icon-jboss', jbossImg)
   .set('icon-jenkins', jenkinsImg)
@@ -158,6 +162,7 @@ const logos = new Map()
   .set('icon-postgresql', postgresqlImg)
   .set('icon-processserver', processserverImg)
   .set('icon-python', pythonImg)
+  .set('icon-quarkus', quarkusImg)
   .set('icon-rabbitmq', rabbitmqImg)
   .set('icon-rails', railsImg)
   .set('icon-redis', redisImg)
@@ -176,6 +181,7 @@ const logos = new Map()
   .set('icon-symfony', symfonyImg)
   .set('icon-tomcat', tomcatImg)
   .set('icon-ubuntu', ubuntuImg)
+  .set('icon-vertx', vertxImg)
   .set('icon-wildfly', wildflyImg)
   .set('icon-windows', windowsImg)
   .set('icon-wordpress', wordpressImg)

@@ -27,6 +27,10 @@ import {
   OperandDetailsPage,
   ProvidedAPIPage,
   ProvidedAPIPageProps,
+  OperandStatusIconAndText,
+  OperandStatusIconAndTextProps,
+  OperatorStatusTypeText,
+  OperatorStatusType,
 } from './operand';
 import { Resources } from './k8s-resource';
 import { StatusDescriptor } from './descriptors/status';
@@ -83,7 +87,9 @@ describe(OperandTableRow.displayName, () => {
   it('renders column for resource status', () => {
     const col = wrapper.childAt(3);
 
-    expect(col.shallow().text()).toEqual('Unknown');
+    expect(col.find(OperandStatusIconAndText).props().statusObject).toEqual(
+      testResourceInstance.status,
+    );
   });
 
   it('renders column for resource status if unknown', () => {
@@ -92,7 +98,7 @@ describe(OperandTableRow.displayName, () => {
     wrapper.setProps({ obj });
     const col = wrapper.childAt(3);
 
-    expect(col.shallow().text()).toEqual('Unknown');
+    expect(col.find(OperandStatusIconAndText).props().statusObject).toEqual(null);
   });
 
   it('renders column for resource version', () => {
@@ -152,7 +158,7 @@ describe(OperandDetails.displayName, () => {
 
   it('renders description title', () => {
     const title = wrapper.find('.co-section-heading');
-    expect(title.text()).toEqual('Test Resource Overview');
+    expect(title.text()).toEqual('Test Resource Details');
   });
 
   it('renders info section', () => {
@@ -265,7 +271,7 @@ describe(OperandDetailsPage.displayName, () => {
   it('renders a `DetailsPage` with the correct subpages', () => {
     const detailsPage = wrapper.find(DetailsPage);
 
-    expect(detailsPage.props().pages[0].name).toEqual('Overview');
+    expect(detailsPage.props().pages[0].name).toEqual('Details');
     expect(detailsPage.props().pages[0].href).toEqual('');
     expect(detailsPage.props().pages[1].name).toEqual('YAML');
     expect(detailsPage.props().pages[1].href).toEqual('yaml');
@@ -436,9 +442,7 @@ describe(ProvidedAPIsPage.displayName, () => {
     expect(
       listPage.props().createProps.createLink(obj.spec.customresourcedefinitions.owned[0].name),
     ).toEqual(
-      `/k8s/ns/default/${
-        ClusterServiceVersionModel.plural
-      }/testapp/testapp.coreos.com~v1alpha1~TestResource/~new`,
+      `/k8s/ns/default/${ClusterServiceVersionModel.plural}/testapp/testapp.coreos.com~v1alpha1~TestResource/~new`,
     );
   });
 
@@ -451,9 +455,7 @@ describe(ProvidedAPIsPage.displayName, () => {
     expect(listPage.props().createProps.items).not.toBeDefined();
     expect(listPage.props().createProps.createLink).not.toBeDefined();
     expect(listPage.props().createProps.to).toEqual(
-      `/k8s/ns/default/${
-        ClusterServiceVersionModel.plural
-      }/testapp/testapp.coreos.com~v1alpha1~TestResource/~new`,
+      `/k8s/ns/default/${ClusterServiceVersionModel.plural}/testapp/testapp.coreos.com~v1alpha1~TestResource/~new`,
     );
   });
 
@@ -491,5 +493,39 @@ describe(ProvidedAPIPage.displayName, () => {
     );
 
     expect(wrapper.find(ListPage).props().canCreate).toBe(false);
+  });
+});
+
+describe('OperandStatusIconAndText', () => {
+  let wrapper: ShallowWrapper<OperandStatusIconAndTextProps>;
+
+  it('dispalys the correct status and status type for a status value of running', () => {
+    const obj = {
+      status: {
+        status: 'Running',
+      },
+    };
+    wrapper = shallow(<OperandStatusIconAndText statusObject={obj.status} />);
+    expect(wrapper.childAt(0).text()).toEqual(OperatorStatusTypeText[OperatorStatusType.status]);
+    expect(wrapper.childAt(2).props().title).toEqual('Running');
+  });
+
+  it('displays the correct status and status type for a phase value of running', () => {
+    const obj = {
+      status: {
+        phase: 'Running',
+      },
+    };
+    wrapper = shallow(<OperandStatusIconAndText statusObject={obj.status} />);
+    expect(wrapper.childAt(0).text()).toEqual(OperatorStatusTypeText[OperatorStatusType.phase]);
+    expect(wrapper.childAt(2).props().title).toEqual('Running');
+  });
+
+  it('displays Unknown for a missing or unknown status object', () => {
+    const obj = {
+      status: {},
+    };
+    wrapper = shallow(<OperandStatusIconAndText statusObject={obj.status} />);
+    expect(wrapper.find('.text-muted').text()).toEqual('Unknown');
   });
 });

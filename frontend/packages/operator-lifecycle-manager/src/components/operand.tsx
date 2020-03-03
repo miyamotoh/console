@@ -36,8 +36,9 @@ import {
   K8sResourceKind,
   OwnerReference,
   apiVersionForReference,
-  groupVersionFor,
+  apiGroupForReference,
   kindForReference,
+  K8sResourceKindReference,
   modelFor,
   referenceFor,
   referenceForModel,
@@ -47,6 +48,7 @@ import { RootState } from '@console/internal/redux';
 import * as plugins from '@console/internal/plugins';
 import { ClusterServiceVersionModel } from '../models';
 import { ClusterServiceVersionKind } from '../types';
+import { isInternalObject, getInternalAPIReferences, getInternalObjects } from '../utils';
 import { StatusDescriptor } from './descriptors/status';
 import { SpecDescriptor } from './descriptors/spec';
 import { StatusCapability, Descriptor } from './descriptors/types';
@@ -62,13 +64,13 @@ const csvName = () =>
         allParts[i - 1] === ClusterServiceVersionModel.plural,
     );
 
-const getActions = (selectedObj: any) => {
+const getActions = (ref: K8sResourceKindReference) => {
   const actions = plugins.registry
     .getClusterServiceVersionActions()
     .filter(
       (action) =>
-        action.properties.kind === selectedObj.kind &&
-        groupVersionFor(selectedObj.apiVersion).group === action.properties.apiGroup,
+        action.properties.kind === kindForReference(ref) &&
+        apiGroupForReference(ref) === action.properties.apiGroup,
     );
   const pluginActions = actions.map((action) => (kind, ocsObj) => ({
     label: action.properties.label,
@@ -173,8 +175,77 @@ export const OperandTableHeader = () => {
   ];
 };
 
+export enum OperatorStatusType {
+  phase = 'phase',
+  status = 'status',
+  state = 'state',
+  conditions = 'conditions',
+}
+
+export const OperatorStatusTypeText = {
+  [OperatorStatusType.phase]: 'Phase:',
+  [OperatorStatusType.status]: 'Status:',
+  [OperatorStatusType.state]: 'State:',
+  [OperatorStatusType.conditions]: 'Condition:',
+};
+
+export type ConditionType = {
+  type: string;
+  status: string;
+  reason?: string;
+  message?: string;
+  lastUpdateTime?: string;
+  lastTransitionTime?: string;
+};
+
+const DeriveIconFromStatusCondition = (conditionStatus: [ConditionType]) => {
+  let statusIcon;
+  if (!_.isEmpty(conditionStatus)) {
+    if (_.has(conditionStatus[0], 'type')) {
+      statusIcon = <Status status={conditionStatus[0].type} />;
+    }
+  }
+  return statusIcon;
+};
+
+const DeriveIconFromStatus = (status: string) => {
+  let statusIcon;
+  if (!_.isEmpty(status)) {
+    statusIcon =
+      status === 'Running' ? <SuccessStatus title={status} /> : <Status status={status} />;
+  }
+  return statusIcon;
+};
+
+export const OperandStatusIconAndText: React.FunctionComponent<OperandStatusIconAndTextProps> = ({
+  statusObject,
+}) => {
+  let iconAndText = <div className="text-muted">Unknown</div>;
+  if (_.isEmpty(statusObject)) {
+    return iconAndText;
+  }
+  _.find(Object.keys(OperatorStatusType), (key) => {
+    if (_.has(statusObject, key)) {
+      const status = statusObject[key];
+      const statusIcon =
+        key === OperatorStatusType.conditions
+          ? DeriveIconFromStatusCondition(status)
+          : DeriveIconFromStatus(status);
+      if (statusIcon) {
+        return (iconAndText = (
+          <span className="co-icon-and-text">
+            {OperatorStatusTypeText[key]}&nbsp;{statusIcon}
+          </span>
+        ));
+      }
+    }
+    return false;
+  });
+
+  return iconAndText;
+};
+
 export const OperandTableRow: React.FC<OperandTableRowProps> = ({ obj, index, key, style }) => {
-  const status = _.get(obj.status, 'phase');
   return (
     <TableRow id={obj.metadata.uid} index={index} trKey={key} style={style}>
       <TableData className={tableColumnClasses[0]}>
@@ -187,13 +258,7 @@ export const OperandTableRow: React.FC<OperandTableRowProps> = ({ obj, index, ke
         {obj.kind}
       </TableData>
       <TableData className={tableColumnClasses[2]}>
-        {_.isEmpty(status) ? (
-          <div className="text-muted">Unknown</div>
-        ) : (
-          <>
-            {status === 'Running' ? <SuccessStatus title={status} /> : <Status status={status} />}
-          </>
-        )}
+        <OperandStatusIconAndText statusObject={obj.status} />
       </TableData>
       <TableData className={tableColumnClasses[3]}>
         {_.get(obj.spec, 'version') || <div className="text-muted">Unknown</div>}
@@ -205,7 +270,11 @@ export const OperandTableRow: React.FC<OperandTableRowProps> = ({ obj, index, ke
         <Timestamp timestamp={obj.metadata.creationTimestamp} />
       </TableData>
       <TableData className={tableColumnClasses[6]}>
-        <ResourceKebab actions={getActions(obj)} kind={referenceFor(obj)} resource={obj} />
+        <ResourceKebab
+          actions={getActions(referenceFor(obj))}
+          kind={referenceFor(obj)}
+          resource={obj}
+        />
       </TableData>
     </TableRow>
   );
@@ -251,10 +320,12 @@ const inFlightStateToProps = ({ k8s }: RootState) => ({
 export const ProvidedAPIsPage = connect(inFlightStateToProps)((props: ProvidedAPIsPageProps) => {
   const { obj } = props;
   const { owned = [] } = obj.spec.customresourcedefinitions;
+  const internalObjects = getInternalObjects(obj);
+  const internalAPIs = getInternalAPIReferences(obj);
   const firehoseResources = owned.reduce((resources, desc) => {
     const reference = referenceForProvidedAPI(desc);
     const model = modelFor(reference);
-    return model
+    return model && !internalAPIs.some((api) => api === reference)
       ? [
           ...resources,
           {
@@ -279,7 +350,13 @@ export const ProvidedAPIsPage = connect(inFlightStateToProps)((props: ProvidedAP
   const createProps =
     owned.length > 1
       ? {
-          items: owned.reduce((acc, crd) => ({ ...acc, [crd.name]: crd.displayName }), {}),
+          items: owned.reduce(
+            (acc, crd) =>
+              !isInternalObject(internalObjects, crd.name)
+                ? { ...acc, [crd.name]: crd.displayName }
+                : acc,
+            {},
+          ),
           createLink,
         }
       : { to: owned.length === 1 ? createLink(owned[0].name) : null };
@@ -343,9 +420,7 @@ export const ProvidedAPIPage = connectToModel((props: ProvidedAPIPageProps) => {
   }
 
   const to = kindObj.namespaced
-    ? `/k8s/ns/${csv.metadata.namespace}/${ClusterServiceVersionModel.plural}/${
-        csv.metadata.name
-      }/${kind}/~new`
+    ? `/k8s/ns/${csv.metadata.namespace}/${ClusterServiceVersionModel.plural}/${csv.metadata.name}/${kind}/~new`
     : `${resourcePathFromModel(kindObj)}/~new`;
   return (
     <ListPage
@@ -557,6 +632,10 @@ export type OperandListProps = {
   reduxIDs?: string[];
   rowSplitter?: any;
   staticFilters?: any;
+};
+
+export type OperandStatusIconAndTextProps = {
+  statusObject: K8sResourceKind['status'];
 };
 
 export type OperandHeaderProps = {

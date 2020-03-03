@@ -1,3 +1,4 @@
+import * as React from 'react';
 import {
   Modifiers,
   Edge,
@@ -12,12 +13,16 @@ import {
   DropTargetMonitor,
   CREATE_CONNECTOR_DROP_TYPE,
   CREATE_CONNECTOR_OPERATION,
+  isGraph,
 } from '@console/topology';
+import { K8sResourceKind } from '@console/internal/module/k8s';
 import { createConnection } from './components/createConnection';
 import { removeConnection } from './components/removeConnection';
 import { moveNodeToGroup } from './components/moveNodeToGroup';
-import { TYPE_CONNECTS_TO, TYPE_WORKLOAD, TYPE_KNATIVE_SERVICE, TYPE_EVENT_SOURCE } from './const';
+import { TYPE_WORKLOAD, TYPE_KNATIVE_SERVICE, TYPE_EVENT_SOURCE } from './const';
 import './components/GraphComponent.scss';
+import { graphContextMenu, groupContextMenu } from './nodeContextMenu';
+import { errorModal } from '@console/internal/components/modals';
 
 type GraphProps = {
   element: Graph;
@@ -33,11 +38,14 @@ type EdgeProps = {
 };
 
 const MOVE_CONNECTOR_DROP_TYPE = '#moveConnector#';
+const MOVE_EV_SRC_CONNECTOR_DROP_TYPE = '#moveEvSrcConnector#';
 
 const MOVE_CONNECTOR_OPERATION = 'moveconnector';
 const REGROUP_OPERATION = 'regroup';
 
 const editOperations = [REGROUP_OPERATION, MOVE_CONNECTOR_OPERATION, CREATE_CONNECTOR_OPERATION];
+
+const regroupTypes = [TYPE_WORKLOAD, TYPE_KNATIVE_SERVICE, TYPE_EVENT_SOURCE];
 
 const highlightNodeOperations = [MOVE_CONNECTOR_OPERATION, CREATE_CONNECTOR_OPERATION];
 
@@ -58,6 +66,10 @@ const highlightNode = (monitor: DropTargetMonitor, props: NodeProps): boolean =>
     return false;
   }
 
+  if (monitor.getItemType() === MOVE_EV_SRC_CONNECTOR_DROP_TYPE) {
+    return false;
+  }
+
   if (monitor.getOperation() === CREATE_CONNECTOR_OPERATION) {
     return (
       monitor.getItem() !== props.element &&
@@ -75,7 +87,15 @@ const nodeDragSourceSpec = (
   type: string,
   allowRegroup: boolean = true,
   canEdit: boolean = false,
-): DragSourceSpec<DragObjectWithType, Node, {}, NodeProps> => ({
+): DragSourceSpec<
+  DragObjectWithType,
+  Node,
+  {
+    dragging?: boolean;
+    regrouping?: boolean;
+  },
+  NodeProps
+> => ({
   item: { type },
   operation: (monitor, props) => {
     return (canEdit || props.canEdit) && allowRegroup
@@ -119,13 +139,13 @@ const nodesEdgeIsDragging = (monitor, props) => {
 const nodeDropTargetSpec: DropTargetSpec<
   GraphElement,
   any,
-  { droppable: boolean; canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
+  { canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
   NodeProps
 > = {
   accept: [MOVE_CONNECTOR_DROP_TYPE, CREATE_CONNECTOR_DROP_TYPE],
   canDrop: (item, monitor, props) => {
     if (isEdge(item)) {
-      return item.getSource() !== props.element && item.getTarget() !== props.element;
+      return canDropEdgeOnNode(monitor.getOperation(), item, props.element);
     }
     if (item === props.element) {
       return false;
@@ -133,9 +153,8 @@ const nodeDropTargetSpec: DropTargetSpec<
     return !props.element.getTargetEdges().find((e) => e.getSource() === item);
   },
   collect: (monitor, props) => ({
-    droppable: monitor.isDragging(),
     canDrop: highlightNode(monitor, props),
-    dropTarget: monitor.isOver(),
+    dropTarget: monitor.isOver({ shallow: true }),
     edgeDragging: nodesEdgeIsDragging(monitor, props),
   }),
 };
@@ -146,34 +165,88 @@ const graphWorkloadDropTargetSpec: DropTargetSpec<
   { dragEditInProgress: boolean },
   GraphProps
 > = {
-  accept: [TYPE_WORKLOAD, TYPE_KNATIVE_SERVICE, TYPE_EVENT_SOURCE, TYPE_CONNECTS_TO],
+  accept: [...regroupTypes, CREATE_CONNECTOR_DROP_TYPE],
+  hitTest: () => true,
   canDrop: (item, monitor, props) => {
-    return monitor.getOperation() === REGROUP_OPERATION && item.getParent() !== props.element;
+    return (
+      monitor.isOver({ shallow: monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE }) &&
+      ((monitor.getOperation() === REGROUP_OPERATION && item.getParent() !== props.element) ||
+        monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE)
+    );
   },
-  collect: (monitor) => ({
-    dragEditInProgress: monitor.isDragging() && editOperations.includes(monitor.getOperation()),
-  }),
+  collect: (monitor) => {
+    const dragEditInProgress =
+      monitor.isDragging() && editOperations.includes(monitor.getOperation());
+    const dragCreate =
+      dragEditInProgress &&
+      (monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE ||
+        monitor.getItemType() === MOVE_CONNECTOR_DROP_TYPE);
+    return {
+      dragEditInProgress,
+      dragCreate,
+      hasDropTarget: dragEditInProgress && monitor.hasDropTarget(),
+    };
+  },
+  dropHint: 'create',
 };
 
-const groupWorkoadDropTargetSpec: DropTargetSpec<
+const groupWorkloadDropTargetSpec: DropTargetSpec<
   any,
   any,
   { droppable: boolean; dropTarget: boolean; canDrop: boolean },
   any
 > = {
-  accept: [TYPE_WORKLOAD, TYPE_EVENT_SOURCE, TYPE_KNATIVE_SERVICE],
-  canDrop: (item, monitor) => monitor.getOperation() === REGROUP_OPERATION,
+  accept: [...regroupTypes, CREATE_CONNECTOR_DROP_TYPE],
+  canDrop: (item, monitor) =>
+    monitor.isOver({ shallow: monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE }) &&
+    (monitor.getOperation() === REGROUP_OPERATION ||
+      monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE),
   collect: (monitor) => ({
     droppable: monitor.isDragging() && monitor.getOperation() === REGROUP_OPERATION,
-    dropTarget: monitor.isOver(),
-    canDrop: monitor.canDrop(),
+    dropTarget: monitor.isOver({ shallow: monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE }),
+    canDrop:
+      monitor.isDragging() &&
+      (monitor.getOperation() === REGROUP_OPERATION ||
+        monitor.getItemType() === CREATE_CONNECTOR_DROP_TYPE),
+  }),
+  dropHint: 'create',
+};
+
+const graphEventSourceDropTargetSpec: DropTargetSpec<
+  Edge,
+  any,
+  { canDrop: boolean; dropTarget: boolean; edgeDragging: boolean },
+  NodeProps
+> = {
+  accept: [CREATE_CONNECTOR_DROP_TYPE, MOVE_EV_SRC_CONNECTOR_DROP_TYPE],
+  canDrop: (item, monitor, props) => {
+    return (
+      monitor.getOperation() === MOVE_EV_SRC_CONNECTOR_DROP_TYPE &&
+      item.getSource() !== props.element
+    );
+  },
+  collect: (monitor, props) => ({
+    canDrop:
+      monitor.isDragging() &&
+      monitor.getOperation() === MOVE_EV_SRC_CONNECTOR_DROP_TYPE &&
+      monitor.canDrop(),
+    dropTarget: monitor.isOver({ shallow: true }),
+    edgeDragging: nodesEdgeIsDragging(monitor, props),
   }),
 };
 
 const edgeDragSourceSpec = (
+  type: string,
   serviceBinding: boolean,
+  callback: (
+    sourceNode: Node,
+    targetNode: Node,
+    replaceTargetNode?: Node,
+    serviceBindingFlag?: boolean,
+  ) => Promise<K8sResourceKind[] | K8sResourceKind>,
+  failureTitle: string = 'Error moving connection',
 ): DragSourceSpec<DragObjectWithType, Node, { dragging: boolean }, EdgeProps> => ({
-  item: { type: MOVE_CONNECTOR_DROP_TYPE },
+  item: { type },
   operation: MOVE_CONNECTOR_OPERATION,
   begin: (monitor, props) => {
     props.element.raise();
@@ -184,13 +257,15 @@ const edgeDragSourceSpec = (
   },
   end: (dropResult, monitor, props) => {
     props.element.setEndPoint();
-    if (monitor.didDrop() && dropResult) {
-      createConnection(
+    if (monitor.didDrop() && dropResult && canDropEdgeOnNode('', props.element, dropResult)) {
+      callback(
         props.element.getSource(),
         dropResult,
         props.element.getTarget(),
         serviceBinding,
-      );
+      ).catch((error) => {
+        errorModal({ title: failureTitle, error: error.message, showIcon: true });
+      });
     }
   },
   collect: (monitor) => ({
@@ -198,16 +273,37 @@ const edgeDragSourceSpec = (
   }),
 });
 
+const noDropTargetSpec: DropTargetSpec<GraphElement, any, {}, { element: GraphElement }> = {
+  accept: [...regroupTypes, CREATE_CONNECTOR_DROP_TYPE],
+  canDrop: () => {
+    return false;
+  },
+};
+
 const createConnectorCallback = (serviceBinding: boolean) => (
   source: Node,
-  target: Node,
-): any[] | null => {
-  createConnection(source, target, null, serviceBinding);
+  target: Node | Graph,
+): React.ReactElement[] | null => {
+  if (source === target) {
+    return null;
+  }
+
+  if (isGraph(target)) {
+    return graphContextMenu(target, source);
+  }
+  if (target.isGroup()) {
+    return groupContextMenu(target, source);
+  }
+  createConnection(source, target, null, serviceBinding).catch((error) => {
+    errorModal({ title: 'Error creating connection', error: error.message });
+  });
   return null;
 };
 
 const removeConnectorCallback = (edge: Edge): void => {
-  removeConnection(edge);
+  removeConnection(edge).catch((error) => {
+    errorModal({ title: 'Error removing connection', error: error.message });
+  });
   return null;
 };
 
@@ -215,8 +311,12 @@ export {
   nodeDragSourceSpec,
   nodeDropTargetSpec,
   graphWorkloadDropTargetSpec,
-  groupWorkoadDropTargetSpec,
+  groupWorkloadDropTargetSpec,
+  graphEventSourceDropTargetSpec,
   edgeDragSourceSpec,
+  noDropTargetSpec,
   createConnectorCallback,
   removeConnectorCallback,
+  MOVE_CONNECTOR_DROP_TYPE,
+  MOVE_EV_SRC_CONNECTOR_DROP_TYPE,
 };

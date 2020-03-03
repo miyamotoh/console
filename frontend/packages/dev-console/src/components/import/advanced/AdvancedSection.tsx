@@ -13,12 +13,14 @@ import ServerlessScalingSection from './ServerlessScalingSection';
 import BuildConfigSection from './BuildConfigSection';
 import DeploymentConfigSection from './DeploymentConfigSection';
 import ResourceLimitSection from './ResourceLimitSection';
+import { AppResources } from '../../edit-application/edit-application-types';
 
 export interface AdvancedSectionProps {
   values: FormikValues;
+  appResources?: AppResources;
 }
 
-const AdvancedSection: React.FC<AdvancedSectionProps> = ({ values }) => {
+const AdvancedSection: React.FC<AdvancedSectionProps> = ({ values, appResources }) => {
   const [visibleItems, setVisibleItems] = React.useState([]);
   const handleVisibleItemChange = (item: string) => {
     setVisibleItems([...visibleItems, item]);
@@ -26,7 +28,7 @@ const AdvancedSection: React.FC<AdvancedSectionProps> = ({ values }) => {
 
   return (
     <FormSection title="Advanced Options" fullWidth>
-      {values.route.show && <RouteCheckbox />}
+      <RouteCheckbox isDisabled={values.route.disable} />
       <ProgressiveList
         text="Click on the names to access advanced options for"
         visibleItems={visibleItems}
@@ -42,13 +44,19 @@ const AdvancedSection: React.FC<AdvancedSectionProps> = ({ values }) => {
         {/* Hide Build for Deploy Image */}
         {values.isi ? null : (
           <ProgressiveListItem name="Build Configuration">
-            <BuildConfigSection namespace={values.project.name} />
+            <BuildConfigSection
+              namespace={values.project.name}
+              resource={appResources?.buildConfig?.data}
+            />
           </ProgressiveListItem>
         )}
         {/* Hide Deployment for Serverless */}
         {values.resources !== Resources.KnativeService && (
           <ProgressiveListItem name="Deployment">
-            <DeploymentConfigSection namespace={values.project.name} />
+            <DeploymentConfigSection
+              namespace={values.project.name}
+              resource={appResources?.editAppResource?.data}
+            />
           </ProgressiveListItem>
         )}
         <ProgressiveListItem name="Scaling">

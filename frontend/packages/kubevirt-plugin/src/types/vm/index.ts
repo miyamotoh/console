@@ -1,4 +1,5 @@
 import { K8sResourceKind, ObjectMetadata } from '@console/internal/module/k8s';
+import { V1alpha1DataVolume } from './disk/V1alpha1DataVolume';
 
 // https://kubevirt.io/api-reference/master/definitions.html#_v1_virtualmachineinstancespec
 export type VMISpec = {
@@ -43,7 +44,7 @@ export type VMSpec = {
   template: VMITemplate;
   running?: boolean;
   runStrategy?: any;
-  dataVolumeTemplates?: any[];
+  dataVolumeTemplates?: V1alpha1DataVolume[];
 };
 
 export type VMStatus = {
@@ -63,15 +64,14 @@ export type CPU = {
   sockets: number;
   cores: number;
   threads: number;
+  dedicatedCpuPlacement?: boolean;
 };
 
-export type CPURaw =
-  | {
-      sockets: string;
-      cores: string;
-      threads: string;
-    }
-  | string;
+export type CPURaw = {
+  sockets: string;
+  cores: string;
+  threads: string;
+};
 
 export type V1NetworkInterface = {
   name?: string;

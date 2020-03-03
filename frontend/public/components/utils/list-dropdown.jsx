@@ -4,9 +4,9 @@ import * as fuzzy from 'fuzzysearch';
 import * as PropTypes from 'prop-types';
 import { Alert } from '@patternfly/react-core';
 
+import { FLAGS } from '@console/shared/src/constants';
 import { Dropdown, Firehose, LoadingInline, ResourceName } from './';
 import { connectToFlags, flagPending } from '../../reducers/features';
-import { FLAGS } from '../../const';
 
 class ListDropdown_ extends React.Component {
   constructor(props) {
@@ -32,14 +32,14 @@ class ListDropdown_ extends React.Component {
     };
   }
 
-  componentWillMount() {
+  UNSAFE_componentWillMount() {
     // we need to trigger state changes to get past shouldComponentUpdate...
     //   but the entire working set of data can be loaded in memory at this point in time
     //   in which case componentWillReceiveProps would not be called for a while...
-    this.componentWillReceiveProps(this.props);
+    this.UNSAFE_componentWillReceiveProps(this.props);
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     const { loaded, loadError } = nextProps;
     if (!loaded) {
       return;

@@ -16,7 +16,7 @@ import {
   isLoaded as yamlPageIsLoaded,
   saveButton,
 } from '@console/internal-integration-tests/views/yaml.view';
-import { STORAGE_CLASS, PAGE_LOAD_TIMEOUT_SECS } from './consts';
+import { STORAGE_CLASS, PAGE_LOAD_TIMEOUT_SECS, SEC } from './consts';
 import { NodePortService } from './types';
 
 export async function fillInput(elem: any, value: string) {
@@ -33,6 +33,13 @@ export async function fillInput(elem: any, value: string) {
     await elem.clear();
     await elem.sendKeys(value);
   } while ((await elem.getAttribute('value')) !== value && attempts > 0);
+}
+
+export async function setCheckboxState(elem: any, targetState: boolean) {
+  const checkboxState = await elem.isSelected();
+  if (checkboxState !== targetState) {
+    await click(elem);
+  }
 }
 
 export async function createProject(name: string) {
@@ -93,8 +100,10 @@ export async function getSelectOptions(selector: any): Promise<string[]> {
       .then((text) => options.push(text))
       .catch((err) => Promise.reject(err));
   });
-  if (options.length > 0 && options[0].startsWith('---')) {
-    return options.slice(1);
+  if (options.length > 0) {
+    if (options[0].startsWith('---') || options[0].startsWith('Please select')) {
+      return options.slice(1);
+    }
   }
   return options;
 }
@@ -139,4 +148,23 @@ export function resolveStorageDataAttribute(configMap: any, attribute: string): 
     return _.get(configMap, storageClassAttributePath);
   }
   return _.get(configMap, ['data', attribute]);
+}
+
+export const waitFor = async (element, text, count = 1) => {
+  let rowNumber = 0;
+  while (rowNumber !== count) {
+    await browser.wait(until.visibilityOf(element));
+    const elemText = await element.getText();
+    if (elemText.includes(text)) {
+      rowNumber += 1;
+    } else {
+      rowNumber = 0;
+    }
+    /* eslint-disable no-await-in-loop */
+    await browser.sleep(5 * SEC);
+  }
+};
+
+export function pauseVM(name: string, namespace: string): void {
+  execSync(`virtctl pause vmi ${name} -n ${namespace}`);
 }

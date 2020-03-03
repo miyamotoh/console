@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { CogsIcon } from '@patternfly/react-icons';
-import { FLAGS } from '@console/internal/const';
+import { FLAGS } from '@console/shared/src/constants';
 import {
   Plugin,
   Perspective,
@@ -8,6 +8,7 @@ import {
   DashboardsOverviewHealthURLSubsystem,
   DashboardsOverviewHealthPrometheusSubsystem,
   DashboardsOverviewInventoryItem,
+  DashboardsOverviewHealthOperator,
 } from '@console/plugin-sdk';
 import {
   ClusterVersionModel,
@@ -15,21 +16,19 @@ import {
   PodModel,
   StorageClassModel,
   PersistentVolumeClaimModel,
+  ClusterOperatorModel,
 } from '@console/internal/models';
-import { referenceForModel } from '@console/internal/module/k8s';
+import { referenceForModel, ClusterOperator } from '@console/internal/module/k8s';
 import {
   getNodeStatusGroups,
   getPodStatusGroups,
   getPVCStatusGroups,
 } from '@console/shared/src/components/dashboard/inventory-card/utils';
 import {
-  isClusterUpdateActivity,
-  getClusterUpdateTimestamp,
-} from './components/dashboards-page/ClusterUpdateActivity';
-import {
   fetchK8sHealth,
   getK8sHealthState,
   getControlPlaneHealth,
+  getClusterOperatorHealthStatus,
 } from './components/dashboards-page/status';
 import {
   API_SERVERS_UP,
@@ -37,13 +36,18 @@ import {
   CONTROLLER_MANAGERS_UP,
   SCHEDULERS_UP,
 } from './queries';
+import {
+  getClusterUpdateTimestamp,
+  isClusterUpdateActivity,
+} from './components/dashboards-page/activity';
 
 type ConsumedExtensions =
   | Perspective
   | DashboardsOverviewResourceActivity
   | DashboardsOverviewHealthURLSubsystem<any>
   | DashboardsOverviewHealthPrometheusSubsystem
-  | DashboardsOverviewInventoryItem;
+  | DashboardsOverviewInventoryItem
+  | DashboardsOverviewHealthOperator<ClusterOperator>;
 
 const plugin: Plugin<ConsumedExtensions> = [
   {
@@ -52,10 +56,10 @@ const plugin: Plugin<ConsumedExtensions> = [
       id: 'admin',
       name: 'Administrator',
       icon: <CogsIcon />,
+      default: true,
       getLandingPageURL: (flags) =>
         flags[FLAGS.CAN_LIST_NS] ? '/dashboards' : '/k8s/cluster/projects',
       getK8sLandingPageURL: () => '/search',
-      default: true,
       getImportRedirectURL: (project) => `/k8s/cluster/projects/${project}/workloads`,
     },
   },
@@ -133,6 +137,27 @@ const plugin: Plugin<ConsumedExtensions> = [
       model: PersistentVolumeClaimModel,
       mapper: getPVCStatusGroups,
       useAbbr: true,
+    },
+  },
+  {
+    type: 'Dashboards/Overview/Health/Operator',
+    properties: {
+      title: 'Cluster operators',
+      resources: [
+        {
+          kind: referenceForModel(ClusterOperatorModel),
+          isList: true,
+          namespaced: false,
+          prop: 'clusterOperators',
+        },
+      ],
+      getOperatorsWithStatuses: getClusterOperatorHealthStatus,
+      operatorRowLoader: () =>
+        import(
+          './components/dashboards-page/OperatorStatus' /* webpackChunkName: "console-app" */
+        ).then((c) => c.default),
+      viewAllLink: '/settings/cluster/clusteroperators',
+      required: FLAGS.CLUSTER_VERSION,
     },
   },
 ];

@@ -13,7 +13,7 @@ export type EventSinkServicesOverviewListProps = {
 };
 
 const EventSinkServicesOverviewList: React.FC<EventSinkServicesOverviewListProps> = ({ obj }) => {
-  const sink = _.get(obj, 'spec.sink', null);
+  const sink = _.get(obj, 'spec.sink.ref') || _.get(obj, 'spec.sink');
   const sinkUri = _.get(obj, 'status.sinkUri', null);
   const namespace = _.get(obj, 'metadata.namespace', null);
   return (
@@ -29,7 +29,7 @@ const EventSinkServicesOverviewList: React.FC<EventSinkServicesOverviewListProps
             />
             {sinkUri && (
               <>
-                <span className="text-muted">Sink uri: </span>
+                <span className="text-muted">Sink URI: </span>
                 <ExternalLink
                   href={sinkUri}
                   additionalClassName="co-external-link--block"

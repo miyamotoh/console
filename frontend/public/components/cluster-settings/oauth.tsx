@@ -40,9 +40,9 @@ const IdentityProviders: React.SFC<IdentityProvidersProps> = ({ identityProvider
         <tbody>
           {_.map(identityProviders, (idp) => (
             <tr key={idp.name}>
-              <td>{idp.name}</td>
-              <td>{idp.type}</td>
-              <td>{idp.mappingMethod || 'claim'}</td>
+              <td data-test-idp-name={idp.name}>{idp.name}</td>
+              <td data-test-idp-type-for={idp.name}>{idp.type}</td>
+              <td data-test-idp-mapping-for={idp.name}>{idp.mappingMethod || 'claim'}</td>
             </tr>
           ))}
         </tbody>
@@ -69,7 +69,7 @@ const OAuthDetails: React.SFC<OAuthDetailsProps> = ({ obj }: { obj: OAuthKind })
   return (
     <>
       <div className="co-m-pane__body">
-        <SectionHeading text="OAuth Overview" />
+        <SectionHeading text="OAuth Details" />
         <ResourceSummary resource={obj}>
           {tokenConfig && (
             <>

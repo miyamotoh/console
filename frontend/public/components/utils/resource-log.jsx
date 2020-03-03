@@ -5,16 +5,15 @@ import { saveAs } from 'file-saver';
 import { Alert, AlertActionLink, Button } from '@patternfly/react-core';
 import * as _ from 'lodash-es';
 import { CompressIcon, ExpandIcon, DownloadIcon } from '@patternfly/react-icons';
-
-import { LoadingInline, LogWindow, TogglePlay, ExternalLink } from './';
 import * as classNames from 'classnames';
+import { FLAGS } from '@console/shared/src/constants';
+import { LoadingInline, LogWindow, TogglePlay, ExternalLink } from './';
 import { modelFor, resourceURL } from '../../module/k8s';
 import { WSFactory } from '../../module/ws-factory';
 import { LineBuffer } from './line-buffer';
 import * as screenfull from 'screenfull';
 import { k8sGet, k8sList } from '@console/internal/module/k8s';
 import { ConsoleExternalLogLinkModel, ProjectModel } from '@console/internal/models';
-import { FLAGS } from '../../const';
 import { connectToFlags } from '../../reducers/features';
 
 export const STREAM_EOF = 'eof';
@@ -105,19 +104,14 @@ const LogControls = ({
             });
             return (
               <React.Fragment key={link.metadata.uid}>
-                <ExternalLink
-                  href={url}
-                  text={link.spec.text}
-                  additionalClassName="co-external-link--within-toolbar"
-                  dataTestID={link.metadata.name}
-                />
+                <ExternalLink href={url} text={link.spec.text} dataTestID={link.metadata.name} />
                 <span aria-hidden="true" className="co-action-divider hidden-xs">
                   |
                 </span>
               </React.Fragment>
             );
           })}
-        <Button variant="link" onClick={onDownload}>
+        <Button variant="link" isInline onClick={onDownload}>
           <DownloadIcon className="co-icon-space-r" />
           Download
         </Button>
@@ -126,7 +120,7 @@ const LogControls = ({
             <span aria-hidden="true" className="co-action-divider hidden-xs">
               |
             </span>
-            <Button variant="link" className="pf-m-link--align-right" onClick={toggleFullscreen}>
+            <Button variant="link" isInline onClick={toggleFullscreen}>
               {isFullscreen ? (
                 <>
                   <CompressIcon className="co-icon-space-r" />

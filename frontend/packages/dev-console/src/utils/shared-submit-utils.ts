@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import { K8sResourceKind } from '@console/internal/module/k8s';
 import { GitImportFormData, DeployImageFormData } from '../components/import/import-types';
-import { getAppLabels, getPodLabels, getAppAnnotations } from './resource-label-utils';
+import { getAppLabels, getPodLabels, getAppAnnotations, mergeData } from './resource-label-utils';
 import { makePortName } from './imagestream-utils';
 
 export const annotations = {
@@ -47,19 +47,16 @@ export const createService = (
     ports = isiPorts;
   }
 
-  const service: any = {
-    ...(originalService || {}),
+  const newService: any = {
     kind: 'Service',
     apiVersion: 'v1',
     metadata: {
-      ...(originalService ? originalService.metadata : {}),
       name,
       namespace,
       labels: { ...defaultLabels, ...userLabels },
       annotations: { ...defaultAnnotations },
     },
     spec: {
-      ...(originalService ? originalService.spec : {}),
       selector: podLabels,
       ports: _.map(ports, (port) => ({
         port: port.containerPort,
@@ -70,6 +67,8 @@ export const createService = (
       })),
     },
   };
+
+  const service = mergeData(originalService, newService);
 
   return service;
 };
@@ -113,19 +112,16 @@ export const createRoute = (
     targetPort = routeTargetPort || makePortName(_.head(ports));
   }
 
-  const route: any = {
-    ...(originalRoute || {}),
+  const newRoute: any = {
     kind: 'Route',
     apiVersion: 'route.openshift.io/v1',
     metadata: {
-      ...(originalRoute ? originalRoute.metadata : {}),
       name,
       namespace,
       labels: { ...defaultLabels, ...userLabels },
       defaultAnnotations,
     },
     spec: {
-      ...(originalRoute ? originalRoute.spec : {}),
       to: {
         kind: 'Service',
         name,
@@ -144,5 +140,15 @@ export const createRoute = (
       wildcardPolicy: 'None',
     },
   };
+
+  const route = mergeData(originalRoute, newRoute);
+
   return route;
+};
+
+export const getRandomChars = (digit = 6): string => {
+  return Math.random()
+    .toString(36)
+    .replace(/[^a-z0-9]+/g, '')
+    .substr(1, digit);
 };

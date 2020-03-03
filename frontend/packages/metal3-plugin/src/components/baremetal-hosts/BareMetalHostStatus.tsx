@@ -41,7 +41,7 @@ export const AddDiscoveredHostButton: React.FC<{ host: BareMetalHostKind }> = (
   );
 };
 
-const BareMetalHostStatus: React.FC<StatusProps> = ({ status, title, ...props }) => {
+const BareMetalHostStatus: React.FC<StatusProps> = ({ status, title, description, ...props }) => {
   const statusTitle = title || status;
   switch (true) {
     case status === HOST_STATUS_DISCOVERED:
@@ -49,11 +49,16 @@ const BareMetalHostStatus: React.FC<StatusProps> = ({ status, title, ...props })
     case [NODE_STATUS_STARTING_MAINTENANCE, NODE_STATUS_UNDER_MAINTENANCE].includes(status):
       return <MaintenancePopover title={statusTitle} maintenance={props.maintenance} />;
     case [NODE_STATUS_STOPPING_MAINTENANCE, ...HOST_PROGRESS_STATES].includes(status):
-      return <ProgressStatus title={statusTitle} />;
+      return <ProgressStatus title={statusTitle}>{description}</ProgressStatus>;
     case HOST_ERROR_STATES.includes(status):
-      return <ErrorStatus title={statusTitle}>{getHostErrorMessage(props.host)}</ErrorStatus>;
+      return (
+        <ErrorStatus title={statusTitle}>
+          <p>{description}</p>
+          <p>{getHostErrorMessage(props.host)}</p>
+        </ErrorStatus>
+      );
     case HOST_SUCCESS_STATES.includes(status):
-      return <SuccessStatus title={statusTitle} />;
+      return <SuccessStatus title={statusTitle}>{description}</SuccessStatus>;
     default:
       return <Status status={status} title={statusTitle} />;
   }

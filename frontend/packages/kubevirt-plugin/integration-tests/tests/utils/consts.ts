@@ -1,14 +1,15 @@
 import { execSync } from 'child_process';
 
-export const DASH = '-';
 export const { STORAGE_CLASS = 'rook-ceph-block' } = process.env;
 
 const rhelTinyCommonTemplateName = execSync(
   "kubectl get template -n openshift | grep rhel7-desktop-tiny | awk '{print $1}'",
 ).toString();
 
+export const NOT_AVAILABLE = 'Not available';
+
 // TIMEOUTS
-const SEC = 1000;
+export const SEC = 1000;
 export const CLONE_VM_TIMEOUT_SECS = 720 * SEC;
 export const CLONED_VM_BOOTUP_TIMEOUT_SECS = 300 * SEC;
 export const PAGE_LOAD_TIMEOUT_SECS = 15 * SEC;
@@ -17,10 +18,12 @@ export const VM_ACTIONS_TIMEOUT_SECS = 250 * SEC;
 export const VM_BOOTUP_TIMEOUT_SECS = 230 * SEC;
 export const VM_MIGRATION_TIMEOUT_SECS = 260 * SEC;
 export const VM_STOP_TIMEOUT_SECS = 20 * SEC;
+export const VM_DELETE_TIMEOUT_SECS = 30 * SEC;
 export const VM_IP_ASSIGNMENT_TIMEOUT_SECS = 180 * SEC;
 export const VM_IMPORT_TIMEOUT_SECS = 160 * SEC;
 export const WINDOWS_IMPORT_TIMEOUT_SECS = 150 * SEC;
 export const VM_CREATE_AND_EDIT_TIMEOUT_SECS = 200 * SEC;
+export const VM_CREATE_AND_EDIT_AND_CLOUDINIT_TIMEOUT_SECS = 15 * 60 * SEC;
 
 export const POD_CREATION_TIMEOUT_SECS = 40 * SEC;
 export const POD_TERMINATION_TIMEOUT_SECS = 30 * SEC;
@@ -28,7 +31,14 @@ export const POD_CREATE_DELETE_TIMEOUT_SECS =
   POD_CREATION_TIMEOUT_SECS + POD_TERMINATION_TIMEOUT_SECS;
 
 export const NODE_STOP_MAINTENANCE_TIMEOUT = 40 * SEC;
-export const JASMINE_EXTENDED_TIMEOUT_INTERVAL = 500000;
+export const JASMINE_EXTENDED_TIMEOUT_INTERVAL = 500 * SEC;
+
+export const V2V_INSTANCE_CONNECTION_TIMEOUT = 30 * SEC;
+export const V2V_VM_IMPORT_TIMEOUT = 3600 * SEC;
+
+// Wizard strings
+export const IMPORT_WIZARD_CONN_TO_NEW_INSTANCE = 'Connect to New Instance';
+export const NOT_RECOMMENDED_BUS_TYPE_WARN = 'Not recommended bus type';
 
 // Web-UI Exceptions
 export const WAIT_TIMEOUT_ERROR = 'Wait Timeout Error.';
@@ -49,13 +59,19 @@ export const KUBEVIRT_STORAGE_CLASS_DEFAULTS = 'kubevirt-storage-class-defaults'
 export const KUBEVIRT_PROJECT_NAME = 'openshift-cnv';
 
 export const COMMON_TEMPLATES_VERSION = rhelTinyCommonTemplateName.match(/v\d+\.\d+\.\d+/)[0];
-export const INNER_TEMPLATE_VERSION = 'v0.8.1';
+export const INNER_TEMPLATE_VERSION = 'v0.8.2';
 
 export const COMMON_TEMPLATES_NAMESPACE = 'openshift';
 export const COMMON_TEMPLATES_REVISION = '1';
 
+export const KUBEVIRT_SCRIPTS_PATH =
+  './packages/kubevirt-plugin/integration-tests/tests/utils/scripts';
+export const KUBEVIRT_TEMPLATES_PATH =
+  './packages/kubevirt-plugin/integration-tests/tests/utils/templates';
+
 export enum TAB {
   Consoles = 'Consoles',
+  Details = 'Details',
   Disks = 'Disks',
   Events = 'Events',
   NetworkInterfaces = 'Network Interfaces',
@@ -73,6 +89,7 @@ export enum VM_ACTION {
   Restart = 'Restart Virtual Machine',
   Start = 'Start Virtual Machine',
   Stop = 'Stop Virtual Machine',
+  Unpause = 'Unpause Virtual Machine',
 }
 
 export enum VM_STATUS {
@@ -83,6 +100,7 @@ export enum VM_STATUS {
   Pending = 'Pending',
   Importing = 'Importing',
   Migrating = 'Migrating',
+  Paused = 'Paused',
 }
 
 export enum DISK_SOURCE {
@@ -91,6 +109,11 @@ export enum DISK_SOURCE {
   Blank = 'Blank',
   Container = 'Container',
   Url = 'URL',
+}
+
+export enum KEBAP_ACTION {
+  Edit = 'Edit',
+  Delete = 'Delete',
 }
 
 export enum NIC_MODEL {
@@ -132,3 +155,9 @@ export const diskTabCol = {
   storageClass: 4,
 };
 Object.freeze(diskTabCol);
+
+export enum VMI_ACTION {
+  Delete = 'Delete Virtual Machine Instance',
+  EditAnnotations = 'Edit Annotations',
+  EditLabels = 'Edit Labels',
+}

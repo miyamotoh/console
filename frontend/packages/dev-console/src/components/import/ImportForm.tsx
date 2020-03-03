@@ -1,20 +1,23 @@
 import * as React from 'react';
-import * as plugins from '@console/internal/plugins';
 import { Formik } from 'formik';
 import * as _ from 'lodash';
+import { ValidatedOptions } from '@patternfly/react-core';
 import { history, AsyncComponent } from '@console/internal/components/utils';
 import { getActivePerspective, getActiveApplication } from '@console/internal/reducers/ui';
 import { RootState } from '@console/internal/redux';
 import { connect } from 'react-redux';
-import { ALL_APPLICATIONS_KEY } from '@console/internal/const';
+import { ALL_APPLICATIONS_KEY } from '@console/shared';
 import { NormalizedBuilderImages, normalizeBuilderImages } from '../../utils/imagestream-utils';
+import { doContextualBinding } from '../../utils/application-utils';
+import { ALLOW_SERVICE_BINDING } from '../../const';
 import { GitImportFormData, FirehoseList, ImportData, Resources } from './import-types';
-import { createOrUpdateResources } from './import-submit-utils';
+import { createOrUpdateResources, handleRedirect } from './import-submit-utils';
 import { validationSchema } from './import-validation-utils';
 
 export interface ImportFormProps {
   namespace: string;
   importData: ImportData;
+  contextualSource?: string;
   imageStreams?: FirehoseList;
   projects?: {
     loaded: boolean;
@@ -25,15 +28,18 @@ export interface ImportFormProps {
 export interface StateProps {
   perspective: string;
   activeApplication: string;
+  serviceBindingAvailable: boolean;
 }
 
 const ImportForm: React.FC<ImportFormProps & StateProps> = ({
   namespace,
   imageStreams,
   importData,
+  contextualSource,
   perspective,
   activeApplication,
   projects,
+  serviceBindingAvailable,
 }) => {
   const initialValues: GitImportFormData = {
     name: '',
@@ -54,7 +60,7 @@ const ImportForm: React.FC<ImportFormProps & StateProps> = ({
       dir: '/',
       showGitType: false,
       secret: '',
-      isUrlValidated: false,
+      urlValidation: ValidatedOptions.default,
       isUrlValidating: false,
     },
     docker: {
@@ -71,7 +77,7 @@ const ImportForm: React.FC<ImportFormProps & StateProps> = ({
       couldNotRecommend: false,
     },
     route: {
-      show: true,
+      disable: false,
       create: true,
       targetPort: '',
       path: '',
@@ -138,14 +144,6 @@ const ImportForm: React.FC<ImportFormProps & StateProps> = ({
   const builderImages: NormalizedBuilderImages =
     imageStreams && imageStreams.loaded && normalizeBuilderImages(imageStreams.data);
 
-  const handleRedirect = (project: string) => {
-    const perspectiveData = plugins.registry
-      .getPerspectives()
-      .find((item) => item.properties.id === perspective);
-    const redirectURL = perspectiveData.properties.getImportRedirectURL(project);
-    history.push(redirectURL);
-  };
-
   const handleSubmit = (values, actions) => {
     const imageStream = builderImages && builderImages[values.image.selected].obj;
     const createNewProject = projects.loaded && _.isEmpty(projects.data);
@@ -153,11 +151,25 @@ const ImportForm: React.FC<ImportFormProps & StateProps> = ({
       project: { name: projectName },
     } = values;
 
-    createOrUpdateResources(values, imageStream, createNewProject, true)
-      .then(() => createOrUpdateResources(values, imageStream))
+    const resourceActions = createOrUpdateResources(
+      values,
+      imageStream,
+      createNewProject,
+      true,
+    ).then(() => createOrUpdateResources(values, imageStream));
+
+    if (contextualSource) {
+      resourceActions
+        .then((resources) =>
+          doContextualBinding(resources, contextualSource, serviceBindingAvailable),
+        )
+        .catch(() => {});
+    }
+
+    resourceActions
       .then(() => {
         actions.setSubmitting(false);
-        handleRedirect(projectName);
+        handleRedirect(projectName, perspective);
       })
       .catch((err) => {
         actions.setSubmitting(false);
@@ -187,12 +199,14 @@ const ImportForm: React.FC<ImportFormProps & StateProps> = ({
   );
 };
 
-const mapStateToProps = (state: RootState): StateProps => {
+type OwnProps = ImportFormProps & { forApplication?: string };
+const mapStateToProps = (state: RootState, ownProps: OwnProps): StateProps => {
   const perspective = getActivePerspective(state);
-  const activeApplication = getActiveApplication(state);
+  const activeApplication = ownProps.forApplication || getActiveApplication(state);
   return {
     perspective,
     activeApplication: activeApplication !== ALL_APPLICATIONS_KEY ? activeApplication : '',
+    serviceBindingAvailable: state.FLAGS.get(ALLOW_SERVICE_BINDING),
   };
 };
 

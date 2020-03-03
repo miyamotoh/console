@@ -11,7 +11,7 @@ import {
   EventSourceCamelModel,
   EventSourceKafkaModel,
 } from '@console/knative-plugin';
-import { getAppLabels } from '@console/dev-console/src/utils/resource-label-utils';
+import { getAppLabels, mergeData } from '@console/dev-console/src/utils/resource-label-utils';
 import {
   DeployImageFormData,
   GitImportFormData,
@@ -21,6 +21,8 @@ export const getKnativeServiceDepResource = (
   formData: GitImportFormData | DeployImageFormData,
   imageStreamUrl: string,
   imageStreamName?: string,
+  imageStreamTag?: string,
+  imageNamespace?: string,
   annotations?: { [name: string]: string },
   originalKnativeService?: K8sResourceKind,
 ): K8sResourceKind => {
@@ -30,11 +32,13 @@ export const getKnativeServiceDepResource = (
     project: { name: namespace },
     serverless: { scaling },
     limits,
-    route: { unknownTargetPort, create },
+    route: { unknownTargetPort, create, targetPort },
     labels,
     image: { tag: imageTag },
   } = formData;
-  const contTargetPort: number = parseInt(unknownTargetPort, 10);
+  const contTargetPort = targetPort
+    ? parseInt(targetPort.split('-')[0], 10)
+    : parseInt(unknownTargetPort, 10);
   const { concurrencylimit, concurrencytarget, minpods, maxpods } = scaling;
   const {
     cpu: {
@@ -50,14 +54,18 @@ export const getKnativeServiceDepResource = (
       limitUnit: memoryLimitUnit,
     },
   } = limits;
-  const defaultLabel = getAppLabels(name, applicationName, imageStreamName, imageTag);
+  const defaultLabel = getAppLabels(
+    name,
+    applicationName,
+    imageStreamName,
+    imageStreamTag || imageTag,
+    imageNamespace,
+  );
   delete defaultLabel.app;
-  const knativeDeployResource: K8sResourceKind = {
-    ...(originalKnativeService || {}),
+  const newKnativeDeployResource: K8sResourceKind = {
     kind: ServiceModel.kind,
     apiVersion: `${ServiceModel.apiGroup}/${ServiceModel.apiVersion}`,
     metadata: {
-      ...(originalKnativeService ? originalKnativeService.metadata : {}),
       name,
       namespace,
       labels: {
@@ -65,9 +73,9 @@ export const getKnativeServiceDepResource = (
         ...labels,
         ...(!create && { 'serving.knative.dev/visibility': `cluster-local` }),
       },
+      annotations,
     },
     spec: {
-      ...(originalKnativeService ? originalKnativeService.spec : {}),
       template: {
         metadata: {
           labels: {
@@ -115,6 +123,9 @@ export const getKnativeServiceDepResource = (
       },
     },
   };
+
+  const knativeDeployResource = mergeData(originalKnativeService || {}, newKnativeDeployResource);
+
   return knativeDeployResource;
 };
 

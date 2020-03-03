@@ -1,15 +1,9 @@
 import * as React from 'react';
-import * as _ from 'lodash-es';
 import DashboardCard from '@console/shared/src/components/dashboard/dashboard-card/DashboardCard';
 import DashboardCardHeader from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardHeader';
 import DashboardCardTitle from '@console/shared/src/components/dashboard/dashboard-card/DashboardCardTitle';
 import UtilizationBody from '@console/shared/src/components/dashboard/utilization-card/UtilizationBody';
 import { TopConsumerPopoverProp } from '@console/shared/src/components/dashboard/utilization-card/UtilizationItem';
-import {
-  ONE_HR,
-  SIX_HR,
-  TWENTY_FOUR_HR,
-} from '@console/shared/src/components/dashboard/utilization-card/dropdown-value';
 import { getName } from '@console/shared';
 import ConsumerPopover from '@console/shared/src/components/dashboard/utilization-card/TopConsumerPopover';
 import { PopoverPosition } from '@patternfly/react-core';
@@ -23,18 +17,28 @@ import {
 } from '../../utils';
 import { ProjectDashboardContext } from './project-dashboard-context';
 import { PodModel } from '../../../models';
-import { getUtilizationQueries, ProjectQueries, getTopConsumerQueries } from './queries';
-import { PrometheusUtilizationItem } from '../dashboards-page/overview-dashboard/utilization-card';
-
-const metricDurations = [ONE_HR, SIX_HR, TWENTY_FOUR_HR];
-const metricDurationsOptions = _.zipObject(metricDurations, metricDurations);
+import {
+  useMetricDuration,
+  Duration,
+} from '@console/shared/src/components/dashboard/duration-hook';
+import {
+  getUtilizationQueries,
+  ProjectQueries,
+  getTopConsumerQueries,
+  getMultilineQueries,
+} from './queries';
+import {
+  PrometheusUtilizationItem,
+  PrometheusMultilineUtilizationItem,
+} from '../dashboards-page/cluster-dashboard/utilization-card';
 
 export const UtilizationCard: React.FC = () => {
   const [timestamps, setTimestamps] = React.useState<Date[]>();
-  const [duration, setDuration] = React.useState(metricDurations[0]);
+  const [duration, setDuration] = useMetricDuration();
   const { obj } = React.useContext(ProjectDashboardContext);
   const projectName = getName(obj);
   const queries = React.useMemo(() => getUtilizationQueries(projectName), [projectName]);
+  const multilineQueries = React.useMemo(() => getMultilineQueries(projectName), [projectName]);
 
   const cpuPopover = React.useCallback(
     React.memo<TopConsumerPopoverProp>(({ current }) => (
@@ -96,14 +100,14 @@ export const UtilizationCard: React.FC = () => {
     [projectName],
   );
 
-  const networkPopover = React.useCallback(
+  const networkPopoverIn = React.useCallback(
     React.memo<TopConsumerPopoverProp>(({ current }) => (
       <ConsumerPopover
-        title="Network"
+        title="Network In"
         current={current}
         consumers={[
           {
-            query: getTopConsumerQueries(projectName)[ProjectQueries.PODS_BY_NETWORK],
+            query: getTopConsumerQueries(projectName)[ProjectQueries.PODS_BY_NETWORK_IN],
             model: PodModel,
             metric: 'pod',
           },
@@ -116,16 +120,36 @@ export const UtilizationCard: React.FC = () => {
     [projectName],
   );
 
+  const networkPopoverOut = React.useCallback(
+    React.memo<TopConsumerPopoverProp>(({ current }) => (
+      <ConsumerPopover
+        title="Network Out"
+        current={current}
+        consumers={[
+          {
+            query: getTopConsumerQueries(projectName)[ProjectQueries.PODS_BY_NETWORK_OUT],
+            model: PodModel,
+            metric: 'pod',
+          },
+        ]}
+        humanize={humanizeDecimalBytesPerSec}
+        namespace={projectName}
+        position={PopoverPosition.top}
+      />
+    )),
+    [projectName],
+  );
+
+  const networkPopovers = React.useMemo(() => [networkPopoverIn, networkPopoverOut], [
+    networkPopoverIn,
+    networkPopoverOut,
+  ]);
+
   return (
-    <DashboardCard>
+    <DashboardCard data-test-id="utilization-card">
       <DashboardCardHeader>
         <DashboardCardTitle>Utilization</DashboardCardTitle>
-        <Dropdown
-          items={metricDurationsOptions}
-          onChange={setDuration}
-          selectedKey={duration}
-          title={duration}
-        />
+        <Dropdown items={Duration} onChange={setDuration} selectedKey={duration} title={duration} />
       </DashboardCardHeader>
       <UtilizationBody timestamps={timestamps}>
         <PrometheusUtilizationItem
@@ -135,6 +159,7 @@ export const UtilizationCard: React.FC = () => {
           TopConsumerPopover={cpuPopover}
           duration={duration}
           setTimestamps={setTimestamps}
+          namespace={projectName}
         />
         <PrometheusUtilizationItem
           title="Memory"
@@ -143,6 +168,7 @@ export const UtilizationCard: React.FC = () => {
           byteDataType={ByteDataTypes.BinaryBytes}
           TopConsumerPopover={memPopover}
           duration={duration}
+          namespace={projectName}
         />
         <PrometheusUtilizationItem
           title="Filesystem"
@@ -151,19 +177,22 @@ export const UtilizationCard: React.FC = () => {
           byteDataType={ByteDataTypes.BinaryBytes}
           TopConsumerPopover={filesystemPopover}
           duration={duration}
+          namespace={projectName}
         />
-        <PrometheusUtilizationItem
+        <PrometheusMultilineUtilizationItem
           title="Network Transfer"
           humanizeValue={humanizeDecimalBytesPerSec}
-          utilizationQuery={queries[ProjectQueries.NETWORK_IN_OUT_USAGE]}
-          TopConsumerPopover={networkPopover}
+          queries={multilineQueries[ProjectQueries.NETWORK_UTILIZATION]}
+          TopConsumerPopovers={networkPopovers}
           duration={duration}
+          namespace={projectName}
         />
         <PrometheusUtilizationItem
           title="Pod count"
           humanizeValue={humanizeNumber}
           utilizationQuery={queries[ProjectQueries.POD_COUNT]}
           duration={duration}
+          namespace={projectName}
         />
       </UtilizationBody>
     </DashboardCard>

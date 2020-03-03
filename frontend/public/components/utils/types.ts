@@ -10,7 +10,12 @@ export type FirehoseResult<
 > = {
   loaded: boolean;
   loadError: string;
+  optional?: boolean;
   data: R;
+};
+
+export type FirehoseResourcesResult = {
+  [key: string]: FirehoseResult<K8sResourceCommon | K8sResourceCommon[]>;
 };
 
 /*

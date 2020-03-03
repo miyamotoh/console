@@ -4,6 +4,9 @@ import {
   apiVersionForModel,
   DeploymentKind,
   referenceFor,
+  modelFor,
+  k8sUpdate,
+  PodKind,
 } from '@console/internal/module/k8s';
 import {
   TransformResourceData,
@@ -11,6 +14,7 @@ import {
   getBuildAlerts,
   getOwnedResources,
   OverviewItem,
+  OperatorBackedServiceKindMap,
 } from '@console/shared';
 import {
   Node,
@@ -18,7 +22,6 @@ import {
   TopologyDataResources,
   TopologyDataModel,
   TopologyDataObject,
-  OperatorBackedServiceKindMap,
 } from '@console/dev-console/src/components/topology/topology-types';
 import {
   allowedResources,
@@ -45,6 +48,10 @@ export enum EdgeType {
   Traffic = 'revision-traffic',
   EventSource = 'event-source-link',
 }
+
+type RevK8sResourceKind = K8sResourceKind & {
+  resources?: { [key: string]: any };
+};
 /**
  * fetch the parent resource from a resource
  * @param resource
@@ -103,30 +110,41 @@ export const getKnativeServiceData = (
     configurations && configurations.length
       ? getOwnedResources(configurations[0], resources.revisions.data)
       : undefined;
-  const revisionsDep = _.map(revisions, (revision) => {
-    if (resources.deployments) {
-      const transformResourceData = new TransformResourceData(resources);
-      const associatedDeployment = getOwnedResources(revision, resources.deployments.data);
-      if (!_.isEmpty(associatedDeployment)) {
-        const depObj: K8sResourceKind = {
-          ...associatedDeployment[0],
-          apiVersion: apiVersionForModel(DeploymentModel),
-          kind: DeploymentModel.kind,
-        };
-        const replicaSets = transformResourceData.getReplicaSetsForResource(depObj);
-        const [current, previous] = replicaSets;
-        const pods = [..._.get(current, 'pods', []), ..._.get(previous, 'pods', [])];
-        const depResources = { pods, current };
-        const revisionDep = { ...revision, resources: depResources };
-        return revisionDep;
+  const revisionsDeploymentData = _.reduce(
+    revisions,
+    (acc, revision) => {
+      let revisionDep: RevK8sResourceKind = revision;
+      let pods: PodKind[];
+      if (resources.deployments) {
+        const transformResourceData = new TransformResourceData(resources);
+        const associatedDeployment = getOwnedResources(revision, resources.deployments.data);
+        if (!_.isEmpty(associatedDeployment)) {
+          const depObj: K8sResourceKind = {
+            ...associatedDeployment[0],
+            apiVersion: apiVersionForModel(DeploymentModel),
+            kind: DeploymentModel.kind,
+          };
+          const replicaSets = transformResourceData.getReplicaSetsForResource(depObj);
+          const [current, previous] = replicaSets;
+          pods = [..._.get(current, 'pods', []), ..._.get(previous, 'pods', [])];
+          revisionDep = { ...revisionDep, resources: { pods, current } };
+        }
       }
-    }
-    return revision;
-  });
+      acc.revisionsDep.push(revisionDep);
+      pods && acc.allPods.push(...pods);
+      return acc;
+    },
+    { revisionsDep: [], allPods: [] },
+  );
   const ksroutes = resources.ksroutes
     ? getOwnedResources(resource, resources.ksroutes.data)
     : undefined;
-  const knativedata = { configurations, revisions: revisionsDep, ksroutes };
+  const knativedata = {
+    configurations,
+    revisions: revisionsDeploymentData.revisionsDep,
+    ksroutes,
+    pods: revisionsDeploymentData.allPods,
+  };
   return knativedata;
 };
 
@@ -371,10 +389,6 @@ export const tranformKnNodeData = (
             type,
             filters,
           );
-          edgesData = [
-            ...edgesData,
-            ...getTopologyEdgeItems(res, allResources, serviceBindingRequests, application),
-          ];
           groupsData = [...topologyGraphAndNodeData.graph.groups];
           break;
         }
@@ -386,7 +400,11 @@ export const tranformKnNodeData = (
             cheURL,
           );
           nodesData = [...nodesData, ...getKnativeTopologyNodeItems(res, type, resources)];
-          edgesData = [...edgesData, ...getTrafficTopologyEdgeItems(res, resources.revisions)];
+          edgesData = [
+            ...edgesData,
+            ...getTrafficTopologyEdgeItems(res, resources.revisions),
+            ...getTopologyEdgeItems(res, allResources, serviceBindingRequests, application),
+          ];
           groupsData = [...getTopologyGroupItems(res, topologyGraphAndNodeData.graph.groups)];
           break;
         }
@@ -419,4 +437,27 @@ export const filterNonKnativeDeployments = (resources: DeploymentKind[]): Deploy
       !_.get(d, ['metadata', 'labels', KNATIVE_EVENTS_KAFKA])
     );
   });
+};
+
+export const createKnativeEventSourceSink = (
+  source: K8sResourceKind,
+  target: K8sResourceKind,
+): Promise<K8sResourceKind> => {
+  if (!source || !target || source === target) {
+    return Promise.reject();
+  }
+  const targetName = _.get(target, 'metadata.name');
+  const eventSourceObj = _.omit(source, 'status');
+  const sink = {
+    ref: {
+      apiVersion: target.apiVersion,
+      kind: target.kind,
+      name: targetName,
+    },
+  };
+  const updatePayload = {
+    ...eventSourceObj,
+    spec: { ...eventSourceObj.spec, sink },
+  };
+  return k8sUpdate(modelFor(referenceFor(source)), updatePayload);
 };

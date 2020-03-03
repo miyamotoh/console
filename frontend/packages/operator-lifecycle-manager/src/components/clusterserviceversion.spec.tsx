@@ -3,6 +3,7 @@ import { shallow, ShallowWrapper, mount, ReactWrapper } from 'enzyme';
 import { Link } from 'react-router-dom';
 import * as _ from 'lodash';
 import { CardHeader, CardBody, CardFooter } from '@patternfly/react-core';
+import { ErrorBoundary } from '@console/shared/src/components/error/error-boundary';
 import {
   DetailsPage,
   TableInnerProps,
@@ -14,7 +15,6 @@ import {
   Timestamp,
   ResourceLink,
   ResourceKebab,
-  ErrorBoundary,
   ScrollToTopOnMount,
   SectionHeading,
   resourceObjPath,
@@ -67,7 +67,7 @@ describe(ClusterServiceVersionTableRow.displayName, () => {
   beforeEach(() => {
     wrapper = shallow(
       <ClusterServiceVersionTableRow
-        catalogSource={testCatalogSource}
+        catalogSourceMissing={false}
         obj={testClusterServiceVersion}
         subscription={testSubscription}
         index={0}
@@ -81,7 +81,7 @@ describe(ClusterServiceVersionTableRow.displayName, () => {
   it('renders a component wrapped in an `ErrorBoundary', () => {
     wrapper = shallow(
       <ClusterServiceVersionTableRow
-        catalogSource={testCatalogSource}
+        catalogSourceMissing={false}
         obj={testClusterServiceVersion}
         subscription={testSubscription}
         index={0}
@@ -192,9 +192,7 @@ describe(ClusterServiceVersionLogo.displayName, () => {
     const image: ReactWrapper<React.ImgHTMLAttributes<any>> = wrapper.find('img');
 
     expect(image.props().src).toEqual(
-      `data:${testClusterServiceVersion.spec.icon[0].mediatype};base64,${
-        testClusterServiceVersion.spec.icon[0].base64data
-      }`,
+      `data:${testClusterServiceVersion.spec.icon[0].mediatype};base64,${testClusterServiceVersion.spec.icon[0].base64data}`,
     );
   });
 
@@ -410,7 +408,7 @@ describe(ClusterServiceVersionDetails.displayName, () => {
         .at(1)
         .find(SectionHeading)
         .props().text,
-    ).toEqual('ClusterServiceVersion Overview');
+    ).toEqual('ClusterServiceVersion Details');
   });
 
   it('renders conditions section for ClusterServiceVersion', () => {
@@ -519,7 +517,7 @@ describe(ClusterServiceVersionsDetailsPage.displayName, () => {
   it('renders a `DetailsPage` with the correct subpages', () => {
     const detailsPage = wrapper.find(DetailsPage);
 
-    expect(detailsPage.props().pagesFor(testClusterServiceVersion)[0].name).toEqual('Overview');
+    expect(detailsPage.props().pagesFor(testClusterServiceVersion)[0].name).toEqual('Details');
     expect(detailsPage.props().pagesFor(testClusterServiceVersion)[0].href).toEqual('');
     expect(detailsPage.props().pagesFor(testClusterServiceVersion)[0].component).toEqual(
       ClusterServiceVersionDetails,

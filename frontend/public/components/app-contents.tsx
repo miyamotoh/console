@@ -3,7 +3,7 @@ import * as React from 'react';
 import { connect } from 'react-redux';
 import { Redirect, Route, Switch } from 'react-router-dom';
 
-import { FLAGS } from '../const';
+import { FLAGS } from '@console/shared';
 import { connectToFlags, flagPending, FlagsObject } from '../reducers/features';
 import { GlobalNotifications } from './global-notifications';
 import { NamespaceBar } from './namespace';
@@ -465,7 +465,7 @@ const AppContents_: React.FC<AppContentsProps> = ({ activePerspective, flags }) 
             exact
             loader={() =>
               import(
-                './monitoring/alert-manager-receiver-forms' /* webpackChunkName: "monitoring" */
+                './monitoring/receiver-forms/alert-manager-receiver-forms' /* webpackChunkName: "receiver-forms" */
               ).then((m) => m.CreateReceiver)
             }
           />
@@ -474,7 +474,7 @@ const AppContents_: React.FC<AppContentsProps> = ({ activePerspective, flags }) 
             exact
             loader={() =>
               import(
-                './monitoring/alert-manager-receiver-forms' /* webpackChunkName: "monitoring" */
+                './monitoring/receiver-forms/alert-manager-receiver-forms' /* webpackChunkName: "receiver-forms" */
               ).then((m) => m.EditReceiver)
             }
           />
@@ -639,6 +639,6 @@ const AppContents_: React.FC<AppContentsProps> = ({ activePerspective, flags }) 
 
 const AppContents = connect((state: RootState) => ({
   activePerspective: getActivePerspective(state),
-}))(connectToFlags(...plugins.registry.getRequiredFlags([plugins.isRoutePage]))(AppContents_));
+}))(connectToFlags(...plugins.registry.getGatingFlagNames([plugins.isRoutePage]))(AppContents_));
 
 export default AppContents;

@@ -5,7 +5,7 @@ import { Helmet } from 'react-helmet';
 import * as classNames from 'classnames';
 import { ActionGroup, Button } from '@patternfly/react-core';
 
-import { ANNOTATIONS } from '../const';
+import { ANNOTATIONS } from '@console/shared';
 import {
   getImageForIconClass,
   getTemplateIcon,
@@ -343,7 +343,7 @@ export const InstantiateTemplatePage: React.FC<{}> = (props) => {
       <div className="co-m-pane__body">
         <h1 className="co-m-pane__heading">{title}</h1>
         <Firehose resources={resources}>
-          <TemplateForm preselectedNamespace={preselectedNamespace} {...props as any} />
+          <TemplateForm preselectedNamespace={preselectedNamespace} {...(props as any)} />
         </Firehose>
       </div>
     </>

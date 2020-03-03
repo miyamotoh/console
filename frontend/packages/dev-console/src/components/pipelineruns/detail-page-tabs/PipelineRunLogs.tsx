@@ -33,7 +33,7 @@ class PipelineRunLogs extends React.Component<PipelineRunLogsProps, PipelineRunL
     this.setState({ activeItem });
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     if (this.props.obj !== nextProps.obj) {
       const { obj, activeTask } = this.props;
       const taskRunFromYaml = _.get(obj, ['status', 'taskRuns'], {});
@@ -96,7 +96,7 @@ class PipelineRunLogs extends React.Component<PipelineRunLogsProps, PipelineRunL
     )}/logs/`;
     return (
       <div className="odc-pipeline-run-logs">
-        <div className="odc-pipeline-run-logs__tasklist">
+        <div className="odc-pipeline-run-logs__tasklist" data-test-id="logs-tasklist">
           {taskCount > 0 ? (
             <Nav onSelect={this.onNavSelect}>
               <NavList className="odc-pipeline-run-logs__nav">

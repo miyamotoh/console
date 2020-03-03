@@ -9,7 +9,7 @@ import * as fuzzy from 'fuzzysearch';
 import { Tooltip } from '@patternfly/react-core';
 import { sortable } from '@patternfly/react-table';
 
-import { ALL_NAMESPACES_KEY, FLAGS } from '../const';
+import { ALL_NAMESPACES_KEY, FLAGS } from '@console/shared';
 import { connectToModel } from '../kinds';
 import { LocalResourceAccessReviewsModel, ResourceAccessReviewsModel } from '../models';
 import {
@@ -353,7 +353,7 @@ export const APIExplorerPage: React.FC<{}> = () => (
 );
 APIExplorerPage.displayName = 'APIExplorerPage';
 
-const APIResourceOverview: React.FC<APIResourceTabProps> = ({ customData: { kindObj } }) => {
+const APIResourceDetails: React.FC<APIResourceTabProps> = ({ customData: { kindObj } }) => {
   const { kind, apiGroup, apiVersion, namespaced, verbs, shortNames } = kindObj;
   const description = getResourceDescription(kindObj);
   return (
@@ -382,7 +382,7 @@ const APIResourceOverview: React.FC<APIResourceTabProps> = ({ customData: { kind
         {description && (
           <>
             <dt>Description</dt>
-            <dd className="co-break-word co-pre-line">
+            <dd className="co-break-word co-pre-wrap">
               <LinkifyExternal>{description}</LinkifyExternal>
             </dd>
           </>
@@ -652,8 +652,8 @@ const APIResourcePage_ = ({
   const pages = [
     {
       href: '',
-      name: 'Overview',
-      component: APIResourceOverview,
+      name: 'Details',
+      component: APIResourceDetails,
     },
     {
       href: 'schema',

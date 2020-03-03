@@ -6,12 +6,12 @@ import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { Button } from '@patternfly/react-core';
 
-import { KEYBOARD_SHORTCUTS } from '../../const';
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
+import { KEYBOARD_SHORTCUTS } from '@console/shared';
 import { filterList } from '../../actions/k8s';
 import { CheckBoxes, storagePrefix } from '../row-filter';
 import { ErrorPage404, ErrorBoundaryFallback } from '../error';
 import { referenceForModel } from '../../module/k8s';
-import { withFallback } from '../utils/error-boundary';
 import {
   Dropdown,
   Firehose,
@@ -23,10 +23,17 @@ import {
   PageHeading,
   RequireCreatePermission,
 } from '../utils';
-import { getBadgeFromType } from '@console/shared/src';
 
-/** @type {React.SFC<{disabled?: boolean, label: string, onChange: React.ChangeEventHandler<any>, defaultValue?: string, value?: string}}>} */
-export const TextFilter = ({ label, onChange, defaultValue, style, className, value }) => {
+/** @type {React.SFC<{disabled?: boolean, label?: string, onChange: React.ChangeEventHandler<any>, defaultValue?: string, value?: string, placeholder?: string,}}>} */
+export const TextFilter = ({
+  label,
+  onChange,
+  defaultValue,
+  style,
+  className,
+  value,
+  placeholder = `Filter ${label}...`,
+}) => {
   const input = React.useRef();
   const onKeyDown = (e) => {
     const { nodeName } = e.target;
@@ -57,11 +64,12 @@ export const TextFilter = ({ label, onChange, defaultValue, style, className, va
         ref={input}
         autoCapitalize="none"
         className={classNames('pf-c-form-control co-text-filter', className)}
+        data-test-id="item-filter"
         value={value}
         defaultValue={defaultValue}
         onChange={onChange}
         onKeyDown={(e) => e.key === 'Escape' && e.target.blur()}
-        placeholder={`Filter ${label}...`}
+        placeholder={placeholder}
         style={style}
         tabIndex={0}
         type="text"
@@ -123,10 +131,7 @@ ListPageWrapper_.propTypes = {
 };
 
 /** @type {React.FC<<WrappedComponent>, {canCreate?: Boolean, textFilter:string, createAccessReview?: Object, createButtonText?: String, createProps?: Object, fieldSelector?: String, filterLabel?: String, resources: any, badge?: React.ReactNode}>*/
-export const FireMan_ = connect(
-  null,
-  { filterList },
-)(
+export const FireMan_ = connect(null, { filterList })(
   class ConnectedFireMan extends React.PureComponent {
     constructor(props) {
       super(props);
@@ -139,7 +144,7 @@ export const FireMan_ = connect(
       this.state = { reduxIDs };
     }
 
-    componentWillReceiveProps({ resources }) {
+    UNSAFE_componentWillReceiveProps({ resources }) {
       const reduxIDs = resources.map((r) =>
         makeReduxID(kindObj(r.kind), makeQuery(r.namespace, r.selector, r.fieldSelector, r.name)),
       );
@@ -149,7 +154,7 @@ export const FireMan_ = connect(
 
       // reapply filters to the new list...
       // TODO (kans): we probably just need to be able to create new lists with filters already applied
-      this.setState({ reduxIDs }, () => this.componentWillMount());
+      this.setState({ reduxIDs }, () => this.UNSAFE_componentWillMount());
     }
 
     onExpandChange(expand) {
@@ -183,7 +188,7 @@ export const FireMan_ = connect(
       this.updateURL(filterName, options);
     }
 
-    componentWillMount() {
+    UNSAFE_componentWillMount() {
       const params = new URLSearchParams(window.location.search);
       this.defaultValue = params.get(this.props.textFilter);
       params.forEach((v, k) => this.applyFilter(k, v));
@@ -209,6 +214,7 @@ export const FireMan_ = connect(
         filterLabel,
         helpText,
         resources,
+        hideTextFilter,
         textFilter,
         badge,
         title,
@@ -276,15 +282,22 @@ export const FireMan_ = connect(
               </div>
             )}
             {createLink && <div className="co-m-pane__filter-bar-group">{createLink}</div>}
-            <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--filter">
-              <TextFilter
-                label={filterLabel}
-                onChange={(e) => this.applyFilter(textFilter, e.target.value)}
-                defaultValue={this.defaultValue}
-                tabIndex={1}
-                autoFocus={autoFocus}
-              />
-            </div>
+            {!hideTextFilter && (
+              <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--filter">
+                <TextFilter
+                  label={filterLabel}
+                  onChange={(e) => this.applyFilter(textFilter, e.target.value)}
+                  defaultValue={this.defaultValue}
+                  tabIndex={1}
+                  autoFocus={autoFocus}
+                />
+              </div>
+            )}
+            {!title && badge && (
+              <div className="co-m-pane__filter-bar-group co-m-pane__filter-bar-group--badge">
+                {badge}
+              </div>
+            )}
           </div>
           <div className="co-m-pane__body">
             {inject(this.props.children, {
@@ -334,7 +347,7 @@ FireMan_.propTypes = {
   title: PropTypes.string,
 };
 
-/** @type {React.SFC<{ListComponent: React.ComponentType<any>, kind: string, helpText?: any, namespace?: string, filterLabel?: string, textFilter?: string, title?: string, showTitle?: boolean, rowFilters?: any[], selector?: any, fieldSelector?: string, canCreate?: boolean, createButtonText?: string, createProps?: any, mock?: boolean, badge?: React.ReactNode} >} */
+/** @type {React.SFC<{ListComponent: React.ComponentType<any>, kind: string, helpText?: any, namespace?: string, filterLabel?: string, textFilter?: string, title?: string, showTitle?: boolean, rowFilters?: any[], selector?: any, fieldSelector?: string, canCreate?: boolean, createButtonText?: string, createProps?: any, mock?: boolean, badge?: React.ReactNode, createHandler?: any} >} */
 export const ListPage = withFallback((props) => {
   const {
     autoFocus,
@@ -350,8 +363,10 @@ export const ListPage = withFallback((props) => {
     ListComponent,
     mock,
     name,
+    nameFilter,
     namespace,
     selector,
+    hideTextFilter,
     showTitle = true,
     skipAccessReview,
     textFilter,
@@ -386,7 +401,7 @@ export const ListPage = withFallback((props) => {
       filters,
       kind,
       limit,
-      name,
+      name: name || nameFilter,
       namespaced,
       selector,
     },
@@ -399,7 +414,7 @@ export const ListPage = withFallback((props) => {
     return <ErrorPage404 />;
   }
 
-  return ((
+  return (
     <MultiListPage
       autoFocus={autoFocus}
       canCreate={canCreate}
@@ -416,17 +431,18 @@ export const ListPage = withFallback((props) => {
       resources={resources}
       rowFilters={rowFilters}
       selectorFilterLabel="Filter by selector (app=nginx) ..."
+      hideTextFilter={hideTextFilter}
       showTitle={showTitle}
       textFilter={textFilter}
       title={title}
-      badge={badge || getBadgeFromType(ko.badge)}
+      badge={badge}
     />
-  ));
+  );
 }, ErrorBoundaryFallback);
 
 ListPage.displayName = 'ListPage';
 
-/** @type {React.SFC<{canCreate?: boolean, createButtonText?: string, createProps?: any, createAccessReview?: Object, flatten?: Function, title?: string, label?: string, showTitle?: boolean, helpText?: any, filterLabel?: string, textFilter?: string, rowFilters?: any[], resources: any[], ListComponent: React.ComponentType<any>, namespace?: string, customData?: any, badge?: React.ReactNode >} */
+/** @type {React.SFC<{canCreate?: boolean, createButtonText?: string, createProps?: any, createAccessReview?: Object, flatten?: Function, title?: string, label?: string, hideTextFilter?: boolean, showTitle?: boolean, helpText?: any, filterLabel?: string, textFilter?: string, rowFilters?: any[], resources: any[], ListComponent: React.ComponentType<any>, namespace?: string, customData?: any, badge?: React.ReactNode >} */
 export const MultiListPage = (props) => {
   const {
     autoFocus,
@@ -442,6 +458,7 @@ export const MultiListPage = (props) => {
     mock,
     namespace,
     rowFilters,
+    hideTextFilter,
     showTitle = true,
     staticFilters,
     textFilter,
@@ -452,7 +469,7 @@ export const MultiListPage = (props) => {
 
   const resources = _.map(props.resources, (r) => ({
     ...r,
-    isList: true,
+    isList: r.isList !== undefined ? r.isList : true,
     namespace: r.namespaced ? namespace : r.namespace,
     prop: r.prop || r.kind,
   }));
@@ -468,6 +485,7 @@ export const MultiListPage = (props) => {
       helpText={helpText}
       resources={mock ? [] : resources}
       selectorFilterLabel="Filter by selector (app=nginx) ..."
+      hideTextFilter={hideTextFilter}
       textFilter={textFilter}
       title={showTitle ? title : undefined}
       badge={badge}

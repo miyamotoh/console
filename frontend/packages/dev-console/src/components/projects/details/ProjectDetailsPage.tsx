@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Redirect } from 'react-router';
 import { history } from '@console/internal/components/utils';
-import { ALL_NAMESPACES_KEY } from '@console/internal/const';
+import { ALL_NAMESPACES_KEY } from '@console/shared';
 import { ProjectsDetailsPage } from '@console/internal/components/namespace';
 import { ProjectModel } from '@console/internal/models';
 import NamespacedPage, { NamespacedPageVariants } from '../../NamespacedPage';
@@ -47,4 +47,6 @@ export const ProjectDetailsPage: React.FC<UseActiveNamespaceProps> = ({
   );
 };
 
+// TODO Figure out why this breaks eslint rules-of-hooks even though it is not a hook
+// eslint-disable-next-line react-hooks/rules-of-hooks
 export default useActiveNamespace(ProjectDetailsPage);

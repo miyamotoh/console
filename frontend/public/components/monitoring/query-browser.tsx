@@ -3,9 +3,12 @@ import * as React from 'react';
 import * as _ from 'lodash-es';
 import {
   Chart,
+  ChartArea,
   ChartAxis,
   ChartGroup,
+  ChartLegend,
   ChartLine,
+  ChartStack,
   ChartThemeColor,
   ChartThemeVariant,
   ChartTooltip,
@@ -24,9 +27,14 @@ import {
 } from '@patternfly/react-core';
 import { ChartLineIcon } from '@patternfly/react-icons';
 import { connect } from 'react-redux';
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
 
 import * as UIActions from '../../actions/ui';
 import { RootState } from '../../redux';
+import { PrometheusResponse } from '../graphs';
+import { GraphEmpty } from '../graphs/graph-empty';
+import { getPrometheusURL, PrometheusEndpoint } from '../graphs/helpers';
+import { queryBrowserTheme } from '../graphs/themes';
 import {
   Dropdown,
   humanizeNumberSI,
@@ -41,11 +49,6 @@ import {
   twentyFourHourTime,
   twentyFourHourTimeWithSeconds,
 } from '../utils/datetime';
-import { withFallback } from '../utils/error-boundary';
-import { PrometheusResponse } from '../graphs';
-import { GraphEmpty } from '../graphs/graph-empty';
-import { getPrometheusURL, PrometheusEndpoint } from '../graphs/helpers';
-import { queryBrowserTheme } from '../graphs/themes';
 
 // Prometheus internal labels start with "__"
 const isInternalLabel = (key: string): boolean => _.startsWith(key, '__');
@@ -67,13 +70,13 @@ const formatPositiveValue = (v: number): string =>
   v === 0 || (0.001 <= v && v < 1e23) ? humanizeNumberSI(v).string : v.toExponential(1);
 const formatValue = (v: number): string => (v < 0 ? '-' : '') + formatPositiveValue(Math.abs(v));
 
-export const Error = ({ error, title = 'An error occurred' }) => (
+export const Error: React.FC<ErrorProps> = ({ error, title = 'An error occurred' }) => (
   <Alert isInline className="co-alert" title={title} variant="danger">
     {_.get(error, 'json.error', error.message)}
   </Alert>
 );
 
-const GraphEmptyState = ({ children, title }) => (
+const GraphEmptyState: React.FC<GraphEmptyStateProps> = ({ children, title }) => (
   <div className="query-browser__wrapper graph-empty-state">
     <EmptyState variant={EmptyStateVariant.full}>
       <EmptyStateIcon size="sm" icon={ChartLineIcon} />
@@ -223,59 +226,117 @@ const graphContainer = (
   />
 );
 
-const Graph: React.FC<GraphProps> = React.memo(({ allSeries, disabledSeries, span, xDomain }) => {
-  const [containerRef, width] = useRefWidth();
+const Graph: React.FC<GraphProps> = React.memo(
+  ({ allSeries, disabledSeries, formatLegendLabel, isStack, span, xDomain }) => {
+    const [containerRef, width] = useRefWidth();
 
-  // Remove any disabled series
-  const data = _.flatMap(allSeries, (series, i) => {
-    return _.map(series, ([metric, values]) => {
-      return _.some(disabledSeries[i], (s) => _.isEqual(s, metric)) ? [{}] : values;
+    // Remove any disabled series
+    const data = _.flatMap(allSeries, (series, i) => {
+      return _.map(series, ([metric, values]) => {
+        return _.some(disabledSeries[i], (s) => _.isEqual(s, metric)) ? [{}] : values;
+      });
     });
-  });
 
-  // Set a reasonable Y-axis range based on the min and max values in the data
-  const findMin = (series) => _.minBy(series, 'y');
-  const findMax = (series) => _.maxBy(series, 'y');
-  let minY = _.get(findMin(_.map(data, findMin)), 'y', 0);
-  let maxY = _.get(findMax(_.map(data, findMax)), 'y', 0);
-  if (minY === 0 && maxY === 0) {
-    minY = -1;
-    maxY = 1;
-  } else if (minY > 0 && maxY > 0) {
-    minY = 0;
-  } else if (minY < 0 && maxY < 0) {
-    maxY = 0;
-  }
+    const domain = { x: xDomain || [Date.now() - span, Date.now()], y: undefined };
 
-  const xTickFormat = span < 5 * 60 * 1000 ? twentyFourHourTimeWithSeconds : twentyFourHourTime;
+    let yTickFormat = formatValue;
 
-  const yTickFormat =
-    Math.abs(maxY - minY) < 0.005 ? (v) => (v === 0 ? '0' : v.toExponential(1)) : formatValue;
+    if (isStack) {
+      // Specify Y axis range if all values are zero, but otherwise let Chart set it automatically
+      const isAllZero = _.every(allSeries, (series) =>
+        _.every(series, ([, values]) => _.every(values, { y: 0 })),
+      );
+      if (isAllZero) {
+        domain.y = [-1, 1];
+      }
+    } else {
+      // Set a reasonable Y-axis range based on the min and max values in the data
+      const findMin = (series: GraphDataPoint[]) => _.minBy(series, 'y');
+      const findMax = (series: GraphDataPoint[]) => _.maxBy(series, 'y');
+      let minY = _.get(findMin(_.map(data, findMin)), 'y', 0);
+      let maxY = _.get(findMax(_.map(data, findMax)), 'y', 0);
+      if (minY === 0 && maxY === 0) {
+        minY = -1;
+        maxY = 1;
+      } else if (minY > 0 && maxY > 0) {
+        minY = 0;
+      } else if (minY < 0 && maxY < 0) {
+        maxY = 0;
+      }
 
-  return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      {width > 0 && (
-        <Chart
-          containerComponent={graphContainer}
-          domain={{ x: xDomain || [Date.now() - span, Date.now()], y: [minY, maxY] }}
-          domainPadding={{ y: 1 }}
-          height={200}
-          scale={{ x: 'time', y: 'linear' }}
-          theme={chartTheme}
-          width={width}
-        >
-          <ChartAxis tickCount={5} tickFormat={xTickFormat} />
-          <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={yTickFormat} />
-          <ChartGroup>
-            {_.map(data, (values, i) => (
-              <ChartLine key={i} data={values} />
-            ))}
-          </ChartGroup>
-        </Chart>
-      )}
-    </div>
-  );
-});
+      domain.y = [minY, maxY];
+
+      if (Math.abs(maxY - minY) < 0.005) {
+        yTickFormat = (v: number) => (v === 0 ? '0' : v.toExponential(1));
+      }
+    }
+
+    const xTickFormat = span < 5 * 60 * 1000 ? twentyFourHourTimeWithSeconds : twentyFourHourTime;
+
+    let xAxisStyle;
+    if (width < 225) {
+      xAxisStyle = {
+        tickLabels: {
+          angle: 45,
+          fontSize: 10,
+          textAnchor: 'start',
+          verticalAnchor: 'middle',
+        },
+      };
+    }
+
+    const legendData = formatLegendLabel
+      ? _.flatMap(allSeries, (series, i) =>
+          _.map(series, (s) => ({ name: formatLegendLabel(s[0], i) })),
+        )
+      : undefined;
+
+    return (
+      <div ref={containerRef} style={{ width: '100%' }}>
+        {width > 0 && (
+          <Chart
+            containerComponent={graphContainer}
+            domain={domain}
+            domainPadding={{ y: 1 }}
+            height={200}
+            scale={{ x: 'time', y: 'linear' }}
+            theme={chartTheme}
+            width={width}
+          >
+            <ChartAxis style={xAxisStyle} tickCount={5} tickFormat={xTickFormat} />
+            <ChartAxis crossAxis={false} dependentAxis tickCount={6} tickFormat={yTickFormat} />
+            {isStack ? (
+              <ChartStack>
+                {_.map(data, (values, i) => (
+                  <ChartArea key={i} data={values} />
+                ))}
+              </ChartStack>
+            ) : (
+              <ChartGroup>
+                {_.map(data, (values, i) => (
+                  <ChartLine key={i} data={values} />
+                ))}
+              </ChartGroup>
+            )}
+            {legendData && (
+              <ChartLegend
+                data={legendData}
+                itemsPerRow={4}
+                orientation="vertical"
+                style={{
+                  labels: { fontSize: 11 },
+                }}
+                symbolSpacer={4}
+                x={0}
+                y={230}
+              />
+            )}
+          </Chart>
+        )}
+      </div>
+    );
+  },
+);
 
 const formatSeriesValues = (
   values: PrometheusValue[],
@@ -290,12 +351,12 @@ const formatSeriesValues = (
     };
   });
 
-  // The data may have missing values, so we fill those gaps with nulls so that the graph correctly shows the
-  // missing values as gaps in the line
+  // The data may have missing values, so we fill those gaps with nulls so that the graph correctly
+  // shows the missing values as gaps in the line
   const start = Number(_.get(newValues, '[0].x'));
   const end = Number(_.get(_.last(newValues), 'x'));
   const step = span / samples;
-  _.range(start, end, step).map((t, i) => {
+  _.range(start, end, step).forEach((t, i) => {
     const x = new Date(t);
     if (_.get(newValues, [i, 'x']) > x) {
       newValues.splice(i, 0, { x, y: null });
@@ -315,8 +376,11 @@ const maxDataPointsHard = 10000;
 const minSamples = 10;
 const maxSamples = 300;
 
-// We don't want to refresh all the graph data for just a small adjustment in the number of samples, so don't update
-// unless the number of samples would change by at least this proportion
+// Fall back to a line chart for performance if there are too many series
+const maxStacks = 20;
+
+// We don't want to refresh all the graph data for just a small adjustment in the number of samples,
+// so don't update unless the number of samples would change by at least this proportion
 const samplesLeeway = 0.2;
 
 // Minimum step (milliseconds between data samples) because tiny steps reduce performance for almost no benefit
@@ -331,6 +395,8 @@ const minPollInterval = 10 * 1000;
 const ZoomableGraph: React.FC<ZoomableGraphProps> = ({
   allSeries,
   disabledSeries,
+  formatLegendLabel,
+  isStack,
   onZoom,
   span,
   xDomain,
@@ -386,28 +452,46 @@ const ZoomableGraph: React.FC<ZoomableGraphProps> = ({
           style={{ left: Math.min(x1, x2), width: Math.abs(x1 - x2) }}
         />
       )}
-      <Graph allSeries={allSeries} disabledSeries={disabledSeries} span={span} xDomain={xDomain} />
+      <Graph
+        allSeries={allSeries}
+        disabledSeries={disabledSeries}
+        formatLegendLabel={formatLegendLabel}
+        isStack={isStack}
+        span={span}
+        xDomain={xDomain}
+      />
     </div>
   );
 };
 
+const Loading = () => (
+  <div className="query-browser__loading">
+    <LoadingInline />
+  </div>
+);
+
 const QueryBrowser_: React.FC<QueryBrowserProps> = ({
   defaultSamples,
-  defaultTimespan,
+  defaultTimespan = parsePrometheusDuration('30m'),
   disabledSeries = [],
   filterLabels,
+  formatLegendLabel,
   GraphLink,
   hideControls,
   hideGraphs,
+  isStack = false,
   namespace,
   patchQuery,
   pollInterval,
   queries,
+  timespan,
 }) => {
-  // For the default time span, use the first of the suggested span options that is at least as long as defaultTimespan
+  // For the default time span, use the first of the suggested span options that is at least as long
+  // as defaultTimespan
   const defaultSpanText = spans.find((s) => parsePrometheusDuration(s) >= defaultTimespan);
 
-  const [span, setSpan] = React.useState(parsePrometheusDuration(defaultSpanText));
+  // If we have both `timespan` and `defaultTimespan`, `timespan` takes precedence
+  const [span, setSpan] = React.useState(timespan || parsePrometheusDuration(defaultSpanText));
 
   // Limit the number of samples so that the step size doesn't fall below minStep
   const maxSamplesForSpan =
@@ -424,13 +508,25 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
 
   const safeFetch = useSafeFetch();
 
+  const stack = isStack && _.sumBy(graphData, 'length') <= maxStacks;
+
+  // If provided, `timespan` overrides any existing span setting
+  React.useEffect(() => {
+    if (timespan) {
+      setSpan(timespan);
+    }
+  }, [timespan]);
+
+  // Define this once for all queries so that they have exactly the same time range and X values
+  const now = Date.now();
+
   const safeFetchQuery = (query: string) => {
     if (_.isEmpty(query)) {
       return Promise.resolve();
     }
     const url = getPrometheusURL({
       endpoint: PrometheusEndpoint.QUERY_RANGE,
-      endTime,
+      endTime: endTime || now,
       namespace,
       query,
       samples,
@@ -500,8 +596,8 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
             }
           });
 
-  // Don't poll if an end time was set (because the latest data is not displayed) or if the graph is hidden. Otherwise
-  // use a polling interval relative to the graph's timespan.
+  // Don't poll if an end time was set (because the latest data is not displayed) or if the graph is
+  // hidden. Otherwise use a polling interval relative to the graph's timespan.
   const tickInterval =
     pollInterval === undefined ? Math.max(span / 120, minPollInterval) : pollInterval;
   const delay = endTime || hideGraphs ? null : tickInterval;
@@ -552,23 +648,21 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
         'graph-empty-state': _.isEmpty(graphData),
       })}
     >
-      <div className="query-browser__controls">
-        <div className="query-browser__controls--left">
-          {!hideControls && (
+      {hideControls ? (
+        <>{updating && <Loading />}</>
+      ) : (
+        <div className="query-browser__controls">
+          <div className="query-browser__controls--left">
             <SpanControls defaultSpanText={defaultSpanText} onChange={onSpanChange} span={span} />
-          )}
-          {updating && (
-            <div className="query-browser__loading">
-              <LoadingInline />
+            {updating && <Loading />}
+          </div>
+          {GraphLink && (
+            <div className="query-browser__controls--right">
+              <GraphLink />
             </div>
           )}
         </div>
-        {GraphLink && (
-          <div className="query-browser__controls--right">
-            <GraphLink />
-          </div>
-        )}
-      </div>
+      )}
       {error && <Error error={error} />}
       {_.isEmpty(graphData) && !updating && <GraphEmpty />}
       {!_.isEmpty(graphData) && (
@@ -582,13 +676,26 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
             />
           )}
           <div className="graph-wrapper graph-wrapper--query-browser">
-            <ZoomableGraph
-              allSeries={graphData}
-              disabledSeries={disabledSeries}
-              onZoom={onZoom}
-              span={span}
-              xDomain={xDomain}
-            />
+            {hideControls ? (
+              <Graph
+                allSeries={graphData}
+                disabledSeries={disabledSeries}
+                formatLegendLabel={formatLegendLabel}
+                isStack={stack}
+                span={span}
+                xDomain={xDomain}
+              />
+            ) : (
+              <ZoomableGraph
+                allSeries={graphData}
+                disabledSeries={disabledSeries}
+                formatLegendLabel={formatLegendLabel}
+                isStack={stack}
+                onZoom={onZoom}
+                span={span}
+                xDomain={xDomain}
+              />
+            )}
           </div>
         </>
       )}
@@ -596,10 +703,9 @@ const QueryBrowser_: React.FC<QueryBrowserProps> = ({
   );
 };
 export const QueryBrowser = withFallback(
-  connect(
-    ({ UI }: RootState) => ({ hideGraphs: !!UI.getIn(['monitoring', 'hideGraphs']) }),
-    { patchQuery: UIActions.queryBrowserPatchQuery },
-  )(QueryBrowser_),
+  connect(({ UI }: RootState) => ({ hideGraphs: !!UI.getIn(['monitoring', 'hideGraphs']) }), {
+    patchQuery: UIActions.queryBrowserPatchQuery,
+  })(QueryBrowser_),
 );
 
 type AxisDomain = [number, number];
@@ -624,33 +730,54 @@ export type QueryObj = {
 
 type PrometheusValue = [number, string];
 
+export type FormatLegendLabel = (labels: Labels, i: number) => string;
+
+export type PatchQuery = (index: number, patch: QueryObj) => any;
+
+type ErrorProps = {
+  error: any;
+  title?: string;
+};
+
+type GraphEmptyStateProps = {
+  children: React.ReactNode;
+  title: string;
+};
+
 type GraphProps = {
-  allSeries: Series[];
+  allSeries: Series[][];
   disabledSeries?: Labels[][];
+  formatLegendLabel?: FormatLegendLabel;
+  isStack?: boolean;
   span: number;
   xDomain?: AxisDomain;
 };
 
 type ZoomableGraphProps = {
-  allSeries: Series[];
+  allSeries: Series[][];
   disabledSeries?: Labels[][];
+  formatLegendLabel?: FormatLegendLabel;
+  isStack?: boolean;
   onZoom: (from: number, to: number) => void;
   span: number;
   xDomain?: AxisDomain;
 };
 
-type QueryBrowserProps = {
+export type QueryBrowserProps = {
   defaultSamples?: number;
-  defaultTimespan: number;
+  defaultTimespan?: number;
   disabledSeries?: Labels[][];
   filterLabels?: Labels;
+  formatLegendLabel?: FormatLegendLabel;
   GraphLink?: React.ComponentType<{}>;
   hideControls?: boolean;
   hideGraphs: boolean;
+  isStack?: boolean;
   namespace?: string;
-  patchQuery: (index: number, patch: QueryObj) => any;
+  patchQuery: PatchQuery;
   pollInterval?: number;
   queries: string[];
+  timespan?: number;
 };
 
 type SpanControlsProps = {

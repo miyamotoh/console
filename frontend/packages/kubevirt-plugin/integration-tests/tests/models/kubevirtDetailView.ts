@@ -6,12 +6,22 @@ import { TAB, diskTabCol, networkTabCol, PAGE_LOAD_TIMEOUT_SECS } from '../utils
 import { StorageResource, NetworkResource } from '../utils/types';
 import * as kubevirtDetailView from '../../views/kubevirtDetailView.view';
 import { confirmAction } from '../../views/vm.actions.view';
-import { vmDetailFlavorEditButton, vmDetailCdEditButton } from '../../views/virtualMachine.view';
+import {
+  vmDetailFlavorEditButton,
+  vmDetailCdEditButton,
+  vmDetailBootOrderEditButton,
+  vmDetailDedicatedResourcesEditButton,
+  vmDetailStatusEditButton,
+} from '../../views/virtualMachine.view';
 import * as editCD from '../../views/editCDView';
+import * as editBootOrder from '../../views/editBootOrderView';
+import * as editDedicatedResourcesView from '../../views/editDedicatedResourcesView';
+import * as editStatusView from '../../views/editStatusView';
 import { NetworkInterfaceDialog } from '../dialogs/networkInterfaceDialog';
 import { DiskDialog } from '../dialogs/diskDialog';
 import { DetailView } from './detailView';
 import * as editFlavor from './editFlavorView';
+import { waitForNoLoaders } from '../../views/wizard.view';
 
 export class KubevirtDetailView extends DetailView {
   async getAttachedDisks(): Promise<StorageResource[]> {
@@ -77,14 +87,29 @@ export class KubevirtDetailView extends DetailView {
     await browser.wait(until.and(waitForCount(resourceRows, count - 1)), PAGE_LOAD_TIMEOUT_SECS);
   }
 
-  // pops-up modal dialog
   async modalEditFlavor() {
     await click(vmDetailFlavorEditButton(this.namespace, this.name));
     await browser.wait(until.presenceOf(editFlavor.modalTitle()));
+    await waitForNoLoaders();
   }
 
   async modalEditCDRoms() {
     await click(vmDetailCdEditButton(this.namespace, this.name));
     await browser.wait(until.presenceOf(editCD.modalTitle));
+  }
+
+  async modalEditBootOrder() {
+    await click(vmDetailBootOrderEditButton(this.namespace, this.name));
+    await browser.wait(until.presenceOf(editBootOrder.bootOrderDialog));
+  }
+
+  async modalEditDedicatedResources() {
+    await click(vmDetailDedicatedResourcesEditButton(this.namespace, this.name));
+    await browser.wait(until.presenceOf(editDedicatedResourcesView.guaranteedPolicyCheckbox));
+  }
+
+  async modalEditStatus() {
+    await click(vmDetailStatusEditButton(this.namespace, this.name));
+    await browser.wait(until.presenceOf(editStatusView.unpauseVMDialog));
   }
 }

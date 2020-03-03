@@ -17,6 +17,7 @@ import {
   PlusCircleIcon,
 } from '@patternfly/react-icons';
 
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
 import * as k8sActions from '../actions/k8s';
 import * as UIActions from '../actions/ui';
 import { coFetchJSON } from '../co-fetch';
@@ -36,9 +37,9 @@ import { graphStateToProps, QueryBrowserPage, ToggleGraph } from './monitoring/m
 import { Labels, QueryBrowser, QueryObj } from './monitoring/query-browser';
 import { CheckBoxes } from './row-filter';
 import { formatPrometheusDuration } from './utils/datetime';
-import { withFallback } from './utils/error-boundary';
-import { AlertManagerYAMLEditorWrapper } from './monitoring/alert-manager-yaml-editor';
-import { AlertManagerConfigWrapper } from './monitoring/alert-manager-config';
+import { AlertmanagerYAMLEditorWrapper } from './monitoring/alert-manager-yaml-editor';
+import { AlertmanagerConfigWrapper } from './monitoring/alert-manager-config';
+import { refreshNotificationPollers } from './notification-drawer';
 import {
   ActionsMenu,
   ButtonBar,
@@ -100,12 +101,6 @@ const silencesToProps = ({ UI }) => UI.getIn(['monitoring', 'silences']) || {};
 const pollers = {};
 const pollerTimeouts = {};
 
-// Force a poller to execute now instead of waiting for the next poll interval
-const refreshPoller = (key) => {
-  clearTimeout(pollerTimeouts[key]);
-  _.invoke(pollers, key);
-};
-
 const silenceAlert = (alert) => ({
   label: 'Silence Alert',
   href: `${SilenceResource.plural}/~new?${labelsToParams(alert.labels)}`,
@@ -131,7 +126,7 @@ const cancelSilence = (silence) => ({
       executeFn: () =>
         coFetchJSON
           .delete(`${window.SERVER_FLAGS.alertManagerBaseURL}/api/v1/silence/${silence.id}`)
-          .then(() => refreshPoller('silences')),
+          .then(() => refreshNotificationPollers()),
     }),
 });
 
@@ -261,10 +256,7 @@ const Graph_: React.FC<GraphProps> = ({
     />
   );
 };
-const Graph = connect(
-  graphStateToProps,
-  { patchQuery: UIActions.queryBrowserPatchQuery },
-)(Graph_);
+const Graph = connect(graphStateToProps, { patchQuery: UIActions.queryBrowserPatchQuery })(Graph_);
 
 const SilenceMatchersList = ({ silence }) => (
   <div className={`co-text-${SilenceResource.kind.toLowerCase()}`}>
@@ -321,7 +313,7 @@ const AlertsDetailsPage = withFallback(
           </div>
           <div className="co-m-pane__body">
             {state !== AlertStates.NotFiring && <ToggleGraph />}
-            <SectionHeading text="Alert Overview" />
+            <SectionHeading text="Alert Details" />
             <div className="co-m-pane__body-group">
               <div className="row">
                 <div className="col-sm-12">
@@ -482,7 +474,7 @@ const AlertRulesDetailsPage = withFallback(
           </div>
           <div className="co-m-pane__body">
             <div className="monitoring-heading">
-              <SectionHeading text="Alerting Rule Overview" />
+              <SectionHeading text="Alerting Rule Details" />
             </div>
             <div className="co-m-pane__body-group">
               <div className="row">
@@ -578,7 +570,7 @@ const silenceParamToProps = (state, { match }) => {
   const { data: silences, loaded, loadError }: Silences = silencesToProps(state);
   const { loaded: alertsLoaded }: Alerts = alertsToProps(state);
   const silence = _.find(silences, { id: _.get(match, 'params.id') });
-  return { alertsLoaded, loaded, loadError, silence };
+  return { alertsLoaded, loaded, loadError, silence, silences };
 };
 
 const SilencesDetailsPage = withFallback(
@@ -619,7 +611,7 @@ const SilencesDetailsPage = withFallback(
             </h1>
           </div>
           <div className="co-m-pane__body">
-            <SectionHeading text="Silence Overview" />
+            <SectionHeading text="Silence Details" />
             <div className="co-m-pane__body-group">
               <div className="row">
                 <div className="col-sm-6">
@@ -776,15 +768,15 @@ const AlertsPageDescription = () => (
 );
 
 const HeaderAlertmanagerLink_ = ({ path, urls }) =>
-  _.isEmpty(urls[MonitoringRoutes.AlertManager]) ? null : (
+  _.isEmpty(urls[MonitoringRoutes.Alertmanager]) ? null : (
     <span className="monitoring-header-link">
       <ExternalLink
-        href={`${urls[MonitoringRoutes.AlertManager]}${path || ''}`}
+        href={`${urls[MonitoringRoutes.Alertmanager]}${path || ''}`}
         text="Alertmanager UI"
       />
     </span>
   );
-const HeaderAlertmanagerLink = connectToURLs(MonitoringRoutes.AlertManager)(
+const HeaderAlertmanagerLink = connectToURLs(MonitoringRoutes.Alertmanager)(
   HeaderAlertmanagerLink_,
 );
 
@@ -831,7 +823,7 @@ const MonitoringListPage = connect(filtersToProps)(
       history.replace(`${url.pathname}?${params.toString()}${url.hash}`);
     }
 
-    componentWillMount() {
+    UNSAFE_componentWillMount() {
       const { nameFilterID, reduxID } = this.props;
       const params = new URLSearchParams(window.location.search);
 
@@ -1188,7 +1180,7 @@ class SilenceForm_ extends React.Component<SilenceFormProps, SilenceFormState> {
       .post(`${alertManagerBaseURL}/api/v1/silences`, body)
       .then(({ data }) => {
         this.setState({ error: undefined });
-        refreshPoller('silences');
+        refreshNotificationPollers();
         history.push(`${SilenceResource.plural}/${encodeURIComponent(_.get(data, 'silenceId'))}`);
       })
       .catch((err) =>
@@ -1226,7 +1218,7 @@ class SilenceForm_ extends React.Component<SilenceFormProps, SilenceFormState> {
           <div className="co-form-section__separator" />
 
           <div className="form-group">
-            <label className="co-required">Matchers</label> (label selectors)
+            <label className="co-required">Matchers (label selectors)</label>
             <p className="co-help-text">
               Alerts affected by this silence. Matching alerts must satisfy all of the specified
               label constraints, though they may have additional labels as well.
@@ -1368,7 +1360,7 @@ const CreateSilence = () => {
   );
 };
 
-const AlertManagerYAML = () => {
+const AlertmanagerYAML = () => {
   return (
     <Firehose
       resources={[
@@ -1381,12 +1373,12 @@ const AlertManagerYAML = () => {
         },
       ]}
     >
-      <AlertManagerYAMLEditorWrapper />
+      <AlertmanagerYAMLEditorWrapper />
     </Firehose>
   );
 };
 
-const AlertManagerConfig = () => {
+const AlertmanagerConfig = () => {
   return (
     <Firehose
       resources={[
@@ -1399,7 +1391,7 @@ const AlertManagerConfig = () => {
         },
       ]}
     >
-      <AlertManagerConfigWrapper />
+      <AlertmanagerConfigWrapper />
     </Firehose>
   );
 };
@@ -1409,13 +1401,14 @@ const AlertingPage: React.SFC<AlertingPageProps> = ({ match }) => {
   const silencePath = '/monitoring/silences';
   const YAMLPath = '/monitoring/alertmanageryaml';
   const ConfigPath = '/monitoring/alertmanagerconfig';
+  const isAlertmanager = match.url === ConfigPath || match.url === YAMLPath;
   return (
     <>
       <div className="co-m-nav-title co-m-nav-title--detail">
         <h1 className="co-m-pane__heading">
           <div className="co-m-pane__name co-resource-item">
             <span className="co-resource-item__resource-name" data-test-id="resource-title">
-              Alerting
+              {isAlertmanager ? 'Alertmanager' : 'Alerting'}
             </span>
             <HeaderAlertmanagerLink path="/#/alerts" />
           </div>
@@ -1440,14 +1433,14 @@ const AlertingPage: React.SFC<AlertingPageProps> = ({ match }) => {
             </li>
           </>
         )}
-        {(match.url === ConfigPath || match.url === YAMLPath) && (
+        {isAlertmanager && (
           <>
             <li
               className={classNames('co-m-horizontal-nav__menu-item', {
                 'co-m-horizontal-nav-item--active': match.url === ConfigPath,
               })}
             >
-              <Link to={ConfigPath}>Overview</Link>
+              <Link to={ConfigPath}>Details</Link>
             </li>
             <li
               className={classNames('co-m-horizontal-nav__menu-item', {
@@ -1462,8 +1455,8 @@ const AlertingPage: React.SFC<AlertingPageProps> = ({ match }) => {
       <Switch>
         <Route path="/monitoring/alerts" exact component={AlertsPage} />
         <Route path="/monitoring/silences" exact component={SilencesPage} />
-        <Route path={ConfigPath} exact component={AlertManagerConfig} />
-        <Route path="/monitoring/alertmanageryaml" exact component={AlertManagerYAML} />
+        <Route path={ConfigPath} exact component={AlertmanagerConfig} />
+        <Route path="/monitoring/alertmanageryaml" exact component={AlertmanagerYAML} />
       </Switch>
     </>
   );
@@ -1497,7 +1490,7 @@ export const getAlerts = (data: PrometheusRulesResponse['data']): Alert[] => {
 
 const PollerPages = () => {
   React.useEffect(() => {
-    const poll: Poll = (url, key: 'alerts' | 'silences', dataHandler) => {
+    const poll: Poll = (url, key: 'alerts', dataHandler) => {
       store.dispatch(UIActions.monitoringLoading(key));
       const poller = (): void => {
         coFetchJSON(url)
@@ -1510,34 +1503,13 @@ const PollerPages = () => {
       poller();
     };
 
-    const { alertManagerBaseURL, prometheusBaseURL } = window.SERVER_FLAGS;
+    const { prometheusBaseURL } = window.SERVER_FLAGS;
 
     if (prometheusBaseURL) {
       poll(`${prometheusBaseURL}/api/v1/rules`, 'alerts', getAlerts);
     } else {
       store.dispatch(UIActions.monitoringErrored('alerts', new Error('prometheusBaseURL not set')));
     }
-
-    if (alertManagerBaseURL) {
-      poll(`${alertManagerBaseURL}/api/v1/silences`, 'silences', (data) => {
-        // Set a name field on the Silence to make things easier
-        _.each(data, (s) => {
-          s.name = _.get(_.find(s.matchers, { name: 'alertname' }), 'value');
-          if (!s.name) {
-            // No alertname, so fall back to displaying the other matchers
-            s.name = s.matchers
-              .map((m) => `${m.name}${m.isRegex ? '=~' : '='}${m.value}`)
-              .join(', ');
-          }
-        });
-        return data;
-      });
-    } else {
-      store.dispatch(
-        UIActions.monitoringErrored('silences', new Error('alertManagerBaseURL not set')),
-      );
-    }
-
     return () => _.each(pollerTimeouts, clearTimeout);
   }, []);
 
@@ -1559,7 +1531,7 @@ const PollerPages = () => {
 export const MonitoringUI = () => (
   <Switch>
     <Redirect from="/monitoring" exact to="/monitoring/alerts" />
-    <Route path="/monitoring/dashboards" exact component={MonitoringDashboardsPage} />
+    <Route path="/monitoring/dashboards/:board?" exact component={MonitoringDashboardsPage} />
     <Route path="/monitoring/query-browser" exact component={QueryBrowserPage} />
     <Route path="/monitoring/silences/~new" exact component={CreateSilence} />
     <Route component={PollerPages} />

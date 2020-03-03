@@ -22,15 +22,16 @@ export const vmConfig = (
   namespace: string,
   provisionConfig: ProvisionConfig,
   baseConfig: BaseVMConfig = basicVMConfig,
+  startOnCreation: boolean = true,
 ) => {
   const commonSettings = {
-    startOnCreation: true,
+    startOnCreation,
     cloudInit: {
       useCloudInit: false,
     },
     namespace,
     description: `Default description ${namespace}`,
-    flavor: baseConfig.flavor,
+    flavorConfig: baseConfig.flavorConfig,
     operatingSystem: baseConfig.operatingSystem,
     workloadProfile: baseConfig.workloadProfile,
   };
@@ -40,6 +41,7 @@ export const vmConfig = (
     name: `${name}-${namespace}`,
     provisionSource: provisionConfig.provision,
     storageResources: provisionConfig.storageResources,
+    CDRoms: provisionConfig.CDRoms,
     networkResources: provisionConfig.networkResources,
   };
 };

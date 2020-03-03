@@ -1,5 +1,6 @@
 import * as classNames from 'classnames';
 import * as _ from 'lodash-es';
+import { List as ImmutableList } from 'immutable';
 import {
   ActionGroup,
   Alert,
@@ -35,6 +36,7 @@ import * as React from 'react';
 import { Helmet } from 'react-helmet';
 import { connect } from 'react-redux';
 
+import { withFallback } from '@console/shared/src/components/error/error-boundary';
 import {
   RedExclamationCircleIcon,
   TechPreviewBadge,
@@ -57,7 +59,6 @@ import {
   usePoll,
   useSafeFetch,
 } from '../utils';
-import { withFallback } from '../utils/error-boundary';
 import { setAllQueryArguments } from '../utils/router';
 import { colors, Error, Labels, QueryObj, QueryBrowser } from './query-browser';
 
@@ -209,10 +210,9 @@ const ToggleGraph_ = ({ hideGraphs, toggle }) => {
     </Button>
   );
 };
-export const ToggleGraph = connect(
-  graphStateToProps,
-  { toggle: UIActions.monitoringToggleGraphs },
-)(ToggleGraph_);
+export const ToggleGraph = connect(graphStateToProps, { toggle: UIActions.monitoringToggleGraphs })(
+  ToggleGraph_,
+);
 
 const MetricsDropdown_: React.FC<MetricsDropdownProps> = ({
   insertText,
@@ -285,13 +285,10 @@ const MetricsDropdown_: React.FC<MetricsDropdownProps> = ({
     />
   );
 };
-const MetricsDropdown: React.ComponentType<{ namespace?: string }> = connect(
-  null,
-  {
-    insertText: UIActions.queryBrowserInsertText,
-    setMetrics: UIActions.queryBrowserSetMetrics,
-  },
-)(MetricsDropdown_);
+const MetricsDropdown: React.ComponentType<{ namespace?: string }> = connect(null, {
+  insertText: UIActions.queryBrowserInsertText,
+  setMetrics: UIActions.queryBrowserSetMetrics,
+})(MetricsDropdown_);
 
 const ExpandButton = ({ isExpanded, onClick }) => {
   const title = `${isExpanded ? 'Hide' : 'Show'} Table`;
@@ -358,12 +355,9 @@ const SeriesButton_: React.FC<SeriesButtonProps> = ({
     </div>
   );
 };
-const SeriesButton = connect(
-  seriesButtonStateToProps,
-  (dispatch, { index, labels }) => ({
-    toggleSeries: () => dispatch(UIActions.queryBrowserToggleSeries(index, labels)),
-  }),
-)(SeriesButton_);
+const SeriesButton = connect(seriesButtonStateToProps, (dispatch, { index, labels }) => ({
+  toggleSeries: () => dispatch(UIActions.queryBrowserToggleSeries(index, labels)),
+}))(SeriesButton_);
 
 const queryInputStateToProps = ({ UI }: RootState, { index }) => ({
   metrics: UI.getIn(['queryBrowser', 'metrics']),
@@ -518,10 +512,7 @@ const queryInputDispatchToProps = (dispatch, props) =>
     queryDispatchToProps(dispatch, props),
   );
 
-const QueryInput = connect(
-  queryInputStateToProps,
-  queryInputDispatchToProps,
-)(QueryInput_);
+export const QueryInput = connect(queryInputStateToProps, queryInputDispatchToProps)(QueryInput_);
 
 const QueryKebab_: React.FC<QueryKebabProps> = ({
   deleteQuery,
@@ -569,12 +560,19 @@ const queryTableStateToProps = ({ UI }: RootState, { index }) => ({
   series: UI.getIn(['queryBrowser', 'queries', index, 'series']),
 });
 
-const paginationOptions = [10, 20, 50, 100, 200, 500].map((n) => ({
+const defaultPaginationOptions = [10, 20, 50, 100, 200, 500].map((n) => ({
   title: n.toString(),
   value: n,
 }));
 
-const TablePagination = ({ itemCount, page, perPage, setPage, setPerPage }) => {
+export const TablePagination = ({
+  itemCount,
+  page,
+  perPage,
+  setPage,
+  setPerPage,
+  paginationOptions = defaultPaginationOptions,
+}) => {
   const onPerPageSelect = (e, v) => {
     // When changing the number of results per page, keep the start row approximately the same
     const firstRow = (page - 1) * perPage;
@@ -608,7 +606,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
   const [error, setError] = React.useState();
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(50);
-  const [sortBy, setSortBy] = React.useState<ISortBy>({ index: 1, direction: 'asc' });
+  const [sortBy, setSortBy] = React.useState<ISortBy>();
 
   const safeFetch = React.useCallback(useSafeFetch(), []);
 
@@ -634,6 +632,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
     setData(undefined);
     setError(undefined);
     setPage(1);
+    setSortBy(undefined);
   }, [namespace, query]);
 
   if (!isEnabled || !isExpanded || !query) {
@@ -724,17 +723,19 @@ const QueryTable_: React.FC<QueryTableProps> = ({
       ];
     }
 
-    // Sort Values column numerically and sort all the other columns alphabetically
-    const valuesColIndex = allLabelKeys.length + 1;
-    const sort =
-      sortBy.index === valuesColIndex
-        ? (cells) => {
-            const v = Number(cells[valuesColIndex]);
-            return Number.isNaN(v) ? 0 : v;
-          }
-        : sortBy.index;
-    const unsortedRows = _.map(result, rowMapper);
-    rows = _.orderBy(unsortedRows, [sort], [sortBy.direction]) as string[][];
+    rows = _.map(result, rowMapper);
+    if (sortBy) {
+      // Sort Values column numerically and sort all the other columns alphabetically
+      const valuesColIndex = allLabelKeys.length + 1;
+      const sort =
+        sortBy.index === valuesColIndex
+          ? (cells) => {
+              const v = Number(cells[valuesColIndex]);
+              return Number.isNaN(v) ? 0 : v;
+            }
+          : `${sortBy.index}`;
+      rows = _.orderBy(rows, [sort], [sortBy.direction]);
+    }
   }
 
   // Set the result table's break point based on the number of columns
@@ -779,10 +780,7 @@ const QueryTable_: React.FC<QueryTableProps> = ({
     </>
   );
 };
-const QueryTable = connect(
-  queryTableStateToProps,
-  queryDispatchToProps,
-)(QueryTable_);
+export const QueryTable = connect(queryTableStateToProps, queryDispatchToProps)(QueryTable_);
 
 const NamespaceAlert_: React.FC<{ dismiss: () => undefined; isDismissed: boolean }> = ({
   dismiss,
@@ -854,8 +852,10 @@ const Query = connect(
 const QueryBrowserWrapper_: React.FC<QueryBrowserWrapperProps> = ({
   namespace,
   patchQuery,
-  queries,
+  queriesList,
 }) => {
+  const queries = queriesList.toJS();
+
   const isInitRef = React.useRef(true);
 
   // Initialize queries from URL parameters
@@ -889,7 +889,8 @@ const QueryBrowserWrapper_: React.FC<QueryBrowserWrapperProps> = ({
   }, [queryStrings]);
 
   const insertExampleQuery = () => {
-    const index = _.get(focusedQuery, 'index', 0);
+    const focusedIndex = focusedQuery?.index ?? 0;
+    const index = queries[focusedIndex] ? focusedIndex : 0;
 
     // Pick a suitable example query based on whether we are limiting results to a single namespace
     const text = namespace
@@ -922,7 +923,7 @@ const QueryBrowserWrapper_: React.FC<QueryBrowserWrapperProps> = ({
   );
 };
 const QueryBrowserWrapper = connect(
-  ({ UI }: RootState) => ({ queries: UI.getIn(['queryBrowser', 'queries']).toJS() }),
+  ({ UI }: RootState) => ({ queriesList: UI.getIn(['queryBrowser', 'queries']) }),
   { patchQuery: UIActions.queryBrowserPatchQuery },
 )(QueryBrowserWrapper_);
 
@@ -936,20 +937,16 @@ const AddQueryButton_ = ({ addQuery }) => (
     Add Query
   </Button>
 );
-const AddQueryButton = connect(
-  null,
-  { addQuery: UIActions.queryBrowserAddQuery },
-)(AddQueryButton_);
+const AddQueryButton = connect(null, { addQuery: UIActions.queryBrowserAddQuery })(AddQueryButton_);
 
 const RunQueriesButton_ = ({ runQueries }) => (
   <Button onClick={runQueries} type="submit" variant="primary">
     Run Queries
   </Button>
 );
-const RunQueriesButton = connect(
-  null,
-  { runQueries: UIActions.queryBrowserRunQueries },
-)(RunQueriesButton_);
+const RunQueriesButton = connect(null, { runQueries: UIActions.queryBrowserRunQueries })(
+  RunQueriesButton_,
+);
 
 const QueriesList_ = ({ count, namespace }) => (
   <>
@@ -1017,10 +1014,7 @@ const QueryBrowserPage_: React.FC<QueryBrowserPageProps> = ({ deleteAll, namespa
   );
 };
 export const QueryBrowserPage: React.ComponentType<{ namespace?: string }> = withFallback(
-  connect(
-    null,
-    { deleteAll: UIActions.queryBrowserDeleteAllQueries },
-  )(QueryBrowserPage_),
+  connect(null, { deleteAll: UIActions.queryBrowserDeleteAllQueries })(QueryBrowserPage_),
 );
 
 type MetricsActionsMenuProps = {
@@ -1044,7 +1038,7 @@ type QueryBrowserPageProps = {
 type QueryBrowserWrapperProps = {
   namespace?: string;
   patchQuery: (index: number, patch: QueryObj) => any;
-  queries: QueryObj[];
+  queriesList: ImmutableList<QueryObj>;
 };
 
 type QueryInputProps = {

@@ -1,38 +1,12 @@
-import { V1CDRomTarget } from '../../../types/vm/disk/V1CDRomTarget';
-
-export type CD = {
-  name: string;
-  bootOrder?: number;
-  cdrom?: V1CDRomTarget;
-
-  // UI
-  changed?: boolean;
-  ejected?: boolean;
-  isInVM?: boolean;
-  pvc?: string;
-  container?: string;
-  type?: string;
-  bus?: string;
-  url?: string;
-  windowsTools?: string;
-  storageClass?: string;
-  size?: string | number;
-  isURLValid?: boolean;
-};
-
-export type CDMap = {
-  [name: string]: CD;
-};
-
 export const CD_SIZE = 'size';
 export const CD_STORAGE_CLASS = 'storageClass';
 
 export const WINTOOLS_CONTAINER_NAMES = {
-  openshift: 'virtio-win-container',
-  ocp: 'virtio-win-container',
-  online: 'virtio-win-container',
-  dedicated: 'virtio-win-container',
-  azure: 'virtio-win-container',
+  openshift: 'registry.redhat.io/container-native-virtualization/virtio-win',
+  ocp: 'registry.redhat.io/container-native-virtualization/virtio-win',
+  online: 'registry.redhat.io/container-native-virtualization/virtio-win',
+  dedicated: 'registry.redhat.io/container-native-virtualization/virtio-win',
+  azure: 'registry.redhat.io/container-native-virtualization/virtio-win',
   okd: 'kubevirt/virtio-container-disk',
 };
 
@@ -42,13 +16,6 @@ export const initialDisk = {
   size: 10,
   isURLValid: true,
   changed: false,
-};
-
-export const sourceDict = {
-  container: 'Container',
-  url: 'URL',
-  pvc: 'PVC',
-  windowsTools: 'Windows Tools',
 };
 
 export const StorageType = {

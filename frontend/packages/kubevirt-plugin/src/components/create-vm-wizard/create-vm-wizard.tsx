@@ -1,8 +1,15 @@
 import * as React from 'react';
 import * as _ from 'lodash';
+import { compose } from 'redux';
 import { connect } from 'react-redux';
 import { createVm as importVM } from 'kubevirt-web-ui-components';
 import { Wizard, WizardStep } from '@patternfly/react-core';
+import { FLAGS } from '@console/shared';
+import {
+  featureReducerName,
+  connectToFlags,
+  FlagsObject,
+} from '@console/internal/reducers/features';
 import { TemplateModel } from '@console/internal/models';
 import { Firehose, history, units } from '@console/internal/components/utils';
 import { k8sGet, TemplateKind } from '@console/internal/module/k8s';
@@ -31,9 +38,9 @@ import { NetworkWrapper } from '../../k8s/wrapper/vm/network-wrapper';
 import { NetworkInterfaceWrapper } from '../../k8s/wrapper/vm/network-interface-wrapper';
 import { VolumeWrapper } from '../../k8s/wrapper/vm/volume-wrapper';
 import { DiskWrapper } from '../../k8s/wrapper/vm/disk-wrapper';
-import { DataVolumeWrapper } from '../../k8s/wrapper/vm/data-volume-wrapper';
+import { MutableDataVolumeWrapper } from '../../k8s/wrapper/vm/data-volume-wrapper';
 import {
-  getDefaultSCAccessMode,
+  getDefaultSCAccessModes,
   getDefaultSCVolumeMode,
 } from '../../selectors/config-map/sc-defaults';
 import { getStorageClassConfigMap } from '../../k8s/requests/config-map/storage-class';
@@ -61,8 +68,14 @@ import {
 import { CREATE_VM, CREATE_VM_TEMPLATE, TabTitleResolver, IMPORT_VM } from './strings/strings';
 import { vmWizardActions } from './redux/actions';
 import { ActionType } from './redux/types';
+import { getResultInitialState } from './redux/initial-state/result-tab-initial-state';
 import { iGetCommonData, iGetCreateVMWizardTabs } from './selectors/immutable/selectors';
-import { isStepLocked, isStepPending, isStepValid } from './selectors/immutable/wizard-selectors';
+import {
+  isLastStepErrorFatal,
+  isStepLocked,
+  isStepPending,
+  isStepValid,
+} from './selectors/immutable/wizard-selectors';
 import { ResourceLoadErrors } from './resource-load-errors';
 import { CreateVMWizardFooter } from './create-vm-wizard-footer';
 import { VMSettingsTab } from './tabs/vm-settings-tab/vm-settings-tab';
@@ -139,7 +152,7 @@ const kubevirtInterOP = async ({
     ({ type, disk, volume, dataVolume, persistentVolumeClaim, importData }) => {
       const diskWrapper = DiskWrapper.initialize(disk);
       const volumeWrapper = VolumeWrapper.initialize(volume);
-      const dataVolumeWrapper = dataVolume && DataVolumeWrapper.initialize(dataVolume);
+      const dataVolumeWrapper = dataVolume && new MutableDataVolumeWrapper(dataVolume, true);
       const persistentVolumeClaimWrapper =
         persistentVolumeClaim && PersistentVolumeClaimWrapper.initialize(persistentVolumeClaim);
 
@@ -171,27 +184,15 @@ const kubevirtInterOP = async ({
         };
       }
 
-      const finalDataVolumeWrapper = dataVolumeWrapper
-        ? DataVolumeWrapper.mergeWrappers(
-            dataVolumeWrapper,
-            DataVolumeWrapper.initializeFromSimpleData({
-              accessModes: dataVolumeWrapper.getAccessModes() || [
-                getDefaultSCAccessMode(
-                  storageClassConfigMap,
-                  dataVolumeWrapper.getStorageClassName(),
-                ),
-              ],
-              volumeMode:
-                dataVolumeWrapper.getVolumeMode() ||
-                getDefaultSCVolumeMode(
-                  storageClassConfigMap,
-                  dataVolumeWrapper.getStorageClassName(),
-                ),
-            }),
+      let finalDataVolume;
+      if (dataVolumeWrapper) {
+        finalDataVolume = dataVolumeWrapper
+          .assertDefaultModes(
+            getDefaultSCVolumeMode(storageClassConfigMap, dataVolumeWrapper.getStorageClassName()),
+            getDefaultSCAccessModes(storageClassConfigMap, dataVolumeWrapper.getStorageClassName()),
           )
-        : undefined;
-
-      const finalDataVolume = finalDataVolumeWrapper && finalDataVolumeWrapper.asResource();
+          .asResource();
+      }
 
       return {
         name: diskWrapper.getName(),
@@ -272,7 +273,7 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
 
   finish = async () => {
     this.props.onResultsChanged({ errors: [], requestResults: [] }, null, true, true); // reset
-    const { isCreateTemplate, activeNamespace, isProviderImport } = this.props;
+    const { isCreateTemplate, activeNamespace, isProviderImport, openshiftFlag } = this.props;
 
     const enhancedK8sMethods = new EnhancedK8sMethods();
     const vmSettings = iGetIn(this.props.stepData, [VMWizardTab.VM_SETTINGS, 'value']).toJS();
@@ -282,16 +283,15 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
     const storages = immutableListToShallowJS(
       iGetIn(this.props.stepData, [VMWizardTab.STORAGE, 'value']),
     );
-    const templates = immutableListToShallowJS<TemplateKind>(
-      concatImmutableLists(
-        iGetLoadedData(this.props[VMWizardProps.commonTemplates]),
-        iGetLoadedData(this.props[VMWizardProps.userTemplates]),
-      ),
-    );
 
+    const iUserTemplates = iGetLoadedData(this.props[VMWizardProps.userTemplates]);
+    const iCommonTemplates = iGetLoadedData(this.props[VMWizardProps.commonTemplates]);
     let promise;
 
     if (isProviderImport) {
+      const templates = immutableListToShallowJS<TemplateKind>(
+        concatImmutableLists(iUserTemplates, iCommonTemplates),
+      );
       const { interOPVMSettings, interOPNetworks, interOPStorages } = await kubevirtInterOP({
         vmSettings,
         networks,
@@ -316,19 +316,24 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
         vmSettings,
         networks,
         storages,
-        templates,
+        iUserTemplates,
+        iCommonTemplates,
         namespace: activeNamespace,
+        openshiftFlag,
       });
     }
 
     promise
       .then(() => getResults(enhancedK8sMethods))
       .catch((error) => cleanupAndGetResults(enhancedK8sMethods, error))
-      .then(({ requestResults, errors, mainError, isValid }: ResultsWrapper) =>
-        this.props.onResultsChanged({ mainError, requestResults, errors }, isValid, true, false),
+      .then(({ isValid, ...rest }: ResultsWrapper) =>
+        this.props.onResultsChanged(rest, isValid, false, false),
       )
       .catch((e) => console.error(e)); // eslint-disable-line no-console
   };
+
+  goBackToEditingSteps = () =>
+    this.props.onResultsChanged(getResultInitialState({}).value, null, false, false);
 
   render() {
     const { reduxID, stepData } = this.props;
@@ -426,9 +431,17 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
         const calculatedStep = {
           ...step,
           name: TabTitleResolver[step.id] || step.name,
-          canJumpTo: isStepLocked(stepData, VMWizardTab.RESULT) // request finished
-            ? step.id === VMWizardTab.RESULT
-            : !isLocked && isPrevStepValid && canJumpToPrevStep && step.id !== VMWizardTab.RESULT,
+          canJumpTo:
+            isStepLocked(stepData, VMWizardTab.RESULT) || isLastStepErrorFatal(stepData) // request in progress or failed
+              ? step.id === VMWizardTab.RESULT
+              : !isLocked &&
+                isPrevStepValid &&
+                canJumpToPrevStep &&
+                // disable uninitialized RESULT step
+                !(
+                  step.id === VMWizardTab.RESULT &&
+                  iGetIn(stepData, [VMWizardTab.RESULT, 'isValid']) == null
+                ),
           component: step.component,
         };
 
@@ -451,9 +464,22 @@ export class CreateVMWizardComponent extends React.Component<CreateVMWizardCompo
           isInPage
           className="kubevirt-create-vm-modal__wizard-content"
           onClose={this.onClose}
-          onNext={({ id }) => {
-            if (id === VMWizardTab.RESULT) {
+          onNext={({ id }, { prevId }) => {
+            if (id === VMWizardTab.RESULT && prevId !== VMWizardTab.RESULT) {
               this.finish();
+            }
+            if (prevId === VMWizardTab.RESULT && id !== VMWizardTab.RESULT) {
+              this.goBackToEditingSteps();
+            }
+          }}
+          onBack={({ id }, { prevId }) => {
+            if (prevId === VMWizardTab.RESULT && id !== VMWizardTab.RESULT) {
+              this.goBackToEditingSteps();
+            }
+          }}
+          onGoToStep={({ id }, { prevId }) => {
+            if (prevId === VMWizardTab.RESULT && id !== VMWizardTab.RESULT) {
+              this.goBackToEditingSteps();
             }
           }}
           steps={calculateSteps(steps)}
@@ -512,10 +538,12 @@ export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentPr
   reduxID,
   match,
   location,
+  flags,
 }) => {
   const activeNamespace = match && match.params && match.params.ns;
   const path = (match && match.path) || '';
   const search = location && location.search;
+
   const resources = [
     getResource(VirtualMachineModel, {
       namespace: activeNamespace,
@@ -525,21 +553,27 @@ export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentPr
       namespace: activeNamespace,
       prop: VMWizardProps.dataVolumes,
     }),
-    getResource(TemplateModel, {
-      namespace: activeNamespace,
-      prop: VMWizardProps.userTemplates,
-      matchLabels: { [TEMPLATE_TYPE_LABEL]: TEMPLATE_TYPE_VM },
-    }),
-    getResource(TemplateModel, {
-      namespace: 'openshift',
-      prop: VMWizardProps.commonTemplates,
-      matchLabels: { [TEMPLATE_TYPE_LABEL]: TEMPLATE_TYPE_BASE },
-    }),
   ];
+
+  if (flags[FLAGS.OPENSHIFT]) {
+    resources.push(
+      getResource(TemplateModel, {
+        namespace: activeNamespace,
+        prop: VMWizardProps.userTemplates,
+        matchLabels: { [TEMPLATE_TYPE_LABEL]: TEMPLATE_TYPE_VM },
+      }),
+      getResource(TemplateModel, {
+        namespace: 'openshift',
+        prop: VMWizardProps.commonTemplates,
+        matchLabels: { [TEMPLATE_TYPE_LABEL]: TEMPLATE_TYPE_BASE },
+      }),
+    );
+  }
 
   const dataIDReferences = makeIDReferences(resources);
 
   dataIDReferences[VMWizardProps.activeNamespace] = ['UI', 'activeNamespace'];
+  dataIDReferences[VMWizardProps.openshiftFlag] = [featureReducerName, FLAGS.OPENSHIFT];
 
   return (
     <Firehose resources={resources} doNotConnectToState>
@@ -547,7 +581,6 @@ export const CreateVMWizardPageComponent: React.FC<CreateVMWizardPageComponentPr
         isCreateTemplate={!path.includes('/virtualmachines/')}
         isProviderImport={new URLSearchParams(search).get('mode') === 'import'}
         dataIDReferences={dataIDReferences}
-        activeNamespace={activeNamespace}
         reduxID={reduxID}
         onClose={() => history.goBack()}
       />
@@ -559,6 +592,10 @@ type CreateVMWizardPageComponentProps = {
   reduxID?: string;
   location?: Location;
   match?: RouterMatch<{ ns: string; plural: string; appName?: string }>;
+  flags: FlagsObject;
 };
 
-export const CreateVMWizardPage = withReduxID(CreateVMWizardPageComponent);
+export const CreateVMWizardPage = compose(
+  connectToFlags(FLAGS.OPENSHIFT),
+  withReduxID,
+)(CreateVMWizardPageComponent);

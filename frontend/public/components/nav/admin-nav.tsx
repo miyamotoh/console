@@ -2,8 +2,9 @@ import * as React from 'react';
 import { connect } from 'react-redux';
 import { NavItemSeparator } from '@patternfly/react-core';
 
+import { FLAGS } from '@console/shared';
+import { formatNamespacedRouteForResource } from '@console/shared/src/utils';
 import { featureReducerName } from '../../reducers/features';
-import { FLAGS } from '../../const';
 import { monitoringReducerName, MonitoringRoutes } from '../../reducers/monitoring';
 
 import {
@@ -25,7 +26,6 @@ import {
 import { referenceForModel } from '../../module/k8s';
 import { ExternalLink, HrefLink, ResourceNSLink, ResourceClusterLink } from './items';
 import { NavSection } from './section';
-import { formatNamespacedRouteForResource } from '../../actions/ui';
 
 type SeparatorProps = {
   name: string;
@@ -59,31 +59,29 @@ const apiExplorerStartsWith = ['api-explorer', 'api-resource'];
 
 const monitoringNavSectionStateToProps = (state) => ({
   canAccess: !!state[featureReducerName].get(FLAGS.CAN_GET_NS),
-  grafanaURL: state[monitoringReducerName].get(MonitoringRoutes.Grafana),
   kibanaURL: state[monitoringReducerName].get(MonitoringRoutes.Kibana),
 });
 
-const MonitoringNavSection_ = ({ grafanaURL, canAccess, kibanaURL }) => {
-  const showAlerts = canAccess && !!window.SERVER_FLAGS.prometheusBaseURL;
+const MonitoringNavSection_ = ({ canAccess, kibanaURL }) => {
+  const canAccessPrometheus = canAccess && !!window.SERVER_FLAGS.prometheusBaseURL;
   const showSilences = canAccess && !!window.SERVER_FLAGS.alertManagerBaseURL;
-  const showGrafana = canAccess && !!grafanaURL;
-  return showAlerts || showSilences || showGrafana || kibanaURL ? (
+  return canAccessPrometheus || showSilences || kibanaURL ? (
     <NavSection title="Monitoring">
-      {showAlerts && (
+      {canAccessPrometheus && (
         <HrefLink
           href="/monitoring/alerts"
           name="Alerting"
           startsWith={monitoringAlertsStartsWith}
         />
       )}
-      {showAlerts && (
+      {canAccessPrometheus && (
         <HrefLink
           href="/monitoring/query-browser?query0="
           name="Metrics"
           startsWith={['monitoring/query-browser']}
         />
       )}
-      {showGrafana && <ExternalLink href={grafanaURL} name="Dashboards" />}
+      {canAccessPrometheus && <HrefLink href="/monitoring/dashboards" name="Dashboards" />}
       {kibanaURL && <ExternalLink href={kibanaURL} name="Logging" />}
     </NavSection>
   ) : null;
@@ -96,7 +94,7 @@ const AdminNav = () => (
       <HrefLink
         href="/dashboards"
         activePath="/dashboards/"
-        name="Dashboards"
+        name="Overview"
         required={[FLAGS.CAN_LIST_NS, FLAGS.OPENSHIFT]}
       />
       <ResourceClusterLink resource="projects" name="Projects" required={FLAGS.OPENSHIFT} />

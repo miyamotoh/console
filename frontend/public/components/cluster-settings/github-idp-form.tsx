@@ -5,7 +5,7 @@ import { ActionGroup, Button } from '@patternfly/react-core';
 import { SecretModel, ConfigMapModel } from '../../models';
 import { IdentityProvider, k8sCreate, K8sResourceKind, OAuthKind } from '../../module/k8s';
 import { ButtonBar, ListInput, PromiseComponent, history } from '../utils';
-import { addIDP, getOAuthResource, redirectToOAuthPage } from './';
+import { addIDP, getOAuthResource, redirectToOAuthPage, mockNames } from './';
 import { IDPNameInput } from './idp-name-input';
 import { IDPCAFileInput } from './idp-cafile-input';
 
@@ -68,6 +68,7 @@ export class AddGitHubPage extends PromiseComponent<{}, AddGitHubPageState> {
     oauth: OAuthKind,
     clientSecretName: string,
     caName: string,
+    dryRun?: boolean,
   ): Promise<K8sResourceKind> {
     const { name, clientID, hostname, organizations, teams } = this.state;
     const idp: IdentityProvider = {
@@ -91,7 +92,7 @@ export class AddGitHubPage extends PromiseComponent<{}, AddGitHubPageState> {
       };
     }
 
-    return this.handlePromise(addIDP(oauth, idp));
+    return this.handlePromise(addIDP(oauth, idp, dryRun));
   }
 
   submit: React.FormEventHandler<HTMLFormElement> = (e) => {
@@ -104,14 +105,21 @@ export class AddGitHubPage extends PromiseComponent<{}, AddGitHubPageState> {
     // Clear any previous errors.
     this.setState({ errorMessage: '' });
     this.getOAuthResource().then((oauth: OAuthKind) => {
-      const promises = [this.createClientSecret(), this.createCAConfigMap()];
+      const mockCA = this.state.caFileContent ? mockNames.ca : '';
+      this.addGitHubIDP(oauth, mockNames.secret, mockCA, true)
+        .then(() => {
+          const promises = [this.createClientSecret(), this.createCAConfigMap()];
 
-      Promise.all(promises)
-        .then(([secret, configMap]) => {
-          const caName = configMap ? configMap.metadata.name : '';
-          return this.addGitHubIDP(oauth, secret.metadata.name, caName);
+          Promise.all(promises)
+            .then(([secret, configMap]) => {
+              const caName = configMap ? configMap.metadata.name : '';
+              return this.addGitHubIDP(oauth, secret.metadata.name, caName);
+            })
+            .then(redirectToOAuthPage);
         })
-        .then(redirectToOAuthPage);
+        .catch((err) => {
+          this.setState({ errorMessage: err });
+        });
     });
   };
 
@@ -228,7 +236,7 @@ export class AddGitHubPage extends PromiseComponent<{}, AddGitHubPageState> {
           />
           <ButtonBar errorMessage={this.state.errorMessage} inProgress={this.state.inProgress}>
             <ActionGroup className="pf-c-form">
-              <Button type="submit" variant="primary">
+              <Button type="submit" variant="primary" data-test-id="add-idp">
                 Add
               </Button>
               <Button type="button" variant="secondary" onClick={history.goBack}>

@@ -18,7 +18,6 @@ import { VMNicsTable } from '../../../vm-nics/vm-nics';
 import { nicTableColumnClasses } from '../../../vm-nics/utils';
 import { vmWizardActions } from '../../redux/actions';
 import { ActionType } from '../../redux/types';
-import { ADD_NETWORK_INTERFACE } from '../../strings/networking';
 import { iGetProvisionSource } from '../../selectors/immutable/vm-settings';
 import { getNetworksWithWrappers } from '../../selectors/selectors';
 import { wrapWithProgress } from '../../../../utils/utils';
@@ -30,6 +29,7 @@ import { VMWizardNetworkBundle } from './types';
 import { NetworkBootSource } from './network-boot-source';
 
 import './networking-tab.scss';
+import { ADD_NETWORK_INTERFACE } from '../../../../utils/strings';
 
 const getNicsData = (networks: VMWizardNetworkWithWrappers[]): VMWizardNetworkBundle[] =>
   networks.map((wizardNetworkData) => {
@@ -160,7 +160,4 @@ const dispatchToProps = (dispatch, { wizardReduxID }) => ({
   },
 });
 
-export const NetworkingTab = connect(
-  stateToProps,
-  dispatchToProps,
-)(NetworkingTabComponent);
+export const NetworkingTab = connect(stateToProps, dispatchToProps)(NetworkingTabComponent);

@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Link } from 'react-router-dom';
 import * as classNames from 'classnames';
 
+import { FLAGS } from '@console/shared/src/constants';
 import { ResourceIcon } from './index';
 import {
   modelFor,
@@ -13,7 +14,6 @@ import {
 } from '../../module/k8s';
 import { connectToModel } from '../../kinds';
 import { connectToFlags, FlagsObject } from '../../reducers/features';
-import { FLAGS } from '../../const';
 
 const unknownKinds = new Set();
 
@@ -49,7 +49,7 @@ export const resourceListPathFromModel = (model: K8sKind, namespace: string) =>
 /**
  * NOTE: This will not work for runtime-defined resources. Use a `connect`-ed component like `ResourceLink` instead.
  */
-export const resourcePath = (kind: K8sResourceKindReference, name: string, namespace: string) => {
+export const resourcePath = (kind: K8sResourceKindReference, name?: string, namespace?: string) => {
   const model = modelFor(kind);
   if (!model) {
     if (!unknownKinds.has(kind)) {

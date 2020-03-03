@@ -46,9 +46,15 @@ export const vmDetailFlavorMemory = (namespace, vmName) =>
 export const vmDetailDescTextarea = (namespace, vmName) =>
   $(vmDetailItemId(namespace, vmName, 'description-textarea'));
 export const vmDetailBootOrder = (namespace, vmName) =>
-  $(vmDetailItemId(namespace, vmName, 'boot-order'))
-    .$('.kubevirt-boot-order__list')
-    .$$('li');
+  $(vmDetailItemId(namespace, vmName, 'boot-order')).$$('li');
+export const vmDetailBootOrderEditButton = (namespace, vmName) =>
+  $(vmDetailItemId(namespace, vmName, 'boot-order-edit'));
+export const vmDetailDedicatedResources = (namespace, vmName) =>
+  $(vmDetailItemId(namespace, vmName, 'dedicated-resources'));
+export const vmDetailDedicatedResourcesEditButton = (namespace, vmName) =>
+  $(vmDetailItemId(namespace, vmName, 'dedicated-resources-edit'));
+export const vmDetailStatusEditButton = (namespace, vmName) =>
+  $(vmDetailItemId(namespace, vmName, 'status-edit'));
 export const vmDetailLabelValue = async (labelKey) => {
   const filteredLabel = $$('.co-m-label').filter((elem) =>
     elem

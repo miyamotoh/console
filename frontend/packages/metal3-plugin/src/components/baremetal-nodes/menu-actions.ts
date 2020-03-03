@@ -2,6 +2,7 @@ import { Kebab, KebabOption, asAccessReview } from '@console/internal/components
 import {
   MarkAsSchedulable,
   MarkAsUnschedulable,
+  Delete,
 } from '@console/app/src/components/nodes/menu-actions';
 import { K8sKind, NodeKind, K8sResourceKind, MachineKind } from '@console/internal/module/k8s';
 import { getName } from '@console/shared';
@@ -24,7 +25,7 @@ export const SetNodeMaintenance = (
   const nodeName = getName(node);
   return {
     hidden: !nodeName || !hasNodeMaintenanceCapability || !!nodeMaintenance,
-    label: 'Start maintenance',
+    label: 'Start Maintenance',
     callback: () => startNodeMaintenanceModal({ nodeName }),
   };
 };
@@ -38,7 +39,7 @@ export const RemoveNodeMaintenance = (
   const nodeName = getName(node);
   return {
     hidden: !nodeName || !hasNodeMaintenanceCapability || !nodeMaintenance,
-    label: 'Stop maintenance',
+    label: 'Stop Maintenance',
     callback: () => stopNodeMaintenanceModal(nodeMaintenance),
     accessReview:
       nodeMaintenance && asAccessReview(NodeMaintenanceModel, nodeMaintenance, 'delete'),
@@ -54,6 +55,7 @@ export const menuActions = [
   ModifyLabels,
   ModifyAnnotations,
   Edit,
+  Delete,
 ];
 
 type ExtraResources = {

@@ -1,8 +1,8 @@
 import * as _ from 'lodash';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { connect, Dispatch } from 'react-redux';
-import { DataPoint, PrometheusResponse } from '@console/internal/components/graphs';
+import { connect } from 'react-redux';
+import { DataPoint } from '@console/internal/components/graphs';
 import { Humanize, resourcePathFromModel } from '@console/internal/components/utils';
 import { Dropdown } from '@console/internal/components/utils/dropdown';
 import { K8sKind, referenceForModel, K8sResourceKind } from '@console/internal/module/k8s';
@@ -12,11 +12,11 @@ import {
 } from '@console/internal/components/dashboard/with-dashboard-resources';
 import { getInstantVectorStats } from '@console/internal/components/graphs/utils';
 import { featureReducerName } from '@console/internal/reducers/features';
-import { FLAGS } from '@console/internal/const';
 import { RootState } from '@console/internal/redux';
-import * as UIActions from '@console/internal/actions/ui';
 import { getActivePerspective } from '@console/internal/reducers/ui';
+import { getPrometheusQueryResponse } from '@console/internal/actions/dashboards';
 import { PopoverPosition } from '@patternfly/react-core';
+import { FLAGS } from '../../../constants';
 import { getName, getNamespace } from '../../..';
 import { DashboardCardPopupLink } from '../dashboard-card/DashboardCardLink';
 
@@ -53,9 +53,9 @@ const getResourceToWatch = (model: K8sKind, namespace: string) => ({
   prop: 'k8sResources',
 });
 
-const PopoverBodyInternal: React.FC<
-  DashboardItemProps & PopoverBodyProps & PopoverReduxProps
-> = React.memo((props) => {
+const PopoverBodyInternal: React.FC<DashboardItemProps &
+  PopoverBodyProps &
+  PopoverReduxProps> = React.memo((props) => {
   const {
     humanize,
     consumers,
@@ -68,7 +68,6 @@ const PopoverBodyInternal: React.FC<
     resources,
     isOpen,
     canAccessMonitoring,
-    setActivePerspective,
     activePerspective,
   } = props;
   const [currentConsumer, setCurrentConsumer] = React.useState(consumers[0]);
@@ -100,8 +99,7 @@ const PopoverBodyInternal: React.FC<
   const consumerLoaded = _.get(resources, ['k8sResources', 'loaded']);
   const consumersLoadError = _.get(resources, ['k8sResources', 'loadError']);
 
-  const error = prometheusResults.getIn([query, 'loadError']);
-  const data = prometheusResults.getIn([query, 'data']) as PrometheusResponse;
+  const [data, error] = getPrometheusQueryResponse(prometheusResults, query);
   const bodyData = getInstantVectorStats(data, metric);
 
   if (consumerLoaded && !consumersLoadError) {
@@ -145,13 +143,34 @@ const PopoverBodyInternal: React.FC<
   const monitoringURL =
     canAccessMonitoring && activePerspective === 'admin'
       ? `/monitoring/query-browser?${monitoringParams.toString()}`
-      : `/metrics/ns/${namespace}?${monitoringParams.toString()}`;
+      : `/dev-monitoring/ns/${namespace}/metrics?${monitoringParams.toString()}`;
 
-  const viewMoreAction = React.useCallback(() => {
-    if (!canAccessMonitoring && activePerspective !== 'dev') {
-      setActivePerspective('dev');
-    }
-  }, [canAccessMonitoring, setActivePerspective, activePerspective]);
+  let body: React.ReactNode;
+  if (error || consumersLoadError) {
+    body = <div className="text-secondary">Not available</div>;
+  } else if (!consumerLoaded || !data) {
+    body = (
+      <ul className="co-utilization-card-popover__consumer-list">
+        <li className="skeleton-consumer" />
+        <li className="skeleton-consumer" />
+        <li className="skeleton-consumer" />
+        <li className="skeleton-consumer" />
+        <li className="skeleton-consumer" />
+      </ul>
+    );
+  } else {
+    body = (
+      <>
+        <ul
+          className="co-utilization-card-popover__consumer-list"
+          aria-label={`Top consumer by ${model.labelPlural}`}
+        >
+          <ConsumerItems items={top5Data} model={model} />
+        </ul>
+        <Link to={monitoringURL}>View more</Link>
+      </>
+    );
+  }
 
   return (
     <div className="co-utilization-card-popover__body">
@@ -171,27 +190,7 @@ const PopoverBodyInternal: React.FC<
           selectedKey={referenceForModel(model)}
         />
       )}
-      {consumerLoaded && data && !error ? (
-        <>
-          <ul
-            className="co-utilization-card-popover__consumer-list"
-            aria-label={`Top consumer by ${model.labelPlural}`}
-          >
-            <ConsumerItems items={top5Data} model={model} />
-          </ul>
-          <Link to={monitoringURL} onClick={viewMoreAction}>
-            View more
-          </Link>
-        </>
-      ) : (
-        <ul className="co-utilization-card-popover__consumer-list">
-          <li className="skeleton-consumer" />
-          <li className="skeleton-consumer" />
-          <li className="skeleton-consumer" />
-          <li className="skeleton-consumer" />
-          <li className="skeleton-consumer" />
-        </ul>
-      )}
+      {body}
     </div>
   );
 });
@@ -202,14 +201,7 @@ const mapStateToProps = (state: RootState) => ({
     !!state[featureReducerName].get(FLAGS.CAN_GET_NS) && !!window.SERVER_FLAGS.prometheusBaseURL,
 });
 
-const mapDispatchToProps = (dispatch: Dispatch) => ({
-  setActivePerspective: (id: string) => dispatch(UIActions.setActivePerspective(id)),
-});
-
-const PopoverBody = connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)(withDashboardResources(PopoverBodyInternal));
+const PopoverBody = connect(mapStateToProps)(withDashboardResources(PopoverBodyInternal));
 
 const ConsumerItems: React.FC<ConsumerItemsProps> = React.memo(({ items, model }) => {
   return items ? (
@@ -242,7 +234,6 @@ type ConsumerItemsProps = {
 type PopoverReduxProps = {
   activePerspective: string;
   canAccessMonitoring: boolean;
-  setActivePerspective: (id: string) => void;
 };
 
 type PopoverBodyProps = {

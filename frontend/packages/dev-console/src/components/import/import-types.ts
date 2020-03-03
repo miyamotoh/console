@@ -1,3 +1,4 @@
+import { ValidatedOptions } from '@patternfly/react-core';
 import { K8sResourceKind, ContainerPort } from '@console/internal/module/k8s';
 import { LazyLoader } from '@console/plugin-sdk';
 import { NameValuePair, NameValueFromPair } from '@console/shared';
@@ -29,6 +30,7 @@ export interface ImageStreamContextProps {
   dispatch: React.Dispatch<ImageStreamAction>;
   hasImageStreams: boolean;
   setHasImageStreams: (value: boolean) => void;
+  setValidated: (validated: ValidatedOptions) => void;
 }
 export interface SourceToImageFormProps {
   builderImages?: NormalizedBuilderImages;
@@ -52,6 +54,7 @@ export interface FirehoseList {
 }
 
 export interface DeployImageFormData {
+  formType?: string;
   project: ProjectData;
   application: ApplicationData;
   name: string;
@@ -70,7 +73,7 @@ export interface DeployImageFormData {
   serverless?: ServerlessData;
   pipeline?: PipelineData;
   labels: { [name: string]: string };
-  env: { [name: string]: string };
+  env?: { [name: string]: string };
   route: RouteData;
   build: BuildData;
   deployment: DeploymentData;
@@ -96,7 +99,7 @@ export interface GitImportFormData {
 }
 
 export interface ApplicationData {
-  initial: string;
+  initial?: string;
   name: string;
   selectedKey: string;
 }
@@ -113,7 +116,7 @@ export interface ImageData {
 
 export interface ImageStreamImageData {
   name: string;
-  image: object;
+  image: { [key: string]: any };
   tag: string;
   status: { metadata: {}; status: string };
   ports: ContainerPort[];
@@ -121,8 +124,8 @@ export interface ImageStreamImageData {
 
 export interface ProjectData {
   name: string;
-  displayName: string;
-  description: string;
+  displayName?: string;
+  description?: string;
 }
 
 export interface GitData {
@@ -132,7 +135,7 @@ export interface GitData {
   dir: string;
   showGitType: boolean;
   secret: string;
-  isUrlValidated: boolean;
+  urlValidation: ValidatedOptions;
   isUrlValidating: boolean;
 }
 
@@ -142,7 +145,7 @@ export interface DockerData {
 }
 
 export interface RouteData {
-  show?: boolean;
+  disable?: boolean;
   create: boolean;
   targetPort: string;
   unknownTargetPort?: string;
@@ -164,9 +167,9 @@ export interface TLSData {
 
 export interface BuildData {
   triggers: {
-    webhook: boolean;
-    image: boolean;
-    config: boolean;
+    webhook?: boolean;
+    image?: boolean;
+    config?: boolean;
   };
   env: (NameValuePair | NameValueFromPair)[];
   strategy: string;
@@ -220,8 +223,8 @@ export enum ImportTypes {
 
 export enum Resources {
   OpenShift = 'openshift',
-  Kubernetes = 'k8s',
-  KnativeService = 'knativeservice',
+  Kubernetes = 'kubernetes',
+  KnativeService = 'knative',
 }
 
 export interface ImportData {
@@ -270,4 +273,12 @@ export enum CPUUnits {
 export enum MemoryUnits {
   Mi = 'Mi',
   Gi = 'Gi',
+}
+
+export enum ImportOptions {
+  GIT = 'GIT',
+  CONTAINER = 'CONTAINER',
+  CATALOG = 'CATALOG',
+  DOCKERFILE = 'DOCKERFILE',
+  DATABASE = 'DATABASE',
 }

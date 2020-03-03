@@ -17,6 +17,7 @@ import {
   DashboardsOverviewResourceActivity,
 } from '@console/plugin-sdk';
 import { DashboardsStorageCapacityDropdownItem } from '@console/ceph-storage-plugin';
+import { FLAGS } from '@console/shared/src/constants';
 import { TemplateModel, PodModel } from '@console/internal/models';
 import { getName } from '@console/shared/src/selectors/common';
 import * as models from './models';
@@ -63,6 +64,20 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
+    type: 'NavItem/ResourceNS',
+    properties: {
+      section: 'Workloads',
+      componentProps: {
+        name: 'Virtual Machines',
+        resource: models.VirtualMachineModel.plural,
+      },
+      mergeBefore: 'Deployments',
+    },
+    flags: {
+      required: [FLAG_KUBEVIRT],
+    },
+  },
+  {
     // NOTE(yaacov): vmtemplates is a template resource with a selector.
     // 'NavItem/ResourceNS' is used, and not 'NavItem/Href', because it injects
     // the namespace needed to get the correct link to a resource ( template with selector ) in our case.
@@ -72,21 +87,11 @@ const plugin: Plugin<ConsumedExtensions> = [
       componentProps: {
         name: 'Virtual Machine Templates',
         resource: 'vmtemplates',
-        required: FLAG_KUBEVIRT,
       },
       mergeBefore: 'Deployments',
     },
-  },
-  {
-    type: 'NavItem/ResourceNS',
-    properties: {
-      section: 'Workloads',
-      componentProps: {
-        name: 'Virtual Machines',
-        resource: models.VirtualMachineModel.plural,
-        required: FLAG_KUBEVIRT,
-      },
-      mergeBefore: 'Virtual Machine Templates',
+    flags: {
+      required: [FLAG_KUBEVIRT, FLAGS.OPENSHIFT],
     },
   },
   {
@@ -115,36 +120,14 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
-    type: 'Page/Resource/Details',
-    properties: {
-      model: models.VirtualMachineModel,
-      loader: () =>
-        import('./components/vms/vm-details-page' /* webpackChunkName: "kubevirt" */).then(
-          (m) => m.VirtualMachinesDetailsPage,
-        ),
-    },
-  },
-  {
     type: 'Page/Route',
     properties: {
       exact: true,
-      path: ['/k8s/ns/:ns/vmtemplates', '/k8s/all-namespaces/vmtemplates'],
+      path: ['/k8s/ns/:ns/virtualmachines/~new'],
       loader: () =>
-        import('./components/vm-templates/vm-template' /* webpackChunkName: "kubevirt" */).then(
-          (m) => m.VirtualMachineTemplatesPage,
+        import('./components/vms/vm-create-yaml' /* webpackChunkName: "kubevirt" */).then(
+          (m) => m.VMCreateYAML,
         ),
-      required: FLAG_KUBEVIRT,
-    },
-  },
-  {
-    type: 'Page/Route',
-    properties: {
-      exact: true,
-      path: ['/k8s/ns/:ns/vmtemplates/~new'],
-      loader: () =>
-        import(
-          './components/vm-templates/vm-template-create-yaml' /* webpackChunkName: "kubevirt" */
-        ).then((m) => m.CreateVMTemplateYAML),
       required: FLAG_KUBEVIRT,
     },
   },
@@ -157,6 +140,38 @@ const plugin: Plugin<ConsumedExtensions> = [
         import(
           './components/create-vm-wizard' /* webpackChunkName: "kubevirt-create-vm-wizard" */
         ).then((m) => m.CreateVMWizardPage),
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      path: '/k8s/ns/:ns/virtualmachines/:name',
+      loader: () =>
+        import('./components/vms/vm-details-page' /* webpackChunkName: "kubevirt" */).then(
+          (m) => m.VirtualMachinesDetailsPage,
+        ),
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      path: '/k8s/ns/:ns/virtualmachineinstances/:name',
+      loader: () =>
+        import('./components/vms/vmi-details-page' /* webpackChunkName: "kubevirt" */).then(
+          (m) => m.VirtualMachinesInstanceDetailsPage,
+        ),
+    },
+  },
+  {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: ['/k8s/ns/:ns/vmtemplates/~new'],
+      loader: () =>
+        import(
+          './components/vm-templates/vm-template-create-yaml' /* webpackChunkName: "kubevirt" */
+        ).then((m) => m.CreateVMTemplateYAML),
       required: FLAG_KUBEVIRT,
     },
   },
@@ -184,12 +199,22 @@ const plugin: Plugin<ConsumedExtensions> = [
     },
   },
   {
+    type: 'Page/Route',
+    properties: {
+      exact: true,
+      path: ['/k8s/ns/:ns/vmtemplates', '/k8s/all-namespaces/vmtemplates'],
+      loader: () =>
+        import('./components/vm-templates/vm-template' /* webpackChunkName: "kubevirt" */).then(
+          (m) => m.VirtualMachineTemplatesPage,
+        ),
+      required: FLAG_KUBEVIRT,
+    },
+  },
+  {
     type: 'Dashboards/Overview/Health/URL',
     properties: {
       title: 'Virtualization',
-      url: `apis/subresources.${models.VirtualMachineModel.apiGroup}/${
-        models.VirtualMachineModel.apiVersion
-      }/healthz`,
+      url: `apis/subresources.${models.VirtualMachineModel.apiGroup}/${models.VirtualMachineModel.apiVersion}/healthz`,
       healthHandler: getKubevirtHealthState,
       required: FLAG_KUBEVIRT,
     },

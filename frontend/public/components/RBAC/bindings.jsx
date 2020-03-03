@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 import * as classNames from 'classnames';
 import { ActionGroup, Button } from '@patternfly/react-core';
 import { sortable } from '@patternfly/react-table';
+import { FLAGS } from '@console/shared/src/constants';
 import { ClusterRoleBindingModel } from '../../models';
 import { getQN, k8sCreate, k8sPatch, referenceFor } from '../../module/k8s';
 import * as UIActions from '../../actions/ui';
@@ -30,7 +31,6 @@ import {
 } from '../utils';
 import { isSystemRole } from './index';
 import { connectToFlags, flagPending } from '../../reducers/features';
-import { FLAGS } from '../../const';
 
 const bindingKind = (binding) =>
   binding.metadata.namespace ? 'RoleBinding' : 'ClusterRoleBinding';
@@ -95,9 +95,7 @@ const menuActions = ({ subjectIndex, subjects }, startImpersonate) => {
           callback: () =>
             confirmModal({
               title: `Delete ${kind.label} Subject`,
-              message: `Are you sure you want to delete subject ${subject.name} of type ${
-                subject.kind
-              }?`,
+              message: `Are you sure you want to delete subject ${subject.name} of type ${subject.kind}?`,
               btnText: 'Delete Subject',
               executeFn: () =>
                 k8sPatch(kind, binding, [{ op: 'remove', path: `/subjects/${subjectIndex}` }]),
@@ -180,10 +178,9 @@ export const BindingName = ({ binding }) => {
   />;
 };
 
-export const BindingKebab = connect(
-  null,
-  { startImpersonate: UIActions.startImpersonate },
-)(({ binding, startImpersonate }) =>
+export const BindingKebab = connect(null, {
+  startImpersonate: UIActions.startImpersonate,
+})(({ binding, startImpersonate }) =>
   binding.subjects ? (
     <ResourceKebab
       actions={menuActions(binding, startImpersonate)}
@@ -295,7 +292,7 @@ export const RoleBindingsPage = ({
   createPath = '/k8s/cluster/rolebindings/~new',
 }) => (
   <MultiListPage
-    canCreate={true}
+    canCreate={!mock}
     createButtonText="Create Binding"
     createProps={{
       to: createPath,
@@ -382,10 +379,7 @@ const Section = ({ label, children }) => (
   </div>
 );
 
-const BaseEditRoleBinding = connect(
-  null,
-  { setActiveNamespace: UIActions.setActiveNamespace },
-)(
+const BaseEditRoleBinding = connect(null, { setActiveNamespace: UIActions.setActiveNamespace })(
   class BaseEditRoleBinding_ extends React.Component {
     constructor(props) {
       super(props);

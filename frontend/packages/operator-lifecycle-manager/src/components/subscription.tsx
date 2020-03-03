@@ -195,9 +195,7 @@ const menuActions = [
     const installedCSV = _.get(obj, 'status.installedCSV');
     return {
       label: `View ${ClusterServiceVersionModel.kind}...`,
-      href: `/k8s/ns/${obj.metadata.namespace}/${
-        ClusterServiceVersionModel.plural
-      }/${installedCSV}`,
+      href: `/k8s/ns/${obj.metadata.namespace}/${ClusterServiceVersionModel.plural}/${installedCSV}`,
       hidden: !installedCSV,
     };
   },
@@ -337,7 +335,7 @@ export const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({
           title={`${installStatusPhase}: ${installStatusMessage}`}
         />
       )}
-      <SectionHeading text="Subscription Overview" />
+      <SectionHeading text="Subscription Details" />
       <div className="co-m-pane__body-group">
         <SubscriptionUpdates
           catalogSource={catalogSource}
@@ -419,8 +417,8 @@ export class SubscriptionUpdates extends React.Component<
   static getDerivedStateFromProps(nextProps, prevState) {
     const stillWaiting =
       prevState.waitingForUpdate &&
-      (_.get(nextProps, 'obj.spec.channel') === prevState.channel &&
-        _.get(nextProps, 'obj.spec.installPlanApproval') === prevState.installPlanApproval);
+      _.get(nextProps, 'obj.spec.channel') === prevState.channel &&
+      _.get(nextProps, 'obj.spec.installPlanApproval') === prevState.installPlanApproval;
 
     return stillWaiting
       ? null
@@ -516,10 +514,9 @@ export class SubscriptionUpdates extends React.Component<
                   _.get(obj.status, 'installplan') &&
                   this.props.installPlan ? (
                     <Link
-                      to={`/k8s/ns/${obj.metadata.namespace}/${InstallPlanModel.plural}/${_.get(
-                        obj.status,
-                        'installplan.name',
-                      )}`}
+                      to={`/k8s/ns/${obj.metadata.namespace}/${referenceForModel(
+                        InstallPlanModel,
+                      )}/${_.get(obj.status, 'installplan.name')}`}
                     >
                       <span>{installPlanPhase(this.props.installPlan)}</span>
                     </Link>
@@ -580,7 +577,7 @@ export type SubscriptionsPageProps = {
 export type SubscriptionsListProps = {
   loaded: boolean;
   loadError?: string;
-  data: (SubscriptionKind)[];
+  data: SubscriptionKind[];
   operatorGroup: { loaded: boolean; data?: OperatorGroupKind[] };
 };
 

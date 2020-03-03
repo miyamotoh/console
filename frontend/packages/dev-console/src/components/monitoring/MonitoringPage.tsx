@@ -2,12 +2,12 @@ import * as React from 'react';
 import { Helmet } from 'react-helmet';
 import { match as RMatch } from 'react-router';
 import { HorizontalNav, PageHeading, history } from '@console/internal/components/utils';
-import { ALL_NAMESPACES_KEY } from '@console/internal/const';
-import { TechPreviewBadge } from '@console/shared';
+import { TechPreviewBadge, ALL_NAMESPACES_KEY } from '@console/shared';
 import NamespacedPage, { NamespacedPageVariants } from '../NamespacedPage';
 import ProjectListPage from '../projects/ProjectListPage';
-import MonitoringDashboard from './dashboard/MonitoringDashboard';
-import MonitoringMetrics from './metrics/MonitoringMetrics';
+import ConnectedMonitoringDashboard from './dashboard/MonitoringDashboard';
+import ConnectedMonitoringMetrics from './metrics/MonitoringMetrics';
+import MonitoringEvents from './events/MonitoringEvents';
 
 export const MONITORING_ALL_NS_PAGE_URI = '/dev-monitoring/all-namespaces';
 
@@ -44,12 +44,17 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ match }) => {
                 {
                   href: '',
                   name: 'Dashboard',
-                  component: MonitoringDashboard,
+                  component: ConnectedMonitoringDashboard,
                 },
                 {
                   href: 'metrics',
                   name: 'Metrics',
-                  component: MonitoringMetrics,
+                  component: ConnectedMonitoringMetrics,
+                },
+                {
+                  href: 'events',
+                  name: 'Events',
+                  component: MonitoringEvents,
                 },
               ]}
               match={match}

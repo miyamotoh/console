@@ -1,12 +1,12 @@
 import * as React from 'react';
 import { connect } from 'react-redux';
 
+import { FLAGS } from '@console/shared';
 import { k8sCreate, referenceFor } from '../../module/k8s';
 import { NamespaceModel, ProjectRequestModel, NetworkPolicyModel } from '../../models';
 import { createModalLauncher, ModalTitle, ModalBody, ModalSubmitFooter } from '../factory/modal';
 import { Dropdown, history, PromiseComponent, resourceObjPath, SelectorInput } from '../utils';
 import { setFlag } from '../../actions/features';
-import { FLAGS } from '../../const';
 
 const allow = 'allow';
 const deny = 'deny';
@@ -111,7 +111,7 @@ const CreateNamespaceModal = connect(
         <form
           onSubmit={this._submit.bind(this)}
           name="form"
-          className="modal-content modal-content--no-inner-scroll co-p-new-user-modal"
+          className="modal-content modal-content--no-inner-scroll"
         >
           <ModalTitle>Create {label}</ModalTitle>
           <ModalBody>

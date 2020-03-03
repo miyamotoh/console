@@ -54,6 +54,12 @@ export const useDndDrop = <
       isDragging: (): boolean => {
         return dndManager.isDragging();
       },
+      hasDropTarget: (): boolean => {
+        return dndManager.hasDropTarget();
+      },
+      getDropHints: (): string[] => {
+        return dndManager.getDropHints();
+      },
       isOver(options?: { shallow?: boolean }): boolean {
         return dndManager.isOverTarget(idRef.current, options);
       },
@@ -104,11 +110,6 @@ export const useDndDrop = <
           if (!(nodeRef.current instanceof SVGGraphicsElement)) {
             return false;
           }
-          // perform a fast bounds check
-          const { left, right, top, bottom } = nodeRef.current.getBBox();
-          if (x < left || x > right || y < top || y > bottom) {
-            return false;
-          }
 
           // Rounding the coordinates due to an issue with `point-in-svg-path` returning false
           // when the coordinates clearly are within the path.
@@ -116,6 +117,17 @@ export const useDndDrop = <
           // Translate to this element's coordinates.
           // Assumes the node is not within an svg element containing another transform.
           elementRef.current.translateFromAbsolute(point);
+
+          // perform a fast bounds check
+          const { x: bboxx, y: bboxy, width, height } = nodeRef.current.getBBox();
+          if (
+            point.x < bboxx ||
+            point.x > bboxx + width ||
+            point.y < bboxy ||
+            point.y > bboxy + height
+          ) {
+            return false;
+          }
 
           if (nodeRef.current instanceof SVGPathElement) {
             const d = nodeRef.current.getAttribute('d');
@@ -206,7 +218,7 @@ export const withDndDrop = <
   const Component: React.FC<Omit<P, keyof WithDndDropProps & CollectedProps>> = (props) => {
     // TODO fix cast to any
     const [dndDropProps, dndDropRef] = useDndDrop(spec, props as any);
-    return <WrappedComponent {...props as any} {...dndDropProps} dndDropRef={dndDropRef} />;
+    return <WrappedComponent {...(props as any)} {...dndDropProps} dndDropRef={dndDropRef} />;
   };
   return observer(Component);
 };

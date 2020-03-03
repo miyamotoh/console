@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import * as React from 'react';
 import { asAccessReview, Kebab, KebabOption } from '@console/internal/components/utils';
-import { K8sKind, K8sResourceKind, PodKind } from '@console/internal/module/k8s';
+import { K8sKind, K8sResourceCommon, K8sResourceKind, PodKind } from '@console/internal/module/k8s';
 import { getName, getNamespace } from '@console/shared';
 import { confirmModal } from '@console/internal/components/modals';
 import { VMIKind, VMKind } from '../../types/vm';
@@ -13,8 +13,10 @@ import { restartVM, startVM, stopVM, VMActionType } from '../../k8s/requests/vm'
 import { startVMIMigration } from '../../k8s/requests/vmi';
 import { cancelMigration } from '../../k8s/requests/vmim';
 import { cloneVMModal } from '../modals/clone-vm-modal';
-import { VMCDRomModal } from '../modals/cdrom-vm-modal';
+import { VMCDRomModal } from '../modals/cdrom-vm-modal/vm-cdrom-modal';
 import { getVMStatus } from '../../statuses/vm/vm';
+import { isVMIPaused } from '../../selectors/vmi';
+import { unpauseVMI, VMIActionType } from '../../k8s/requests/vmi/actions';
 
 type ActionArgs = {
   migration?: K8sResourceKind;
@@ -22,10 +24,10 @@ type ActionArgs = {
   vmStatus?: VMMultiStatus;
 };
 
-const getVMActionMessage = (vm, action: VMActionType) => (
+const getActionMessage = (obj: K8sResourceCommon, action: VMActionType | VMIActionType) => (
   <>
-    Are you sure you want to {action} <strong>{getName(vm)}</strong> in namespace{' '}
-    <strong>{getNamespace(vm)}</strong>?
+    Are you sure you want to {action} <strong>{getName(obj)}</strong> in namespace{' '}
+    <strong>{getNamespace(obj)}</strong>?
   </>
 );
 
@@ -38,13 +40,7 @@ export const menuActionStart = (
   return {
     hidden: isVMImporting(vmStatus) || isVMRunning(vm),
     label: title,
-    callback: () =>
-      confirmModal({
-        title,
-        message: getVMActionMessage(vm, VMActionType.Start),
-        btnText: _.capitalize(VMActionType.Start),
-        executeFn: () => startVM(vm),
-      }),
+    callback: () => startVM(vm),
     accessReview: asAccessReview(kindObj, vm, 'patch'),
   };
 };
@@ -57,7 +53,7 @@ const menuActionStop = (kindObj: K8sKind, vm: VMKind): KebabOption => {
     callback: () =>
       confirmModal({
         title,
-        message: getVMActionMessage(vm, VMActionType.Stop),
+        message: getActionMessage(vm, VMActionType.Stop),
         btnText: _.capitalize(VMActionType.Stop),
         executeFn: () => stopVM(vm),
       }),
@@ -77,11 +73,26 @@ const menuActionRestart = (
     callback: () =>
       confirmModal({
         title,
-        message: getVMActionMessage(vm, VMActionType.Restart),
+        message: getActionMessage(vm, VMActionType.Restart),
         btnText: _.capitalize(VMActionType.Restart),
         executeFn: () => restartVM(vm),
       }),
     accessReview: asAccessReview(kindObj, vm, 'patch'),
+  };
+};
+
+const menuActionUnpause = (kindObj: K8sKind, vm: VMKind, { vmi }: ActionArgs): KebabOption => {
+  const title = 'Unpause Virtual Machine';
+  return {
+    hidden: !isVMIPaused(vmi),
+    label: title,
+    callback: () =>
+      confirmModal({
+        title,
+        message: getActionMessage(vmi, VMIActionType.Unpause),
+        btnText: _.capitalize(VMIActionType.Unpause),
+        executeFn: () => unpauseVMI(vmi),
+      }),
   };
 };
 
@@ -152,10 +163,11 @@ const menuActionCdEdit = (kindObj: K8sKind, vm: VMKind, { vmStatus }: ActionArgs
   };
 };
 
-export const menuActions = [
+export const vmMenuActions = [
   menuActionStart,
   menuActionStop,
   menuActionRestart,
+  menuActionUnpause,
   menuActionMigrate,
   menuActionCancelMigration,
   menuActionClone,
@@ -165,9 +177,15 @@ export const menuActions = [
   Kebab.factory.Delete,
 ];
 
+export const vmiMenuActions = [
+  Kebab.factory.ModifyLabels,
+  Kebab.factory.ModifyAnnotations,
+  Kebab.factory.Delete,
+];
+
 type ExtraResources = { vmi: VMIKind; pods: PodKind[]; migrations: K8sResourceKind[] };
 
-export const menuActionsCreator = (
+export const vmMenuActionsCreator = (
   kindObj: K8sKind,
   vm: VMKind,
   { vmi, pods, migrations }: ExtraResources,
@@ -175,7 +193,13 @@ export const menuActionsCreator = (
   const vmStatus = getVMStatus({ vm, vmi, pods, migrations });
   const migration = findVMIMigration(vmi, migrations);
 
-  return menuActions.map((action) => {
+  return vmMenuActions.map((action) => {
     return action(kindObj, vm, { vmi, vmStatus, migration });
+  });
+};
+
+export const vmiMenuActionsCreator = (kindObj: K8sKind, vmi: VMIKind) => {
+  return vmiMenuActions.map((action) => {
+    return action(kindObj, vmi);
   });
 };

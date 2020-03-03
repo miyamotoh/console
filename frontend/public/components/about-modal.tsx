@@ -9,7 +9,7 @@ import {
 } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
 
-import { FLAGS } from '../const';
+import { FLAGS } from '@console/shared';
 import { connectToFlags, FlagsObject } from '../reducers/features';
 import { getBrandingDetails } from './masthead';
 import { ExternalLink, Firehose } from './utils';
@@ -122,7 +122,7 @@ const AboutModal_: React.FC<AboutModalProps> = (props) => {
         </p>
       )}
       <Firehose resources={resources}>
-        <AboutModalItems {...props as any} />
+        <AboutModalItems {...(props as any)} />
       </Firehose>
     </PfAboutModal>
   );

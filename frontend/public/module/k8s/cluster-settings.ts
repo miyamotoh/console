@@ -28,8 +28,9 @@ export const getAvailableClusterUpdates = (cv: ClusterVersionKind): ClusterUpdat
 };
 
 export const getAvailableClusterChannels = () => ({
-  'stable-4.3': 'stable-4.3',
-  'fast-4.3': 'fast-4.3',
+  'stable-4.4': 'stable-4.4',
+  'fast-4.4': 'fast-4.4',
+  'candidate-4.4': 'candidate-4.4',
 });
 
 export const getDesiredClusterVersion = (cv: ClusterVersionKind): string => {
@@ -110,12 +111,12 @@ export const getClusterUpdateStatus = (cv: ClusterVersionKind): ClusterUpdateSta
     return ClusterUpdateStatus.Failing;
   }
 
-  if (failedToRetrieveUpdates(cv)) {
-    return ClusterUpdateStatus.ErrorRetrieving;
-  }
-
   if (isProgressing(cv)) {
     return ClusterUpdateStatus.Updating;
+  }
+
+  if (failedToRetrieveUpdates(cv)) {
+    return ClusterUpdateStatus.ErrorRetrieving;
   }
 
   return hasAvailableUpdates(cv)
@@ -153,7 +154,8 @@ export const getReportBugLink = (cv: ClusterVersionKind): { label: string; href:
   }
 
   // Show a Bugzilla link for prerelease versions and a support case link for supported versions.
-  const { major, minor, patch, prerelease } = parsed;
+  const { major, minor, prerelease } = parsed;
+  const bugzillaVersion = major === 4 && minor <= 3 ? `${major}.${minor}.0` : `${major}.${minor}`;
   const environment = encodeURIComponent(`Version: ${version}
 Cluster ID: ${cv.spec.clusterID}
 Browser: ${window.navigator.userAgent}
@@ -161,15 +163,11 @@ Browser: ${window.navigator.userAgent}
   return _.isEmpty(prerelease)
     ? {
         label: 'Open Support Case',
-        href: `https://access.redhat.com/support/cases/#/case/new?product=OpenShift%20Container%20Platform&version=${major}.${minor}&clusterId=${
-          cv.spec.clusterID
-        }`,
+        href: `https://access.redhat.com/support/cases/#/case/new?product=OpenShift%20Container%20Platform&version=${major}.${minor}&clusterId=${cv.spec.clusterID}`,
       }
     : {
         label: 'Report Bug',
-        href: `https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform&version=${major}.${minor}.${
-          patch ? 'z' : '0'
-        }&cf_environment=${environment}`,
+        href: `https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform&version=${bugzillaVersion}&cf_environment=${environment}`,
       };
 };
 

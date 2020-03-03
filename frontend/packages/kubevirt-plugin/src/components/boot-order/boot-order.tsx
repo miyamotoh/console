@@ -18,7 +18,10 @@ import {
 import './boot-order.scss';
 
 export const BootOrder = ({ devices, setDevices }: BootOrderProps) => {
-  const sources = _.sortBy(devices.filter((device) => device.value.bootOrder), 'value.bootOrder');
+  const sources = _.sortBy(
+    devices.filter((device) => device.value.bootOrder),
+    'value.bootOrder',
+  );
   const options = devices.filter((device) => !device.value.bootOrder);
   const [isEditMode, setEditMode] = React.useState<boolean>(false);
 
@@ -90,6 +93,7 @@ export const BootOrder = ({ devices, setDevices }: BootOrderProps) => {
                 onMove={onMove}
                 aria-labelledby={`device-${deviceKey(source)}`}
                 key={`device-${deviceKey(source)}`}
+                className="kubevirt-boot-order__data-list-item"
               >
                 <Text id={`device-${deviceKey(source)}`} component={TextVariants.p}>
                   {deviceLabel(source)}

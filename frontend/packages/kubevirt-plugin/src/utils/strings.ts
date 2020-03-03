@@ -7,6 +7,13 @@ export const FAILED_TO_CREATE = 'failed to create';
 export const FAILED_TO_PATCH = 'failed to patch';
 export const DYNAMIC = 'Dynamic';
 
+export const EDIT = 'Edit';
+export const SAVE = 'Save';
+export const ADD = 'Add';
+
+export const ADD_DISK = 'Add Disk';
+export const ADD_NETWORK_INTERFACE = 'Add Network Interface';
+
 export const getDialogUIError = (hasAllRequiredFilled) =>
   hasAllRequiredFilled
     ? 'Please correct the invalid fields.'
@@ -33,3 +40,11 @@ export const getSequenceName = (name: string, usedSequenceNames?: Set<string>) =
 
 export const pluralize = (i: number, singular: string, plural: string = `${singular}s`) =>
   i === 1 ? singular : plural;
+
+export const intervalBracket = (isInclusive: boolean, leftValue?: number, rightValue?: number) => {
+  if (leftValue) {
+    return isInclusive && Number.isFinite(leftValue) ? '[' : '(';
+  }
+
+  return isInclusive && Number.isFinite(rightValue) ? ']' : ')';
+};

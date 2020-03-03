@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Redirect } from 'react-router';
-import { ALL_NAMESPACES_KEY } from '@console/internal/const';
+import { ALL_NAMESPACES_KEY } from '@console/shared';
 import { ProjectList } from '@console/internal/components/namespace';
 import { history } from '@console/internal/components/utils';
 import { K8sResourceKind } from '@console/internal/module/k8s';
@@ -29,4 +29,6 @@ export const AllProjectsDetailList: React.FC<UseActiveNamespaceProps> = ({ activ
   );
 };
 
+// TODO Figure out why this breaks eslint rules-of-hooks even though it is not a hook
+// eslint-disable-next-line react-hooks/rules-of-hooks
 export default useActiveNamespace(AllProjectsDetailList);

@@ -1,9 +1,17 @@
 import * as React from 'react';
-import { ContextMenuItem, GraphElement, Node } from '@console/topology';
-import { history, KebabItem, KebabOption } from '@console/internal/components/utils';
+import { ContextMenuItem, ContextSubMenuItem, Node, Graph } from '@console/topology';
+import {
+  history,
+  KebabItem,
+  KebabOption,
+  KebabMenuOption,
+  kebabOptionsToMenu,
+  isKebabSubMenu,
+} from '@console/internal/components/utils';
 import { workloadActions } from './actions/workloadActions';
 import { groupActions } from './actions/groupActions';
 import { nodeActions } from './actions/nodeActions';
+import { graphActions } from './actions/graphActions';
 import { TopologyApplicationObject } from './topology-types';
 
 const onKebabOptionClick = (option: KebabOption) => {
@@ -15,28 +23,37 @@ const onKebabOptionClick = (option: KebabOption) => {
   }
 };
 
-const createMenuItems = (actions: KebabOption[]) =>
-  actions
-    .filter((o) => !o.hidden)
-    .map((option) => (
+const createMenuItems = (actions: KebabMenuOption[]) =>
+  actions.map((option) =>
+    isKebabSubMenu(option) ? (
+      <ContextSubMenuItem label={option.label} key={option.label}>
+        {createMenuItems(option.children)}
+      </ContextSubMenuItem>
+    ) : (
       <ContextMenuItem
         key={option.label}
         component={<KebabItem option={option} onClick={() => onKebabOptionClick(option)} />}
       />
-    ));
+    ),
+  );
 
-const workloadContextMenu = (element: Node) => createMenuItems(workloadActions(element.getData()));
+export const workloadContextMenu = (element: Node) =>
+  createMenuItems(kebabOptionsToMenu(workloadActions(element.getData())));
 
-const groupContextMenu = (element: Node) => {
+export const groupContextMenu = (element: Node, connectorSource?: Node) => {
   const applicationData: TopologyApplicationObject = {
     id: element.getId(),
     name: element.getLabel(),
-    resources: element.getChildren().map((node: GraphElement) => node.getData()),
+    resources: element.getData().groupResources,
   };
 
-  return createMenuItems(groupActions(applicationData));
+  const graphData = element.getGraph().getData();
+  return createMenuItems(
+    kebabOptionsToMenu(groupActions(graphData, applicationData, connectorSource)),
+  );
 };
+export const nodeContextMenu = (element: Node) =>
+  createMenuItems(kebabOptionsToMenu(nodeActions(element.getData())));
 
-const nodeContextMenu = (element: Node) => createMenuItems(nodeActions(element.getData()));
-
-export { workloadContextMenu, groupContextMenu, nodeContextMenu };
+export const graphContextMenu = (graph: Graph, connectorSource?: Node) =>
+  createMenuItems(kebabOptionsToMenu(graphActions(graph.getData(), connectorSource)));

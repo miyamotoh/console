@@ -205,7 +205,7 @@ const CloudInitTabComponent: React.FC<ResultTabComponentProps> = ({
         type: iCloudInitStorage && iCloudInitStorage.get('type'),
         disk: toShallowJS(iCloudInitStorage.get('disk')),
         volume: new MutableVolumeWrapper(toJS(iCloudInitStorage.get('volume')))
-          .replaceTypeData(typeData)
+          .setTypeData(typeData, false)
           .asMutableResource(),
       });
     }
@@ -359,7 +359,4 @@ const dispatchToProps = (dispatch, props) => ({
   },
 });
 
-export const CloudInitTab = connect(
-  stateToProps,
-  dispatchToProps,
-)(CloudInitTabComponent);
+export const CloudInitTab = connect(stateToProps, dispatchToProps)(CloudInitTabComponent);
