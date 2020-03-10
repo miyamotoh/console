@@ -64,7 +64,13 @@ type jsGlobals struct {
 	CustomLogoURL            string `json:"customLogoURL"`
 	StatuspageID             string `json:"statuspageID"`
 	DocumentationBaseURL     string `json:"documentationBaseURL"`
+	AlertManagerPublicURL    string `json:"alertManagerPublicURL"`
+	GrafanaPublicURL         string `json:"grafanaPublicURL"`
+	PrometheusPublicURL      string `json:"prometheusPublicURL"`
+	ThanosPublicURL          string `json:"thanosPublicURL"`
 	LoadTestFactor           int    `json:"loadTestFactor"`
+	GOARCH                   string `json:"GOARCH"`
+	GOOS                     string `json:"GOOS"`
 }
 
 type Server struct {
@@ -94,6 +100,13 @@ type Server struct {
 	// A lister for resource listing of a particular kind
 	MonitoringDashboardConfigMapLister *ResourceLister
 	HelmChartRepoProxyConfig           *proxy.Config
+	GOARCH                             string
+	GOOS                               string
+	// Monitoring and Logging related URLs
+	AlertManagerPublicURL *url.URL
+	GrafanaPublicURL      *url.URL
+	PrometheusPublicURL   *url.URL
+	ThanosPublicURL       *url.URL
 }
 
 func (s *Server) authDisabled() bool {
@@ -336,21 +349,27 @@ func (s *Server) handleMonitoringDashboardConfigmaps(w http.ResponseWriter, r *h
 
 func (s *Server) indexHandler(w http.ResponseWriter, r *http.Request) {
 	jsg := &jsGlobals{
-		ConsoleVersion:       version.Version,
-		AuthDisabled:         s.authDisabled(),
-		KubectlClientID:      s.KubectlClientID,
-		BasePath:             s.BaseURL.Path,
-		LoginURL:             proxy.SingleJoiningSlash(s.BaseURL.String(), authLoginEndpoint),
-		LoginSuccessURL:      proxy.SingleJoiningSlash(s.BaseURL.String(), AuthLoginSuccessEndpoint),
-		LoginErrorURL:        proxy.SingleJoiningSlash(s.BaseURL.String(), AuthLoginErrorEndpoint),
-		LogoutURL:            proxy.SingleJoiningSlash(s.BaseURL.String(), authLogoutEndpoint),
-		LogoutRedirect:       s.LogoutRedirect.String(),
-		KubeAPIServerURL:     s.KubeAPIServerURL,
-		Branding:             s.Branding,
-		CustomProductName:    s.CustomProductName,
-		StatuspageID:         s.StatuspageID,
-		DocumentationBaseURL: s.DocumentationBaseURL.String(),
-		LoadTestFactor:       s.LoadTestFactor,
+		ConsoleVersion:        version.Version,
+		AuthDisabled:          s.authDisabled(),
+		KubectlClientID:       s.KubectlClientID,
+		BasePath:              s.BaseURL.Path,
+		LoginURL:              proxy.SingleJoiningSlash(s.BaseURL.String(), authLoginEndpoint),
+		LoginSuccessURL:       proxy.SingleJoiningSlash(s.BaseURL.String(), AuthLoginSuccessEndpoint),
+		LoginErrorURL:         proxy.SingleJoiningSlash(s.BaseURL.String(), AuthLoginErrorEndpoint),
+		LogoutURL:             proxy.SingleJoiningSlash(s.BaseURL.String(), authLogoutEndpoint),
+		LogoutRedirect:        s.LogoutRedirect.String(),
+		KubeAPIServerURL:      s.KubeAPIServerURL,
+		Branding:              s.Branding,
+		CustomProductName:     s.CustomProductName,
+		StatuspageID:          s.StatuspageID,
+		DocumentationBaseURL:  s.DocumentationBaseURL.String(),
+		AlertManagerPublicURL: s.AlertManagerPublicURL.String(),
+		GrafanaPublicURL:      s.GrafanaPublicURL.String(),
+		PrometheusPublicURL:   s.PrometheusPublicURL.String(),
+		ThanosPublicURL:       s.ThanosPublicURL.String(),
+		GOARCH:                s.GOARCH,
+		GOOS:                  s.GOOS,
+		LoadTestFactor:        s.LoadTestFactor,
 	}
 
 	if !s.authDisabled() {
