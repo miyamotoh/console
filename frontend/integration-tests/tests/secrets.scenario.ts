@@ -5,7 +5,6 @@ import { execSync } from 'child_process';
 import { appHost, testName, checkLogs, checkErrors, waitForCount } from '../protractor.conf';
 import * as crudView from '../views/crud.view';
 import * as secretsView from '../views/secrets.view';
-import { DeploymentKind } from '../../public/module/k8s';
 
 describe('Interacting with the create secret forms', () => {
   afterEach(() => {
@@ -366,40 +365,10 @@ describe('Add Secret to Workloads', () => {
   const resourceKind = 'deployment';
   const envPrefix = 'env-';
   const mountPath = '/tmp/testdata';
-  const deployment: DeploymentKind = {
-    apiVersion: 'apps/v1',
-    kind: 'Deployment',
-    metadata: {
-      name: resourceName,
-      namespace: testName,
-    },
-    spec: {
-      selector: {
-        matchLabels: {
-          test: 'add-secret-to-workload',
-        },
-      },
-      template: {
-        metadata: {
-          labels: {
-            test: 'add-secret-to-workload',
-          },
-        },
-        spec: {
-          containers: [
-            {
-              name: 'hello-openshift',
-              image: 'openshift/hello-openshift',
-            },
-          ],
-        },
-      },
-    },
-  };
 
   beforeAll(() => {
     // create deployment and secret
-    execSync(`echo '${JSON.stringify(deployment)}' | kubectl create -n ${testName} -f -`);
+    execSync(`kubectl create deployment ${resourceName} --image=ppc64le/hello-world -n ${testName}`);
     execSync(
       `kubectl create secret generic ${secretName} --from-literal=key1=supersecret -n ${testName}`,
     );

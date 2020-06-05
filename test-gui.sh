@@ -10,6 +10,9 @@ if [ -z "${CHROME_VERSION-}" ]; then
 else
  yarn run webdriver-update --versions.chrome="$CHROME_VERSION"
 fi
+=======
+yarn run webdriver-update --versions.chrome="$CHROME_VERSION"
+>>>>>>> Chrome passes, sans OLM, while Firefox fails with overview
 
 if [ $# -gt 0 ] && [ -n "$1" ]; then
   yarn run test-suite --suite "$1" --params.openshift true
