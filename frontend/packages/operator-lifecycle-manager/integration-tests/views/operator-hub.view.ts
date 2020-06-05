@@ -2,7 +2,7 @@ import { browser, $, ExpectedConditions as until, by, element } from 'protractor
 
 export const operatorModal = $('.pf-c-modal-box');
 export const operatorModalIsLoaded = () =>
-  browser.wait(until.presenceOf(operatorModal), 1000).then(() => browser.sleep(500));
+  browser.wait(until.presenceOf(operatorModal)).then(() => browser.sleep(500));
 export const operatorModalTitle = operatorModal.$('.catalog-item-header-pf-title');
 export const operatorModalInstallBtn = operatorModal.element(by.linkText('Install'));
 export const operatorModalUninstallBtn = operatorModal.element(by.buttonText('Uninstall'));

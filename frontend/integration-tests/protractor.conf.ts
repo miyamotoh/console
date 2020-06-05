@@ -16,7 +16,11 @@ import {
 
 const tap = !!process.env.TAP;
 
-export const BROWSER_TIMEOUT = 15000;
+export const BROWSER_NAME = process.env.BRIDGE_E2E_BROWSER_NAME || 'chrome';
+export const BROWSER_TIMEOUT = 55000;
+export const JASMSPEC_TIMEOUT = process.env.BRIDGE_JASMINE_TIMEOUT
+  ? Number(process.env.BRIDGE_JASMINE_TIMEOUT)
+  : 120000;
 export const appHost = `${process.env.BRIDGE_BASE_ADDRESS || 'http://localhost:9000'}${(
   process.env.BRIDGE_BASE_PATH || '/'
 ).replace(/\/$/, '')}`;
@@ -139,12 +143,12 @@ export const config = {
   skipSourceMapSupport: true,
   jasmineNodeOpts: {
     print: () => null,
-    defaultTimeoutInterval: 60000,
+    defaultTimeoutInterval: JASMSPEC_TIMEOUT,
   },
   logLevel: tap ? 'ERROR' : 'INFO',
   plugins: process.env.NO_FAILFAST ? [] : [failFast.init()],
   capabilities: {
-    browserName: 'chrome',
+    browserName: BROWSER_NAME,
     acceptInsecureCerts: true,
     chromeOptions: {
       // A path to chrome binary, if undefined will use system chrome browser.
@@ -169,6 +173,18 @@ export const config = {
         // eslint-disable-next-line camelcase
         password_manager_enabled: false,
       },
+    },
+    'moz:firefoxOptions': {
+      binary: process.env.FIREFOX_BINARY_PATH,
+      args: [
+        ...(process.env.NO_HEADLESS ? [] : ['--headless']),
+        '--safe-mode',
+        '--width=1920',
+        '--height=1200',
+        '--MOZ_LOG=timestamp,nsHttp:0,sync',
+        `--MOZ_LOG_FILE=${screenshotsDir}/browser`,
+      ],
+      log: { level: 'trace' },
     },
   },
   beforeLaunch: () => new Promise((resolve) => htmlReporter.beforeLaunch(resolve)),
@@ -221,16 +237,18 @@ export const config = {
   },
 };
 
-export const checkLogs = async () =>
-  (
-    await browser
-      .manage()
-      .logs()
-      .get('browser')
-  ).map((log) => {
+export const checkLogs = async () => {
+  if (config.capabilities.browserName !== 'chrome') {
+    return;
+  }
+  (await browser
+    .manage()
+    .logs()
+    .get('browser')).map((log) => {
     browserLogs.push(log);
     return log;
   });
+};
 
 function hasError() {
   return window.windowError;

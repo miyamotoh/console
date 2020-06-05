@@ -23,7 +23,7 @@ export const isLoaded = () =>
     .wait(until.and(untilNoLoadersPresent, untilLoadingBoxLoaded))
     .then(() => browser.sleep(1000));
 export const resourceRowsPresent = () =>
-  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 10000);
+  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 20000);
 export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
@@ -76,9 +76,15 @@ const actionOnKind = (action: string, kind: string) => {
 export const editHumanizedKind = (kind: string) => actionOnKind(actions.edit, kind);
 export const deleteHumanizedKind = (kind: string) => actionOnKind(actions.delete, kind);
 
-export const clickKebabAction = (resourceName: string, actionLabel: string) => {
-  return rowForName(resourceName)
-    .$('[data-test-id="kebab-button"]')
+export const clickCreateWithYAML = async () => {
+  await browser.wait(until.elementToBeClickable(createYAMLButton));
+  await createYAMLButton.click();
+};
+
+export const clickKebabAction = async (resourceName: string, actionLabel: string) => {
+  const kbBtn = await rowForName(resourceName).$('[data-test-id="kebab-button"]');
+  await browser.wait(until.elementToBeClickable(kbBtn));
+  await kbBtn
     .click()
     .then(() => browser.wait(until.elementToBeClickable(actionForLabel(actionLabel))))
     .then(() => actionForLabel(actionLabel).click());
@@ -92,6 +98,7 @@ export const editRow = (kind: string) => (name: string) =>
     await browser.wait(until.presenceOf(cancelBtn));
     const reloadBtnIsPresent = await reloadBtn.isPresent();
     if (reloadBtnIsPresent) {
+      await browser.wait(until.elementToBeClickable(reloadBtn));
       await reloadBtn.click();
     }
     await saveChangesBtn.click();
@@ -117,7 +124,7 @@ export const deleteRow = (kind: string) => (name: string) =>
     const kebabIsDisabled = until.not(
       until.elementToBeClickable(rowForName(name).$('.co-kebab__button')),
     );
-    const listIsEmpty = until.textToBePresentInElement($('.cos-status-box > .text-center'), 'No ');
+    const listIsEmpty = until.textToBePresentInElement($('.cos-status-box__title'), 'No ');
     const rowIsGone = until.not(until.presenceOf(rowForName(name).$('.co-kebab')));
     return browser.wait(until.or(kebabIsDisabled, until.or(listIsEmpty, rowIsGone)));
   });
@@ -148,9 +155,10 @@ export const visitResource = async (resource: string, name: string) => {
 };
 
 export const clickDetailsPageAction = async (actionID: string) => {
-  const action = actionForLabel(actionID);
   await browser.wait(until.presenceOf(actionsButton));
   await actionsButton.click();
+  await browser.wait(until.presenceOf(actionsDropdownMenu));
+  const action = actionForLabel(actionID);
   await browser.wait(until.elementToBeClickable(action));
   await action.click();
 };
@@ -172,7 +180,7 @@ export const createNamespacedTestResource = async (kindModel, name) => {
   const content = await yamlView.getEditorContent();
   const newContent = _.defaultsDeep(
     {},
-    { metadata: { name, labels: { automatedTestName: testName } } },
+    { metadata: { name, labels: { automatedTestName: testName } }, spec: { template: { spec: { containers: [{ image: "quay.io/multiarch-origin-e2e/hello-openshift:latest" }] } } } },
     safeLoad(content),
   );
   await yamlView.setEditorContent(safeDump(newContent));
