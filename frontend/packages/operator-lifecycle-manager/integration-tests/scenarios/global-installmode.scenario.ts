@@ -12,6 +12,7 @@ import * as crudView from '@console/internal-integration-tests/views/crud.view';
 import * as catalogView from '@console/internal-integration-tests/views/catalog.view';
 import * as catalogPageView from '@console/internal-integration-tests/views/catalog-page.view';
 import * as sidenavView from '@console/internal-integration-tests/views/sidenav.view';
+import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
 import * as operatorView from '../views/operator.view';
 import * as operatorHubView from '../views/operator-hub.view';
 import { click } from '@console/shared/src/test-utils/utils';
