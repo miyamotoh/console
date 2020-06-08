@@ -240,5 +240,3 @@ func (h *helmHandlers) HandleGetReleaseHistory(user *auth.User, w http.ResponseW
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(res)
 }
-=======
->>>>>>> added endpoint for retrieving details for the given Helm chart.

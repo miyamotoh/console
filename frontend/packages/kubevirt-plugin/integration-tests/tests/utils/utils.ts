@@ -198,8 +198,3 @@ export function getResourceUID(kind: string, name: string, namespace: string): s
     `kubectl get --ignore-not-found ${kind} ${name} -n ${namespace} -o jsonpath='{.metadata.uid}'`,
   ).toString();
 }
-=======
-export function pauseVM(name: string, namespace: string): void {
-  execSync(`virtctl pause vmi ${name} -n ${namespace}`);
-}
->>>>>>> Add unpause VM tests

@@ -16,7 +16,6 @@ import {
   SelfSubjectAccessReviewKind,
 } from '@console/internal/module/k8s';
 import { useSafetyFirst } from '@console/internal/components/safety-first';
-import { RevisionModel } from '@console/knative-plugin';
 import { PodRCData, PodRingResources, PodRingData, ExtPodKind } from '../types';
 import { checkPodEditAccess, getPodStatus } from './pod-utils';
 import { RevisionModel } from '@console/knative-plugin';
@@ -130,59 +129,6 @@ export const podRingLabel = (
   obj: K8sResourceKind,
   ownerKind: string,
   pods: ExtPodKind[],
-=======
-  pods: ExtPodKind[],
-  currentPodCount: number,
-  desiredPodCount: number,
-): boolean =>
-  (pods?.length === 1 && pods[0].status?.phase === 'Pending') ||
-  (!currentPodCount && !!desiredPodCount);
-const getTitleAndSubtitle = (
-  isPending: boolean,
-  currentPodCount: number,
-  desiredPodCount: number,
-) => {
-  let titlePhrase;
-  let subTitlePhrase;
-
-  // handles the intial state when the first pod is coming up and the state for no pods(scaled to zero)
-  if (!currentPodCount) {
-    titlePhrase = isPending ? '0' : `Scaled to 0`;
-    subTitlePhrase = desiredPodCount ? `scaling to ${desiredPodCount}` : '';
-  }
-
-  // handles the idle state or scaling to desired no. of pods
-  if (currentPodCount) {
-    titlePhrase = currentPodCount.toString();
-    subTitlePhrase =
-      currentPodCount === desiredPodCount
-        ? pluralizeString(currentPodCount, 'pod')
-        : `scaling to ${desiredPodCount}`;
-  }
-
-  return { title: titlePhrase, subTitle: subTitlePhrase };
-};
-
-const getTitleAndSubtitleComponent = (
-  isPending: boolean,
-  currentPodCount: number,
-  kind: string,
-) => ({
-  titleComponent:
-    !currentPodCount && !isPending
-      ? React.createElement(ChartLabel, { style: { fontSize: '14px' } })
-      : undefined,
-  subTitleComponent:
-    kind === 'Revision'
-      ? React.createElement(ChartLabel, { style: { fontSize: '14px' } })
-      : undefined,
-});
-
-export const podRingLabel = (
-  obj: K8sResourceKind,
-  ownerKind: string,
-  pods: ExtPodKind[],
->>>>>>> fix pod text for daemon workload
 ): PodRingLabelType => {
   let currentPodCount;
   let desiredPodCount;

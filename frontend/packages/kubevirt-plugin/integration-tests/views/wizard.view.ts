@@ -50,9 +50,6 @@ export const diskWarning = (resourceName) =>
 // Virtual Hardware tab
 export const addCDButton = $('#vm-cd-add-btn');
 
-// Virtual Hardware tab
-export const addCDButton = $('#attach-cdrom');
-
 // Advanced -- Cloud-init
 export const cloudInitFormCheckbox = $('#cloud-init-edit-mode-first-option');
 export const cloudInitCustomScriptCheckbox = $('#cloud-init-edit-mode-second-option');
