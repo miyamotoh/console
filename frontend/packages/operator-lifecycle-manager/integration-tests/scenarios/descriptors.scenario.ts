@@ -113,10 +113,7 @@ describe('Using OLM descriptor components', () => {
       }
     });
     $$('.co-create-operand__form-group').each(async (input) => {
-      await browser
-        .actions()
-        .mouseMove(input)
-        .perform();
+      await browser.executeScript('arguments[0].scrollIntoView();', input);
 
       const label = await input.$('.form-label').getText();
       const descriptor = testCSV.spec.customresourcedefinitions.owned[0].specDescriptors.find(

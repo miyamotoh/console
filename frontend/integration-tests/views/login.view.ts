@@ -1,5 +1,5 @@
-import { $, browser, ExpectedConditions as until, by, element } from 'protractor';
-import { appHost } from '../protractor.conf';
+import { $, $$, browser, ExpectedConditions as until, by, element } from 'protractor';
+import { appHost, waitForNone } from '../protractor.conf';
 
 export const nameInput = $('#inputUsername');
 export const passwordInput = $('#inputPassword');
