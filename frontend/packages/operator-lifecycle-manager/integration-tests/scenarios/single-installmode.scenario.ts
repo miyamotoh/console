@@ -16,7 +16,7 @@ import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
 import * as operatorView from '../views/operator.view';
 import * as operatorHubView from '../views/operator-hub.view';
 
-describe('Interacting with a `OwnNamespace` install mode Operator (Prometheus)', () => {
+xdescribe('Interacting with a `OwnNamespace` install mode Operator (Prometheus)', () => {
   const prometheusResources = new Set(['StatefulSet', 'Pod']);
   const prometheusOperatorName = 'prometheus-operator';
 

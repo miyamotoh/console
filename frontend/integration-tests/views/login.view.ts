@@ -27,7 +27,7 @@ export const login = async (providerName: string, username: string, password: st
   await nameInput.sendKeys(username);
   await passwordInput.sendKeys(password);
   await submitButton.click();
-  await browser.wait(until.presenceOf(userDropdown), 90000);
+  await browser.wait(until.visibilityOf(userDropdown), 90000);
 };
 
 export const logout = async () => {

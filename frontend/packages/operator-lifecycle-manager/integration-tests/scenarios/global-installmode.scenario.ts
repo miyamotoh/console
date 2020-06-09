@@ -16,7 +16,7 @@ import * as yamlView from '@console/internal-integration-tests/views/yaml.view';
 import * as operatorView from '../views/operator.view';
 import * as operatorHubView from '../views/operator-hub.view';
 
-describe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', () => {
+xdescribe('Interacting with an `AllNamespaces` install mode Operator (Jaeger)', () => {
   const jaegerResources = new Set([
     'Deployment',
     'Service',
