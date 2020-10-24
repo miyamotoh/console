@@ -11,7 +11,7 @@ import * as catalogView from '@console/internal-integration-tests/views/catalog.
 import * as catalogPageView from '@console/internal-integration-tests/views/catalog-page.view';
 import * as sidenavView from '@console/internal-integration-tests/views/sidenav.view';
 
-describe('Interacting with OperatorHub', () => {
+xdescribe('Interacting with OperatorHub', () => {
   const catalogSource = {
     apiVersion: 'operators.coreos.com/v1alpha1',
     kind: 'CatalogSource',

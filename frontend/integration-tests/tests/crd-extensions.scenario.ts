@@ -272,7 +272,10 @@ describe('CRD extensions', () => {
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
         {},
-        { metadata: { name: podName, labels: { app: name } } },
+        {
+          metadata: { name: podName, labels: { app: name } },
+          spec: { containers: [{ image: 'ppc64le/hello-world' }] },
+        },
         safeLoad(content),
       );
       await yamlView.setEditorContent(safeDump(newContent));

@@ -180,7 +180,14 @@ export const createNamespacedTestResource = async (kindModel, name) => {
   const content = await yamlView.getEditorContent();
   const newContent = _.defaultsDeep(
     {},
-    { metadata: { name, labels: { automatedTestName: testName } } },
+    {
+      metadata: { name, labels: { automatedTestName: testName } },
+      spec: {
+        template: {
+          spec: { containers: [{ image: 'quay.io/multiarch-origin-e2e/hello-openshift:latest' }] },
+        },
+      },
+    },
     safeLoad(content),
   );
   await yamlView.setEditorContent(safeDump(newContent));
