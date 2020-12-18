@@ -23,6 +23,7 @@ describe('Auth test', () => {
       masthead.username.shouldHaveText(username);
 
       cy.log('switches from dev to admin perspective');
+      nav.sidenav.switcher.changePerspectiveTo('Developer');
       nav.sidenav.switcher.shouldHaveText('Developer');
       nav.sidenav.switcher.changePerspectiveTo('Administrator');
       nav.sidenav.switcher.shouldHaveText('Administrator');

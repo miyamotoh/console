@@ -16,7 +16,7 @@ import {
 const tap = !!process.env.TAP;
 
 export const BROWSER_NAME = process.env.BRIDGE_E2E_BROWSER_NAME || 'chrome';
-export const BROWSER_TIMEOUT = 15000;
+export const BROWSER_TIMEOUT = 45000;
 export const JASMSPEC_TIMEOUT = process.env.BRIDGE_JASMINE_TIMEOUT
   ? Number(process.env.BRIDGE_JASMINE_TIMEOUT)
   : 120000;
