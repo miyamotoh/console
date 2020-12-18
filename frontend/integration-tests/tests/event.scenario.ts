@@ -15,7 +15,7 @@ describe('Events', () => {
       containers: [
         {
           name: 'hello-openshift',
-          image: 'openshift/hello-openshift',
+          image: 'ppc64le/hello-world',
         },
       ],
     },

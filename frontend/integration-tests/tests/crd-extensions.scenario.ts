@@ -271,7 +271,10 @@ describe('CRD extensions', () => {
       const content = await yamlView.getEditorContent();
       const newContent = _.defaultsDeep(
         {},
-        { metadata: { name: podName, labels: { app: name } } },
+        {
+          metadata: { name: podName, labels: { app: name } },
+          spec: { containers: [{ image: 'ppc64le/hello-world' }] },
+        },
         safeLoad(content),
       );
       // TODO: Remove when the default `registry.redhat.io/openshift4/ose-hello-openshift-rhel8`

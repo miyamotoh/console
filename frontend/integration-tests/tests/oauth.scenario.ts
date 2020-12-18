@@ -54,7 +54,7 @@ describe('OAuth', () => {
   });
 
   describe('GitHub IDP', () => {
-    const idpName = `github-${testName}`;
+    const idpName = `githubgithub-${testName}`;
     it('creates a GitHub IDP', async () => {
       await browser.get(oauthSettingsURL);
       await browser.wait(until.elementToBeClickable(oauthView.addIDPDropdown));

@@ -13,7 +13,7 @@ export const isLoaded = () =>
         until.visibilityOf(saveButton),
       ),
     )
-    .then(() => browser.sleep(1000));
+    .then(() => browser.sleep(3000));
 
 const getValue = () => (window as any).monaco.editor.getModels()[0].getValue();
 export const getEditorContent = async (): Promise<string> => await browser.executeScript(getValue);

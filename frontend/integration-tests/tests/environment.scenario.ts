@@ -8,7 +8,7 @@ import * as environmentView from '../views/environment.view';
 import * as yamlView from '../views/yaml.view';
 import { execSync } from 'child_process';
 
-const BROWSER_TIMEOUT = 15000;
+const BROWSER_TIMEOUT = 45000;
 const WORKLOAD_NAME = `env-${testName}`;
 const Actions = {
   add: 'add',

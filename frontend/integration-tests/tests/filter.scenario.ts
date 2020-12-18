@@ -7,7 +7,7 @@ import * as crudView from '../views/crud.view';
 import * as searchView from '../views/search.view';
 import * as yamlView from '../views/yaml.view';
 
-const BROWSER_TIMEOUT = 15000;
+const BROWSER_TIMEOUT = 30000;
 const WORKLOAD_NAME = `filter-${testName}`;
 const WORKLOAD_LABEL = `lbl-filter=${testName}`;
 

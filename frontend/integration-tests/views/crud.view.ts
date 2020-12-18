@@ -22,9 +22,9 @@ export const untilNoLoadersPresent = waitForNone($$('.co-m-loader'));
 export const isLoaded = () =>
   browser
     .wait(until.and(untilNoLoadersPresent, untilLoadingBoxLoaded))
-    .then(() => browser.sleep(1000));
+    .then(() => browser.sleep(3000));
 export const resourceRowsPresent = () =>
-  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 20000);
+  browser.wait(until.presenceOf($('.co-m-resource-icon + a')), 30000);
 export const errorPage = $('[data-test-id="error-page"]');
 
 export const resourceRows = $$('[data-test-rows="resource-row"]');
@@ -175,7 +175,14 @@ export const createNamespacedTestResource = async (kindModel, name) => {
   const content = await yamlView.getEditorContent();
   const newContent = _.defaultsDeep(
     {},
-    { metadata: { name, labels: { automatedTestName: testName } } },
+    {
+      metadata: { name, labels: { automatedTestName: testName } },
+      spec: {
+        template: {
+          spec: { containers: [{ image: 'quay.io/multiarch-origin-e2e/hello-openshift:latest' }] },
+        },
+      },
+    },
     safeLoad(content),
   );
   await yamlView.setEditorContent(safeDump(newContent));
