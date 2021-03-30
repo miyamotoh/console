@@ -37,6 +37,7 @@ describe('OAuth', () => {
       await oauthView.basicAuthLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.basicAuthURLInput.sendKeys('https://example.com');
       await oauthView.addIDPButton.click();
@@ -54,7 +55,7 @@ describe('OAuth', () => {
   });
 
   describe('GitHub IDP', () => {
-    const idpName = `githubgithub-${testName}`;
+    const idpName = `github-${testName}`;
     it('creates a GitHub IDP', async () => {
       await browser.get(oauthSettingsURL);
       await browser.wait(until.elementToBeClickable(oauthView.addIDPDropdown));
@@ -63,6 +64,7 @@ describe('OAuth', () => {
       await oauthView.githubLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.githubClientIDInput.sendKeys('my-client-id');
       await oauthView.githubClientSecretInput.sendKeys('my-client-secret');
@@ -91,6 +93,7 @@ describe('OAuth', () => {
       await oauthView.gitlabLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.gitlabURLInput.sendKeys('https://example.com');
       await oauthView.gitlabClientIDInput.sendKeys('my-client-id');
@@ -119,6 +122,7 @@ describe('OAuth', () => {
       await oauthView.googleLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.googleClientIDInput.sendKeys('my-client-id');
       await oauthView.googleClientSecretInput.sendKeys('my-client-secret');
@@ -147,6 +151,7 @@ describe('OAuth', () => {
       await oauthView.keystoneLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.keystoneDomainInput.sendKeys('example.com');
       await oauthView.keystoneURLInput.sendKeys('https://example.com');
@@ -174,6 +179,7 @@ describe('OAuth', () => {
       await oauthView.ldapLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.ldapURLInput.sendKeys('ldap://ldap.example.com/o=Acme?cn?sub?(enabled=true)');
       await oauthView.addIDPButton.click();
@@ -200,6 +206,7 @@ describe('OAuth', () => {
       await oauthView.oidcLink.click();
       await browser.wait(until.elementToBeClickable(oauthView.idpNameInput));
       await oauthView.idpNameInput.clear();
+      await oauthView.idpNameInput.sendKeys('\b\b\b\b\b\b\b\b\b\b'); // just to be sure the default name is cleared
       await oauthView.idpNameInput.sendKeys(idpName);
       await oauthView.oidcClientIDInput.sendKeys('my-client-id');
       await oauthView.oidcClientSecretInput.sendKeys('my-client-secret');
